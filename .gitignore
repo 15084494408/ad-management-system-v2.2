@@ -1,0 +1,24 @@
+# ===== 前端 =====
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# ===== 后端 =====
+backend/node_modules/
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/*.log
+backend/logs/
+
+# ===== 上传文件 =====
+backend/uploads/
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ===== 系统文件 =====
+Thumbs.db
