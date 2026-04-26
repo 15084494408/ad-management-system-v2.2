@@ -35,9 +35,7 @@
         <label>客户标签</label>
         <select v-model="searchForm.tag" class="form-control">
           <option value="">全部</option>
-          <option value="优质客户">优质客户</option>
-          <option value="长期合作">长期合作</option>
-          <option value="散客">散客</option>
+          <option v-for="t in tagOptions" :key="t.id" :value="t.name">{{ t.icon || '🏷️' }} {{ t.name }}</option>
         </select>
       </div>
       <div class="form-group" style="align-self:flex-end;">
@@ -137,8 +135,8 @@
               <input v-model="editForm.contact" type="text" class="form-input" placeholder="联系人姓名">
             </div>
             <div class="form-group">
-              <label class="form-label">联系电话 *</label>
-              <input v-model="editForm.phone" type="tel" class="form-input" placeholder="手机号码">
+              <label class="form-label">联系电话</label>
+              <input v-model="editForm.phone" type="tel" class="form-input" placeholder="手机号码（选填）">
             </div>
           </div>
           <div class="form-row">
@@ -153,7 +151,10 @@
             </div>
             <div class="form-group">
               <label class="form-label">客户标签</label>
-              <input v-model="editForm.tags" type="text" class="form-input" placeholder="如: 优质客户,长期合作">
+              <select v-model="editForm.tags" class="form-input">
+                <option value="">无标签</option>
+                <option v-for="t in tagOptions" :key="t.id" :value="t.name">{{ t.icon || '🏷️' }} {{ t.name }}</option>
+              </select>
             </div>
           </div>
           <div class="form-row full">
@@ -316,6 +317,16 @@ function getLevelName(level: any) { return levelNames[level] || '普通会员' }
 
 const list = ref<any[]>([])
 const loading = ref(false)
+const tagOptions = ref<any[]>([])
+
+async function loadTags() {
+  try {
+    const res = await request.get('/customers/tags')
+    tagOptions.value = res.data || []
+  } catch {
+    tagOptions.value = []
+  }
+}
 const total = ref(0)
 const current = ref(1)
 const size = ref(10)
@@ -366,7 +377,8 @@ async function loadData() {
         current: current.value,
         size: size.value,
         keyword: searchForm.value.keyword || undefined,
-        type: searchForm.value.type || undefined
+        type: searchForm.value.type || undefined,
+        tag: searchForm.value.tag || undefined
       }
     })
     const data = res.data
@@ -412,8 +424,8 @@ function viewCustomer(row: any) {
 }
 
 async function saveCustomer() {
-  if (!editForm.value.name || !editForm.value.phone) {
-    ElMessage.warning('请填写客户名称和联系电话')
+  if (!editForm.value.name) {
+    ElMessage.warning('请填写客户名称')
     return
   }
   try {
@@ -445,5 +457,5 @@ function handleExport() {
   ElMessage.info('导出功能开发中')
 }
 
-onMounted(loadData)
+onMounted(() => { loadData(); loadTags() })
 </script>
