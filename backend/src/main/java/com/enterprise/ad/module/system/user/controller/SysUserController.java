@@ -98,11 +98,8 @@ public class SysUserController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除用户")
     public Result<Void> delete(@PathVariable Long id) {
-        SysUser user = new SysUser();
-        user.setId(id);
-        user.setDeleted(1);
-        user.setUpdateTime(LocalDateTime.now());
-        sysUserMapper.updateById(user);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        sysUserMapper.deleteById(id);
         return Result.ok();
     }
 

@@ -73,11 +73,8 @@ public class SysButtonController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除按钮")
     public Result<Void> delete(@PathVariable Long id) {
-        SysButton button = new SysButton();
-        button.setId(id);
-        button.setDeleted(1);
-        button.setUpdateTime(LocalDateTime.now());
-        buttonMapper.updateById(button);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        buttonMapper.deleteById(id);
         return Result.ok();
     }
 }

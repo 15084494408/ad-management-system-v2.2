@@ -14,6 +14,10 @@ public class Material {
     private String code;              // 物料编码
     private Long categoryId;          // 分类ID
     private String categoryName;      // 分类名称（冗余）
+    private String paperType;         // 纸张类型：A4/A3/SRA3 等
+    private String paperSpec;         // 纸张材质：80g双胶/128铜版/157铜版 等
+    private Integer colourType;       // 色彩类型：0黑白 1彩色
+    private String paperGroup;        // 纸张分组标识（同尺寸+材质共享库存），如 A4-128G-TB
     private String spec;              // 规格
     private String unit;              // 单位
     private BigDecimal price;        // 零售价

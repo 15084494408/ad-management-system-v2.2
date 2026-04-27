@@ -134,9 +134,13 @@
               <div class="finance-label" style="color:#409eff;">已收金额</div>
               <div class="finance-value" style="color:#409eff;">¥{{ formatMoney(detailData.paidAmount) }}</div>
             </div>
+            <div class="finance-card" v-if="(detailData?.roundingAmount || 0) > 0" style="border-color:#e6a23c;">
+              <div class="finance-label" style="color:#e6a23c;">抹零金额</div>
+              <div class="finance-value" style="color:#e6a23c;">-¥{{ formatMoney(detailData?.roundingAmount) }}</div>
+            </div>
             <div class="finance-card" style="border-color:#f56c6c;">
               <div class="finance-label" style="color:#f56c6c;">待收余额</div>
-              <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney((detailData.totalAmount || 0) - (detailData.paidAmount || 0)) }}</div>
+              <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney((detailData.totalAmount || 0) - (detailData.paidAmount || 0) - (detailData?.roundingAmount || 0)) }}</div>
             </div>
           </div>
         </div>
@@ -176,9 +180,24 @@
 
     <!-- 登记收款弹窗 -->
     <div class="modal-overlay" v-if="paymentVisible" @click.self="paymentVisible = false">
-      <div class="modal-container" style="max-width:460px;">
+      <div class="modal-container" style="max-width:520px;">
         <div class="modal-header"><h3>💰 登记收款</h3><button class="modal-close" @click="paymentVisible = false">&times;</button></div>
         <div class="modal-body">
+          <!-- 收款信息概览 -->
+          <div style="background:#f5f7fa;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="color:#909399;">订单总额</span>
+              <span style="font-weight:600;">¥{{ formatMoney(detailData?.totalAmount) }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="color:#909399;">已付金额</span>
+              <span style="font-weight:600;color:#67c23a;">¥{{ formatMoney(detailData?.paidAmount) }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:#909399;font-weight:600;">待收金额</span>
+              <span style="font-weight:600;color:#f56c6c;">¥{{ formatMoney(remainingAmount) }}</span>
+            </div>
+          </div>
           <div class="form-group">
             <label class="form-label">收款金额 *</label>
             <input type="number" class="form-input" v-model.number="paymentForm.amount" placeholder="0.00" min="0" step="0.01">
@@ -190,6 +209,27 @@
               <option value="银行转账">银行转账</option><option value="现金">现金</option>
             </select>
           </div>
+          <!-- 抹零选项 -->
+          <div style="border:1px dashed #dcdfe6;border-radius:8px;padding:12px 16px;margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#e6a23c;">
+              <input type="checkbox" v-model="paymentForm.writeOff" style="width:18px;height:18px;">
+              ✂️ 抹零结清
+            </label>
+            <div v-if="paymentForm.writeOff" style="margin-top:8px;padding:8px 12px;background:#fdf6ec;border-radius:6px;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span>本次收款</span>
+                <span>¥{{ formatMoney(paymentForm.amount) }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:#f56c6c;margin-top:4px;">
+                <span>抹零金额</span>
+                <span>¥{{ formatMoney(Math.max(remainingAmount - (paymentForm.amount || 0), 0)) }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;font-weight:600;">
+                <span>订单状态</span>
+                <span style="color:#67c23a;">抹零结清 ✅</span>
+              </div>
+            </div>
+          </div>
           <div class="form-group">
             <label class="form-label">备注</label>
             <textarea class="form-input" v-model="paymentForm.remark" rows="2" placeholder="可选"></textarea>
@@ -197,7 +237,9 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-default" @click="paymentVisible = false">取消</button>
-          <button class="btn btn-success" @click="submitPayment">💰 确认收款</button>
+          <button class="btn btn-success" @click="submitPayment">
+            💰 {{ paymentForm.writeOff ? '抹零结清' : '确认收款' }}
+          </button>
         </div>
       </div>
     </div>
@@ -217,7 +259,7 @@ const activeTab = ref('basic')
 const statusFlow = ['待确认', '进行中', '已完成', '已取消']
 const statusLabelMap: Record<number, string> = { 1: '待确认', 2: '进行中', 3: '已完成', 4: '已取消' }
 const statusKeyMap: Record<number, string> = { 1: 'pending', 2: 'designing', 3: 'completed', 4: 'cancelled' }
-const payLabelMap: Record<number, string> = { 1: '未付款', 2: '部分付', 3: '已付清' }
+const payLabelMap: Record<number, string> = { 1: '未付款', 2: '部分付', 3: '已付清', 4: '已抹零结清' }
 const payKeyMap: Record<number, string> = { 1: 'cancelled', 2: 'delivery', 3: 'completed' }
 const orderTypeMap: Record<number, string> = { 1: '图文打印', 2: '广告制作', 3: '设计服务', 4: '装订服务', 5: '其他' }
 
@@ -232,7 +274,12 @@ const detailStatusIdx = computed(() => {
 const processVisible = ref(false)
 const processForm = reactive({ designerName: '', deliveryDate: '' })
 const paymentVisible = ref(false)
-const paymentForm = reactive({ amount: 0, method: '微信', remark: '' })
+const paymentForm = reactive({ amount: 0, method: '微信', remark: '', writeOff: false })
+const remainingAmount = computed(() => {
+  const total = detailData.value?.totalAmount || 0
+  const paid = detailData.value?.paidAmount || 0
+  return Math.max(total - paid, 0)
+})
 
 async function loadDetail() {
   loading.value = true
@@ -262,8 +309,9 @@ async function confirmDelivery() {
 
 async function submitPayment() {
   if (!paymentForm.amount || paymentForm.amount <= 0) { alert('请输入有效金额'); return }
+  if (paymentForm.writeOff && paymentForm.amount > remainingAmount.value) { alert('收款金额不能超过待收金额'); return }
   await orderApi.addPayment(detailData.value.id, paymentForm)
-  paymentVisible.value = false; paymentForm.amount = 0; loadDetail()
+  paymentVisible.value = false; paymentForm.amount = 0; paymentForm.writeOff = false; loadDetail()
 }
 
 function formatMoney(v: any) {

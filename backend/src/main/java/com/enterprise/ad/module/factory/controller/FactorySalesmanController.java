@@ -114,11 +114,8 @@ public class FactorySalesmanController {
     @Operation(summary = "删除业务员")
     @PreAuthorize("hasAuthority('factory:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        FactorySalesman s = new FactorySalesman();
-        s.setId(id);
-        s.setDeleted(1);
-        s.setUpdateTime(LocalDateTime.now());
-        salesmanMapper.updateById(s);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        salesmanMapper.deleteById(id);
         return Result.ok();
     }
 

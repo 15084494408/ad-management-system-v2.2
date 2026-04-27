@@ -167,7 +167,7 @@ function viewDetail(row: any) { ElMessage.info('查看发票: ' + row.invoiceNo)
 function issueInvoice(row: any) { ElMessage.success('发票已开具: ' + row.invoiceNo) }
 function cancelInvoice(row: any) { ElMessage.warning('发票已作废: ' + row.invoiceNo) }
 async function submitForm() {
-  try { await request.post('/finance/invoice/save', formData); ElMessage.success('保存成功'); dialogVisible.value = false; loadData() } catch {}
+  try { await request.post('/finance/invoice/save', formData); ElMessage.success('保存成功'); dialogVisible.value = false; loadData() } catch { ElMessage.error('保存失败') }
 }
 onMounted(loadData)
 </script>

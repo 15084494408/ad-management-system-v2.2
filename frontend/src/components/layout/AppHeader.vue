@@ -61,9 +61,10 @@
             >
             <div class="company-selector-wrapper">
               <select class="quick-select" v-model="quickForm.company" @change="onCompanyChange">
-                <option value="零售客户">🏪 零售客户（默认）</option>
-                <option value="华润大厦">🏢 华润大厦</option>
-                <option value="万达集团">🏢 万达集团</option>
+                <option value="" disabled>选择公司/客户...</option>
+                <option v-for="c in companyList" :key="c.id" :value="c.name">
+                  {{ c.customerType === 2 ? '🏭' : '🏢' }} {{ c.name }}
+                </option>
                 <option value="new">➕ 新建公司...</option>
               </select>
               <input
@@ -77,13 +78,15 @@
             <select class="quick-select" v-model="quickForm.category">
               <option value="图文类">📄 图文类</option>
               <option value="广告类">🎨 广告类</option>
+              <option value="印刷类">🖨️ 印刷类</option>
+              <option value="设计费">🎨 设计费</option>
+              <option value="其他">📝 其他</option>
             </select>
             <select class="quick-select" v-model="quickForm.paymentMethod">
-              <option value="1">💵 现金</option>
-              <option value="2">💚 微信</option>
-              <option value="3">💙 支付宝</option>
-              <option value="4">💳 银行卡</option>
-              <option value="5">📱 其他</option>
+              <option value="cash">💵 现金</option>
+              <option value="wechat">💚 微信</option>
+              <option value="alipay">💙 支付宝</option>
+              <option value="transfer">💳 银行转账</option>
             </select>
             <input v-model="quickForm.remark" type="text" class="form-input" placeholder="备注说明（可选）">
             <button class="quick-submit" @click="submitQuickAccount" :disabled="submitting">
@@ -167,7 +170,7 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useFinanceStore } from '@/stores/finance'
-import { financeApi } from '@/api/modules/finance'
+import { financeApi, customerApi } from '@/api'
 
 defineEmits(['toggle-sidebar'])
 const props = defineProps<{ collapsed?: boolean }>()
@@ -194,12 +197,13 @@ const showQuickAccount = ref(false)
 const submitting = ref(false)
 const quickAmountRef = ref<HTMLInputElement>()
 const showNewCompany = ref(false)
+const companyList = ref<any[]>([])
 const quickForm = ref({
   amount: '',
-  company: '零售客户',
+  company: '',
   newCompany: '',
   category: '图文类',
-  paymentMethod: '1',
+  paymentMethod: 'cash',
   remark: ''
 })
 
@@ -239,20 +243,24 @@ async function submitQuickAccount() {
     ElMessage.warning('请输入有效金额')
     return
   }
+  const company = quickForm.value.company === 'new' ? quickForm.value.newCompany : quickForm.value.company
+  if (!company) {
+    ElMessage.warning('请选择或输入公司/客户名称')
+    return
+  }
   submitting.value = true
   try {
-    const company = quickForm.value.company === 'new' ? quickForm.value.newCompany : quickForm.value.company
     await financeApi.createQuickRecord({
       type: 'income',
       amount: Number(quickForm.value.amount),
       category: quickForm.value.category,
+      relatedName: company,
       paymentMethod: quickForm.value.paymentMethod,
-      company,
       remark: quickForm.value.remark
     })
     ElMessage.success('记账成功')
-    financeStore.triggerRefresh()   // 全局通知：财务数据已变更，所有页面自动刷新
-    quickForm.value = { amount: '', company: '零售客户', newCompany: '', category: '图文类', paymentMethod: '1', remark: '' }
+    financeStore.triggerRefresh()
+    quickForm.value = { amount: '', company: '', newCompany: '', category: '图文类', paymentMethod: 'cash', remark: '' }
     showNewCompany.value = false
     showQuickAccount.value = false
   } catch (e: any) {
@@ -262,9 +270,20 @@ async function submitQuickAccount() {
   }
 }
 
-// 弹窗打开后自动聚焦金额输入框
+// 加载客户列表
+async function loadCompanyList() {
+  try {
+    const r = await customerApi.getList({ current: 1, size: 200 })
+    companyList.value = r.data?.records || []
+  } catch {
+    companyList.value = []
+  }
+}
+
+// 弹窗打开后自动聚焦金额输入框 + 刷新客户列表
 watch(showQuickAccount, (val) => {
   if (val) {
+    loadCompanyList()
     nextTick(() => quickAmountRef.value?.focus())
   }
 })
@@ -275,6 +294,7 @@ function onShowQuickAccount() {
 }
 onMounted(() => {
   window.addEventListener('show-quick-account', onShowQuickAccount)
+  loadCompanyList()
 })
 onUnmounted(() => {
   window.removeEventListener('show-quick-account', onShowQuickAccount)

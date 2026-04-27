@@ -19,32 +19,31 @@
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon green">💵</div>
+        <div class="stat-icon green">📈</div>
         <div class="stat-info">
-          <h3>¥{{ todayTotal?.toLocaleString() || 0 }}</h3>
-          <p>今日流水</p>
-          <div class="stat-trend up">↑ ¥320 较昨日</div>
+          <h3>¥{{ stats.totalIncome?.toLocaleString() || '0.00' }}</h3>
+          <p>总收入</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">📉</div>
+        <div class="stat-info">
+          <h3>¥{{ stats.totalExpense?.toLocaleString() || '0.00' }}</h3>
+          <p>总支出</p>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon blue">📊</div>
         <div class="stat-info">
-          <h3>{{ todayCount || 0 }}</h3>
-          <p>今日笔数</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon orange">📈</div>
-        <div class="stat-info">
-          <h3>¥{{ avgAmount || 0 }}</h3>
-          <p>平均每笔</p>
+          <h3>¥{{ stats.netAmount?.toLocaleString() || '0.00' }}</h3>
+          <p>净流水</p>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon purple">🏆</div>
         <div class="stat-info">
-          <h3>¥{{ maxAmount || 0 }}</h3>
-          <p>最高单笔</p>
+          <h3>{{ total || 0 }}</h3>
+          <p>总笔数</p>
         </div>
       </div>
     </div>
@@ -56,28 +55,19 @@
         <input type="date" v-model="searchForm.startDate" class="form-control">
       </div>
       <div class="form-group">
-        <label>流水类型</label>
-        <select v-model="searchForm.type" class="form-control">
-          <option value="">全部</option>
-          <option value="print">图文打印</option>
-          <option value="copy">复印扫描</option>
-          <option value="binding">装订</option>
-          <option value="ad">广告制作</option>
-          <option value="other">其他</option>
-        </select>
+        <label>至</label>
+        <input type="date" v-model="searchForm.endDate" class="form-control">
       </div>
       <div class="form-group">
-        <label>支付方式</label>
-        <select v-model="searchForm.paymentMethod" class="form-control">
+        <label>收支方向</label>
+        <select v-model="searchForm.direction" class="form-control">
           <option value="">全部</option>
-          <option value="cash">现金</option>
-          <option value="wechat">微信</option>
-          <option value="alipay">支付宝</option>
-          <option value="bank">银行卡</option>
+          <option value="income">仅收入</option>
+          <option value="expense">仅支出</option>
         </select>
       </div>
       <div class="form-group" style="align-self:flex-end;">
-        <button class="btn btn-primary" @click="loadData">🔍 搜索</button>
+        <button class="btn btn-primary" @click="currentPage=1; loadData()">🔍 搜索</button>
       </div>
     </div>
 
@@ -86,35 +76,43 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>流水编号</th>
+            <th>编号</th>
             <th>金额</th>
-            <th>类型</th>
+            <th>方向</th>
+            <th>来源</th>
+            <th>分类</th>
+            <th>关联对象</th>
             <th>支付方式</th>
             <th>备注</th>
-            <th>记账人</th>
-            <th>发生时间</th>
-            <th>操作</th>
+            <th>时间</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="record in tableData" :key="record.id">
-            <td>{{ record.recordNo || 'LF' + record.id }}</td>
+          <tr v-for="record in tableData" :key="record.record_no + record.create_time">
+            <td style="font-size:12px;color:#606266;">{{ record.record_no || '-' }}</td>
             <td :class="record.direction === 'income' ? 'income-amount' : 'expense-amount'">
-              {{ record.direction === 'income' ? '+' : '-' }}¥{{ record.amount?.toLocaleString() || 0 }}
+              {{ record.direction === 'income' ? '+' : '-' }}¥{{ Number(record.amount).toLocaleString() }}
             </td>
             <td>
-              <span class="tag" :class="'tag-' + (record.type || 'primary')">{{ record.category || '图文打印' }}</span>
+              <span class="tag" :class="record.direction === 'income' ? 'tag-success' : 'tag-danger'">
+                {{ record.direction === 'income' ? '收入' : '支出' }}
+              </span>
             </td>
             <td>
-              <span class="tag" :class="'tag-' + getPaymentTag(record.paymentMethod)">{{ getPaymentLabel(record.paymentMethod) }}</span>
+              <span class="tag" :class="'tag-' + getSourceTag(record.source)">{{ getSourceLabel(record.source) }}</span>
             </td>
-            <td>{{ record.remark || '-' }}</td>
-            <td>{{ record.createBy || '系统' }}</td>
-            <td>{{ record.createTime }}</td>
-            <td class="action-btns">
-              <button class="action-btn view" @click="showDetail(record)">详情</button>
-              <button class="action-btn edit" @click="showEdit(record)">修改</button>
+            <td>{{ record.category || '-' }}</td>
+            <td>{{ record.related_name || '-' }}</td>
+            <td>
+              <span class="tag" :class="'tag-' + getPaymentTag(record.payment_method)">{{ getPaymentLabel(record.payment_method) }}</span>
             </td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="record.remark">
+              {{ record.remark || '-' }}
+            </td>
+            <td style="font-size:12px;color:#909399;">{{ formatTime(record.create_time) }}</td>
+          </tr>
+          <tr v-if="!tableData.length">
+            <td colspan="9" style="text-align:center;padding:40px;color:#909399;">暂无流水记录</td>
           </tr>
         </tbody>
       </table>
@@ -138,58 +136,93 @@ import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
-const todayTotal = ref(0)
-const todayCount = ref(0)
-const avgAmount = ref(0)
-const maxAmount = ref(0)
 const total = ref(0)
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const tableData = ref<any[]>([])
 const loading = ref(false)
+const stats = ref<any>({})
 
 const searchForm = reactive({
   startDate: '',
-  type: '',
-  paymentMethod: ''
+  endDate: '',
+  direction: ''
 })
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 const pageNumbers = computed(() => {
-  const pages = []
-  const maxPages = Math.min(totalPages.value, 5)
-  for (let i = 1; i <= maxPages; i++) {
-    pages.push(i)
-  }
+  const pages: number[] = []
+  const start = Math.max(1, currentPage.value - 2)
+  const end = Math.min(totalPages.value, start + 4)
+  for (let i = start; i <= end; i++) pages.push(i)
   return pages
 })
 
-function getPaymentLabel(method: string) {
+function getSourceLabel(source: string): string {
   const map: Record<string, string> = {
-    cash: '现金', wechat: '微信', alipay: '支付宝', bank: '银行卡'
+    quick_record: '快速记账',
+    member_recharge: '会员充值',
+    member_consume: '会员消费',
+    order_income: '订单收款',
+    factory_bill: '工厂付款'
   }
-  return map[method] || method
+  return map[source] || source
 }
 
-function getPaymentTag(method: string) {
+function getSourceTag(source: string): string {
   const map: Record<string, string> = {
-    cash: 'warning', wechat: 'success', alipay: 'primary', bank: 'default'
+    quick_record: 'primary',
+    member_recharge: 'success',
+    member_consume: 'danger',
+    order_income: 'success',
+    factory_bill: 'warning'
+  }
+  return map[source] || 'default'
+}
+
+function getPaymentLabel(method: string): string {
+  const map: Record<string, string> = {
+    cash: '现金', wechat: '微信', alipay: '支付宝', bank: '银行卡', transfer: '银行转账'
+  }
+  return map[method] || method || '-'
+}
+
+function getPaymentTag(method: string): string {
+  const map: Record<string, string> = {
+    cash: 'warning', wechat: 'success', alipay: 'primary', bank: 'default', transfer: 'default'
   }
   return map[method] || 'default'
+}
+
+function formatTime(time: string): string {
+  if (!time) return '-'
+  return time.replace('T', ' ').substring(0, 19)
 }
 
 async function loadData() {
   loading.value = true
   try {
-    const res = await financeApi.getRecords({
+    const params: Record<string, any> = {
       current: currentPage.value,
-      size: pageSize.value,
-      type: searchForm.type,
-      paymentMethod: searchForm.paymentMethod
-    })
+      size: pageSize.value
+    }
+    if (searchForm.startDate) params.startDate = searchForm.startDate
+    if (searchForm.endDate) params.endDate = searchForm.endDate
+    if (searchForm.direction) params.direction = searchForm.direction
+
+    const res = await financeApi.getAllFlow(params)
     if (res.code === 200) {
       tableData.value = res.data?.records || []
       total.value = res.data?.total || 0
+    }
+
+    // 同时加载统计数据
+    const summaryParams: Record<string, any> = {}
+    if (searchForm.startDate) summaryParams.startDate = searchForm.startDate
+    if (searchForm.endDate) summaryParams.endDate = searchForm.endDate
+    const summaryRes = await financeApi.getOverview(summaryParams)
+    if (summaryRes.code === 200) {
+      stats.value = summaryRes.data || {}
     }
   } catch (e) {
     ElMessage.error('加载失败')
@@ -200,18 +233,6 @@ async function loadData() {
 
 function showQuickRecord() {
   window.dispatchEvent(new CustomEvent('show-quick-account'))
-}
-
-function showDetail(record: any) {
-  ElMessage.info('查看详情: ' + record.id)
-}
-
-function showEdit(record: any) {
-  ElMessage.info('编辑: ' + record.id)
-}
-
-function exportData() {
-  ElMessage.success('导出成功')
 }
 
 onMounted(() => {
@@ -227,11 +248,11 @@ onMounted(() => {
 
 .tag {
   display: inline-block; padding: 3px 8px; border-radius: 4px;
-  font-size: 11px; margin-right: 5px;
+  font-size: 11px; margin-right: 5px; white-space: nowrap;
 }
-.tag-primary { background: #ecf5ff; color: $primary; }
-.tag-success { background: #f0f9eb; color: $success; }
-.tag-warning { background: #fdf6ec; color: $warning; }
-.tag-danger { background: #fef0f0; color: $danger; }
+.tag-primary { background: #ecf5ff; color: #409eff; }
+.tag-success { background: #f0f9eb; color: #67c23a; }
+.tag-warning { background: #fdf6ec; color: #e6a23c; }
+.tag-danger { background: #fef0f0; color: #f56c6c; }
 .tag-default { background: #f4f4f5; color: #909399; }
 </style>

@@ -100,10 +100,8 @@ public class FinanceController {
     @Operation(summary = "删除财务记录")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Void> deleteRecord(@PathVariable Long id) {
-        FinanceRecord record = new FinanceRecord();
-        record.setId(id);
-        record.setDeleted(1);
-        financeRecordMapper.updateById(record);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        financeRecordMapper.deleteById(id);
         return Result.ok();
     }
 
@@ -405,6 +403,32 @@ public class FinanceController {
             "netAmount", income.subtract(expense),
             "recordCount", records.size()
         ));
+    }
+
+    // ========== 统一流水（聚合所有收支来源） ==========
+
+    @GetMapping("/all-flow")
+    @Operation(summary = "统一流水列表（聚合快速记账+会员充值消费+订单收款+工厂付款）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public Result<Map<String, Object>> allFlow(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
+            @RequestParam(required = false) String direction) {
+        String startStr = startDate != null ? startDate.atStartOfDay().toString() : null;
+        String endStr = endDate != null ? endDate.atTime(23, 59, 59).toString() : null;
+        long offset = (current - 1) * size;
+
+        long total = financeRecordMapper.countAllFlow(startStr, endStr, direction);
+        List<Map<String, Object>> records = financeRecordMapper.selectAllFlow(startStr, endStr, direction, size, offset);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", total);
+        result.put("current", current);
+        result.put("size", size);
+        result.put("records", records);
+        return Result.ok(result);
     }
 
     // ========== 导出接口（简化版，返回提示） ==========

@@ -114,21 +114,33 @@ public class MaterialController {
     }
 
     @GetMapping("/warning")
-    @Operation(summary = "库存预警列表")
+    @Operation(summary = "库存预警列表（纸张类按分组去重）")
     public Result<List<Material>> listWarning() {
-        List<Material> list = materialMapper.selectList(
-            new LambdaQueryWrapper<Material>()
-                .eq(Material::getDeleted, 0)
-                .eq(Material::getStatus, 1)
-                .apply("(stock_quantity <= warning_quantity OR stock_quantity <= min_quantity)")
-                .orderByAsc(Material::getName)
-        );
-        return Result.ok(list);
+        LambdaQueryWrapper<Material> baseQw = new LambdaQueryWrapper<Material>()
+            .eq(Material::getDeleted, 0)
+            .eq(Material::getStatus, 1)
+            .apply("(stock_quantity <= warning_quantity OR stock_quantity <= min_quantity)")
+            .orderByAsc(Material::getName);
+        List<Material> allWarnings = materialMapper.selectList(baseQw);
+
+        // ★ 纸张类物料按 paperGroup 去重（同组只保留一个）
+        List<Material> result = new java.util.ArrayList<>();
+        java.util.Set<String> seenGroups = new java.util.HashSet<>();
+        for (Material m : allWarnings) {
+            String group = m.getPaperGroup();
+            if (group != null && !group.isBlank()) {
+                if (seenGroups.contains(group)) continue;
+                seenGroups.add(group);
+            }
+            result.add(m);
+        }
+        return Result.ok(result);
     }
 
     @PostMapping
     @Operation(summary = "新增物料")
     public Result<Void> create(@RequestBody Material material) {
+        // id 由全局 AutoIdClearInterceptor 自动清空，无需手动处理
         material.setCreateTime(LocalDateTime.now());
         material.setStatus(1);
         if (material.getStockQuantity() == null) material.setStockQuantity(0);
@@ -148,11 +160,8 @@ public class MaterialController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除物料")
     public Result<Void> delete(@PathVariable Long id) {
-        Material m = new Material();
-        m.setId(id);
-        m.setDeleted(1);
-        m.setUpdateTime(LocalDateTime.now());
-        materialMapper.updateById(m);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        materialMapper.deleteById(id);
         return Result.ok();
     }
 
@@ -194,6 +203,10 @@ public class MaterialController {
         material.setStockQuantity(material.getStockQuantity() + quantity);
         material.setUpdateTime(LocalDateTime.now());
         materialMapper.updateById(material);
+
+        // ★ 纸张分组：同步同组其他物料的库存（同一纸张类型+材质共享库存）
+        syncPaperGroupStock(material, material.getStockQuantity());
+
         return Result.ok();
     }
 
@@ -235,7 +248,34 @@ public class MaterialController {
         material.setStockQuantity(material.getStockQuantity() - quantity);
         material.setUpdateTime(LocalDateTime.now());
         materialMapper.updateById(material);
+
+        // ★ 纸张分组：同步同组其他物料的库存
+        syncPaperGroupStock(material, material.getStockQuantity());
+
         return Result.ok();
+    }
+
+    /**
+     * 同步同纸张分组（paperGroup）的其他物料的库存数量
+     * 同一 paperGroup（同纸张类型+材质）的黑白/彩色共享库存
+     */
+    private void syncPaperGroupStock(Material source, int newStock) {
+        String paperGroup = source.getPaperGroup();
+        if (paperGroup == null || paperGroup.isBlank()) {
+            return;
+        }
+        List<Material> siblings = materialMapper.selectList(
+            new LambdaQueryWrapper<Material>()
+                .eq(Material::getPaperGroup, paperGroup)
+                .eq(Material::getDeleted, 0)
+                .ne(Material::getId, source.getId())
+        );
+        LocalDateTime now = LocalDateTime.now();
+        for (Material m : siblings) {
+            m.setStockQuantity(newStock);
+            m.setUpdateTime(now);
+            materialMapper.updateById(m);
+        }
     }
 
     @GetMapping("/stock-log")

@@ -83,11 +83,8 @@ public class DataBackupController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除备份记录")
     public Result<Void> delete(@PathVariable Long id) {
-        SysBackup backup = new SysBackup();
-        backup.setId(id);
-        backup.setDeleted(1);
-        backup.setUpdateTime(LocalDateTime.now());
-        backupMapper.updateById(backup);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        backupMapper.deleteById(id);
         return Result.ok();
     }
 

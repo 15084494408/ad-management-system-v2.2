@@ -226,11 +226,8 @@ public class MemberController {
     @Operation(summary = "删除会员")
     @PreAuthorize("hasAuthority('member:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        Member member = new Member();
-        member.setId(id);
-        member.setDeleted(1);
-        member.setUpdateTime(LocalDateTime.now());
-        memberMapper.updateById(member);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        memberMapper.deleteById(id);
         return Result.ok();
     }
 

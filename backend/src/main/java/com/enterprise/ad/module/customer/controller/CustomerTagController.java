@@ -66,11 +66,8 @@ public class CustomerTagController {
     @Operation(summary = "删除标签")
     @PreAuthorize("hasAuthority('customer:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        CustomerTag tag = new CustomerTag();
-        tag.setId(id);
-        tag.setDeleted(1);
-        tag.setUpdateTime(LocalDateTime.now());
-        customerTagMapper.updateById(tag);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        customerTagMapper.deleteById(id);
         return Result.ok();
     }
 }

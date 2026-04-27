@@ -128,6 +128,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/finance/FinanceReportView.vue'),
         meta: { title: '财务报表' },
       },
+      {
+        path: 'finance/designer-commission',
+        name: 'DesignerCommission',
+        component: () => import('@/views/finance/DesignerCommissionView.vue'),
+        meta: { title: '设计提成' },
+      },
 
       // ── 系统管理 ──
       {
@@ -334,32 +340,47 @@ router.beforeEach(async (to, _from, next) => {
   document.title = `${to.meta.title || '管理系统'} - 企业广告管理`
   const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth !== false && !authStore.token) {
-    // 未登录 → 跳转登录页
-    next({ path: '/login', query: { redirect: to.fullPath } })
-  } else if (to.path === '/login' && authStore.token) {
-    // 有 token 访问登录页 → 先验证 token 是否仍然有效
-    try {
-      await authStore.fetchUserInfo()
-      next('/')
-    } catch {
-      // token 过期/失效 → 清除后停留在登录页
-      authStore.clearToken()
-      next()
+  // 登录页：有 token 就验证，无效则清掉留在登录页
+  if (to.path === '/login') {
+    if (authStore.token) {
+      try {
+        await authStore.fetchUserInfo()
+        next('/')
+        return
+      } catch {
+        authStore.clearToken()
+      }
     }
-  } else if (authStore.token && authStore.permissions.length === 0) {
-    // token 存在但权限未加载（页面刷新） → 重新验证
+    next()
+    return
+  }
+
+  // 不需要认证的页面直接放行
+  if (to.meta.requiresAuth === false) {
+    next()
+    return
+  }
+
+  // 没有 token → 跳登录
+  if (!authStore.token) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 有 token 但还没有用户信息 → 必须先验证
+  if (!authStore.userInfo) {
     try {
       await authStore.fetchUserInfo()
       next()
     } catch {
-      // token 过期或后端不可用 → 清除并跳登录
       authStore.clearToken()
       next({ path: '/login', query: { redirect: to.fullPath } })
     }
-  } else {
-    next()
+    return
   }
+
+  // token 有效且已加载用户信息 → 放行
+  next()
 })
 
 router.afterEach(() => NProgress.done())

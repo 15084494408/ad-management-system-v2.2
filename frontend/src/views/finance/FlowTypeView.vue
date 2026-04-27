@@ -148,9 +148,7 @@ const saveType = async () => {
     dialogVisible.value = false
     loadData()
   } catch (e) {
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
-    loadData()
+    ElMessage.error('保存失败')
   }
 }
 

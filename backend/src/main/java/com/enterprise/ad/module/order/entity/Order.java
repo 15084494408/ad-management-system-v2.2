@@ -23,14 +23,16 @@ public class Order {
     private BigDecimal totalAmount;  // 订单总额
     private BigDecimal paidAmount;   // 已付金额
     private BigDecimal discountAmount; // 优惠金额
-    private Integer status;          // 状态：1待确认 2进行中 3已完成 4已取消
-    private Integer paymentStatus;   // 支付状态：1未付 2部分付 3已付清
+    private BigDecimal roundingAmount; // 抹零金额（负数表示减免）
+    private Integer paymentStatus;   // 支付状态：1未付 2部分付 3已付清 4已抹零结清
     private String contactPerson;     // 联系人
     private String contactPhone;     // 联系电话
     private String deliveryAddress;  // 交付地址
     private LocalDate deliveryDate;   // 交付日期
     private String designerName;     // 设计师
+    private Long designerId;         // 设计师用户ID
     private Integer priority;        // 优先级：1普通 2紧急 3加急
+    private Integer status;           // 订单状态：1待处理 2进行中 3已完成 4已取消
     private Integer source;          // 来源：1门店创建 2设计广场
     private BigDecimal quoteAmount;  // 报价金额
     private BigDecimal depositAmount;// 定金金额

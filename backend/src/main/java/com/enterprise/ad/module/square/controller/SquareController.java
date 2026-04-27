@@ -91,12 +91,8 @@ public class SquareController {
     @DeleteMapping("/requirement/{id}")
     @Operation(summary = "删除需求")
     public Result<Void> deleteRequirement(@PathVariable Long id) {
-        // ★ 修复：使用逻辑删除
-        SquareRequirement req = new SquareRequirement();
-        req.setId(id);
-        req.setDeleted(1);
-        req.setUpdateTime(LocalDateTime.now());
-        requirementMapper.updateById(req);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        requirementMapper.deleteById(id);
         return Result.ok();
     }
 

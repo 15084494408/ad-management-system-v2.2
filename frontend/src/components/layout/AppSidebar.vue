@@ -136,6 +136,7 @@ const menuGroups = [
           { path: '/finance/invoice', label: '发票管理', perm: 'finance:view' },
           { path: '/finance/arap', label: '应收应付', perm: 'finance:view' },
           { path: '/finance/report', label: '财务报表', perm: 'finance:view' },
+          { path: '/finance/designer-commission', label: '🎨 设计提成', perm: 'finance:view', badge: 'V2.3' },
         ],
       },
     ],

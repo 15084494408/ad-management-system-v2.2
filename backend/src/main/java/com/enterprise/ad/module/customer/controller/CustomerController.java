@@ -198,11 +198,8 @@ public class CustomerController {
     @Operation(summary = "删除客户")
     @PreAuthorize("hasAuthority('customer:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        Customer customer = new Customer();
-        customer.setId(id);
-        customer.setDeleted(1);
-        customer.setUpdateTime(LocalDateTime.now());
-        customerMapper.updateById(customer);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        customerMapper.deleteById(id);
         return Result.ok();
     }
 }
