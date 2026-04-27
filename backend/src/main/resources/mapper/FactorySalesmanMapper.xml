@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.ad.module.factory.mapper.FactorySalesmanMapper">
+
+    <!-- 按工厂ID查询业务员列表（含工厂名称） -->
+    <select id="selectByFactoryId" resultType="com.enterprise.ad.module.factory.entity.FactorySalesman">
+        SELECT
+            s.*,
+            c.customer_name AS factory_name
+        FROM fac_factory_salesman s
+        LEFT JOIN crm_customer c ON s.factory_id = c.id
+        WHERE s.deleted = 0
+        <if test="factoryId != null">
+            AND s.factory_id = #{factoryId}
+        </if>
+        ORDER BY s.status DESC, s.name ASC
+    </select>
+
+    <!-- 按工厂ID查询启用的业务员列表（含工厂名称） -->
+    <select id="selectEnabledByFactoryId" resultType="com.enterprise.ad.module.factory.entity.FactorySalesman">
+        SELECT
+            s.*,
+            c.customer_name AS factory_name
+        FROM fac_factory_salesman s
+        LEFT JOIN crm_customer c ON s.factory_id = c.id
+        WHERE s.deleted = 0
+          AND s.status = 1
+          AND s.factory_id = #{factoryId}
+        ORDER BY s.name ASC
+    </select>
+
+</mapper>

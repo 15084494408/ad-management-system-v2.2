@@ -55,18 +55,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '客户等级' },
       },
       {
-        path: 'customers/tags',
-        name: 'CustomerTags',
-        component: () => import('@/views/customers/CustomerTagView.vue'),
-        meta: { title: '客户标签' },
-      },
-      {
-        path: 'customers/follow',
-        name: 'CustomerFollow',
-        component: () => import('@/views/customers/CustomerFollowView.vue'),
-        meta: { title: '客户跟进' },
-      },
-      {
         path: 'factory-bills',
         name: 'FactoryBills',
         component: () => import('@/views/factory/FactoryBillView.vue'),

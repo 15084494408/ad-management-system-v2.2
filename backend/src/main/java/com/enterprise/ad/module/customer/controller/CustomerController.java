@@ -27,17 +27,19 @@ public class CustomerController {
     private final CustomerLevelMapper customerLevelMapper;
 
     @GetMapping
-    @Operation(summary = "客户列表（分页）")
+    @Operation(summary = "客户列表（分页，支持按客户类型筛选）")
     @PreAuthorize("hasAuthority('customer:list')")
     public Result<PageResult<Customer>> list(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer level) {
+            @RequestParam(required = false) Integer level,
+            @RequestParam(required = false) Integer customerType) {
         Page<Customer> page = new Page<>(current, size);
         LambdaQueryWrapper<Customer> qw = new LambdaQueryWrapper<Customer>()
             .eq(Customer::getDeleted, 0)
             .eq(level != null, Customer::getLevel, level)
+            .eq(customerType != null, Customer::getCustomerType, customerType)
             .and(keyword != null, w -> w
                 .like(Customer::getCustomerName, keyword)
                 .or()
@@ -48,6 +50,22 @@ public class CustomerController {
             .orderByDesc(Customer::getCreateTime);
         Page<Customer> result = customerMapper.selectPage(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
+    }
+
+    /**
+     * 工厂客户列表（便捷接口，等同于 ?customerType=2）
+     * 用于工厂账单页面的工厂选择下拉框
+     */
+    @GetMapping("/factories")
+    @Operation(summary = "工厂客户列表（用于账单关联）")
+    @PreAuthorize("hasAuthority('customer:list')")
+    public Result<List<Customer>> listFactoryCustomers() {
+        List<Customer> list = customerMapper.selectList(
+            new LambdaQueryWrapper<Customer>()
+                .eq(Customer::getDeleted, 0)
+                .eq(Customer::getCustomerType, Customer.TYPE_FACTORY)
+                .orderByAsc(Customer::getCustomerName));
+        return Result.ok(list);
     }
 
     // ── 客户等级（精确路径必须在 /{id} 之前） ──
@@ -126,9 +144,25 @@ public class CustomerController {
     }
 
     @PostMapping
-    @Operation(summary = "新建客户")
+    @Operation(summary = "新建客户（支持普通/工厂类型）")
     @PreAuthorize("hasAuthority('customer:create')")
     public Result<Long> create(@RequestBody Customer customer) {
+        // 校验客户名称（必填）
+        String customerName = customer.getCustomerName();
+        if (customerName == null || customerName.trim().isEmpty()) {
+            return Result.fail("客户名称不能为空");
+        }
+        customer.setCustomerName(customerName.trim());
+
+        // 默认为普通客户
+        if (customer.getCustomerType() == null) customer.setCustomerType(Customer.TYPE_NORMAL);
+        
+        // 如果是工厂客户但没有选工厂类型，提示选择
+        if (customer.getCustomerType() == Customer.TYPE_FACTORY 
+            && (customer.getFactoryType() == null || customer.getFactoryType().trim().isEmpty())) {
+            return Result.fail("工厂客户必须选择工厂类型（印刷/包装/广告制作）");
+        }
+
         customer.setCreateTime(LocalDateTime.now());
         customer.setUpdateTime(LocalDateTime.now());
         if (customer.getStatus() == null) customer.setStatus(1);
@@ -145,6 +179,14 @@ public class CustomerController {
         Customer existing = customerMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("客户不存在");
+        }
+        // 如果请求中包含客户名称，校验非空
+        String customerName = customer.getCustomerName();
+        if (customerName != null) {
+            if (customerName.trim().isEmpty()) {
+                return Result.fail("客户名称不能为空");
+            }
+            customer.setCustomerName(customerName.trim());
         }
         customer.setId(id);
         customer.setUpdateTime(LocalDateTime.now());

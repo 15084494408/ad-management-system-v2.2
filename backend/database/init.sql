@@ -1,16 +1,28 @@
 -- =========================================================
--- 企业广告管理系统 数据库初始化脚本
+-- 企业广告管理系统 数据库初始化脚本（完整版）
 -- 数据库名: enterprise_ad
 -- 执行前请先创建数据库: CREATE DATABASE enterprise_ad DEFAULT CHARSET utf8mb4;
+-- 版本: v2.3 (2026-04-27 清空假数据，干净初始状态)
+-- 变更:
+--   - [v2.2] 新增 fac_factory_bill_detail 表（工厂账单明细，支持3种计价模式）
+--   - [v2.2] crm_customer 增加 customer_type / factory_type 字段（合并客户+工厂）
+--   - [v2.2] 删除 fac_factory 表（已合并到 crm_customer）
+--   - [v2.2] fac_factory_bill 增加 customer_id 字段
+--   - [v2.2] mat_stock_log 包含 operator_id 字段
+--   - [v2.2] mat_category 包含 status 字段
+--   - [v2.2] 补全权限码
+--   - [v2.3] 清除所有假数据INSERT，仅保留系统基础数据+零售客户
+--   - [v2.3] 前端：客户列表新增超级管理员删除按钮
+--   - [v2.3] 前端：工作台未收款订单提醒改为两列网格布局
 -- =========================================================
 
 USE enterprise_ad;
 
 -- =========================================================
--- 1. 系统管理模块（用户/角色/权限）
+-- 1. 系统管理模块（9 张表）
 -- =========================================================
 
--- 系统用户表
+-- 1.1 系统用户表
 CREATE TABLE IF NOT EXISTS sys_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
     username VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
@@ -29,7 +41,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统用户表';
 
--- 系统角色表
+-- 1.2 系统角色表
 CREATE TABLE IF NOT EXISTS sys_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '角色ID',
     role_name VARCHAR(50) NOT NULL COMMENT '角色名称',
@@ -43,7 +55,7 @@ CREATE TABLE IF NOT EXISTS sys_role (
     UNIQUE INDEX idx_role_code (role_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统角色表';
 
--- 系统权限表（菜单 + 按钮/接口权限）
+-- 1.3 系统权限表（菜单 + 按钮/接口权限）
 CREATE TABLE IF NOT EXISTS sys_permission (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '权限ID',
     parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父ID（0为根）',
@@ -63,7 +75,7 @@ CREATE TABLE IF NOT EXISTS sys_permission (
     INDEX idx_permission_code (permission_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统权限表';
 
--- 用户-角色关联表
+-- 1.4 用户-角色关联表
 CREATE TABLE IF NOT EXISTS sys_user_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
@@ -73,7 +85,7 @@ CREATE TABLE IF NOT EXISTS sys_user_role (
     INDEX idx_role_id (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联表';
 
--- 角色-权限关联表
+-- 1.5 角色-权限关联表
 CREATE TABLE IF NOT EXISTS sys_role_permission (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     role_id BIGINT NOT NULL,
@@ -83,11 +95,78 @@ CREATE TABLE IF NOT EXISTS sys_role_permission (
     INDEX idx_permission_id (permission_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色权限关联表';
 
+-- 1.6 按钮权限资源表
+CREATE TABLE IF NOT EXISTS sys_button (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL COMMENT '按钮名称',
+    permission VARCHAR(200) COMMENT '权限标识，如 system:user:add',
+    type VARCHAR(20) DEFAULT 'button' COMMENT '类型：button/menu/api',
+    parent_id BIGINT DEFAULT 0 COMMENT '上级菜单ID',
+    sort INT DEFAULT 0 COMMENT '排序',
+    status TINYINT DEFAULT 1 COMMENT '1启用 0停用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_parent (parent_id),
+    INDEX idx_permission (permission)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='按钮权限资源表';
+
+-- 1.7 数据字典表
+CREATE TABLE IF NOT EXISTS sys_dict (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL COMMENT '字典名称',
+    code VARCHAR(100) NOT NULL UNIQUE COMMENT '字典编码',
+    description VARCHAR(500) COMMENT '描述',
+    sort_order INT DEFAULT 0,
+    status TINYINT DEFAULT 1,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME,
+    deleted TINYINT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典表';
+
+-- 1.8 数据字典项表
+CREATE TABLE IF NOT EXISTS sys_dict_item (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    dict_id BIGINT NOT NULL COMMENT '字典ID',
+    label VARCHAR(100) NOT NULL COMMENT '标签',
+    value VARCHAR(100) NOT NULL COMMENT '值',
+    sort_order INT DEFAULT 0,
+    status TINYINT DEFAULT 1,
+    remark VARCHAR(500),
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_dict (dict_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典项';
+
+-- 1.9 操作日志表
+CREATE TABLE IF NOT EXISTS sys_operation_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT COMMENT '操作用户ID',
+    username VARCHAR(100) COMMENT '操作用户名',
+    module VARCHAR(100) COMMENT '操作模块',
+    action VARCHAR(200) COMMENT '操作类型',
+    description VARCHAR(500) COMMENT '操作描述',
+    method VARCHAR(200) COMMENT '请求方法',
+    url VARCHAR(500) COMMENT '请求URL',
+    ip VARCHAR(50) COMMENT '操作IP',
+    user_agent VARCHAR(500) COMMENT 'UserAgent',
+    param TEXT COMMENT '请求参数',
+    result TEXT COMMENT '响应结果（摘要）',
+    status TINYINT DEFAULT 1 COMMENT '1成功 0失败',
+    duration BIGINT COMMENT '耗时（毫秒）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_user (user_id),
+    INDEX idx_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+
 -- =========================================================
--- 2. 业务模块（订单/客户/会员/工厂/财务）
+-- 2. 客户管理模块（3 张表）
+-- 注意：已合并原 fac_factory 表，crm_customer 增加 customer_type / factory_type
 -- =========================================================
 
--- 客户表
+-- 2.1 客户表（含工厂客户字段）
 CREATE TABLE IF NOT EXISTS crm_customer (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     customer_name VARCHAR(200) NOT NULL COMMENT '客户名称',
@@ -97,6 +176,8 @@ CREATE TABLE IF NOT EXISTS crm_customer (
     email VARCHAR(100) COMMENT '邮箱',
     address VARCHAR(500) COMMENT '地址',
     industry VARCHAR(100) COMMENT '行业',
+    customer_type TINYINT NOT NULL DEFAULT 1 COMMENT '客户类型：1=普通客户 2=工厂客户',
+    factory_type VARCHAR(50) COMMENT '工厂类型（印刷/包装/广告制作，仅工厂客户）',
     total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '累计消费金额',
     order_count INT DEFAULT 0 COMMENT '订单数量',
     level TINYINT DEFAULT 1 COMMENT '等级：1普通 2VIP 3战略',
@@ -106,10 +187,11 @@ CREATE TABLE IF NOT EXISTS crm_customer (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted TINYINT NOT NULL DEFAULT 0,
     INDEX idx_customer_name (customer_name),
-    INDEX idx_phone (phone)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户表';
+    INDEX idx_phone (phone),
+    INDEX idx_customer_type (customer_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户表（含普通客户+工厂客户）';
 
--- 客户标签表
+-- 2.2 客户标签表
 CREATE TABLE IF NOT EXISTS customer_tag (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL COMMENT '标签名称',
@@ -124,7 +206,7 @@ CREATE TABLE IF NOT EXISTS customer_tag (
     INDEX idx_sort (sort)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户标签表';
 
--- 客户等级表
+-- 2.3 客户等级表
 CREATE TABLE IF NOT EXISTS customer_level (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL COMMENT '等级名称',
@@ -140,14 +222,12 @@ CREATE TABLE IF NOT EXISTS customer_level (
     INDEX idx_level (level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户等级表';
 
--- 初始客户等级
-INSERT INTO customer_level (name, level, min_amount, discount, description, sort) VALUES
-('钻石会员', 90, 100000.00, 85, '顶级会员，享受85折优惠', 1),
-('金牌会员', 70, 50000.00, 90, '高级会员，享受9折优惠', 2),
-('银牌会员', 50, 20000.00, 95, '中级会员，享受95折优惠', 3),
-('普通会员', 10, 0.00, 100, '基础会员，无折扣', 4);
 
--- 会员表
+-- =========================================================
+-- 3. 会员管理模块（2 张表）
+-- =========================================================
+
+-- 3.1 会员表
 CREATE TABLE IF NOT EXISTS mem_member (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     member_name VARCHAR(200) NOT NULL COMMENT '会员名称',
@@ -166,7 +246,7 @@ CREATE TABLE IF NOT EXISTS mem_member (
     INDEX idx_member_name (member_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会员表';
 
--- 会员流水表
+-- 3.2 会员流水表
 CREATE TABLE IF NOT EXISTS mem_member_transaction (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     member_id BIGINT NOT NULL,
@@ -183,7 +263,12 @@ CREATE TABLE IF NOT EXISTS mem_member_transaction (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会员流水表';
 
--- 订单主表
+
+-- =========================================================
+-- 4. 订单管理模块（2 张表）
+-- =========================================================
+
+-- 4.1 订单主表
 CREATE TABLE IF NOT EXISTS ord_order (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     order_no VARCHAR(50) NOT NULL UNIQUE COMMENT '订单编号',
@@ -221,7 +306,7 @@ CREATE TABLE IF NOT EXISTS ord_order (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单主表';
 
--- 订单物料明细
+-- 4.2 订单物料明细表
 CREATE TABLE IF NOT EXISTS ord_order_material (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     order_id BIGINT NOT NULL,
@@ -237,28 +322,24 @@ CREATE TABLE IF NOT EXISTS ord_order_material (
     INDEX idx_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单物料明细表';
 
--- 工厂表
-CREATE TABLE IF NOT EXISTS fac_factory (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    factory_name VARCHAR(200) NOT NULL COMMENT '工厂名称',
-    contact_person VARCHAR(100) COMMENT '联系人',
-    phone VARCHAR(20) COMMENT '电话',
-    address VARCHAR(500) COMMENT '地址',
-    type VARCHAR(50) COMMENT '类型：印刷/包装/广告制作',
-    status TINYINT DEFAULT 1 COMMENT '状态：1正常 0暂停',
-    creator_id BIGINT,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted TINYINT NOT NULL DEFAULT 0,
-    INDEX idx_factory_name (factory_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工厂表';
 
--- 工厂账单表
+-- =========================================================
+-- 5. 工厂账单模块（3 张表）
+-- 注意：fac_factory 已删除，数据合并到 crm_customer（customer_type=2）
+-- =========================================================
+
+-- 5.1 工厂账单主表（增加 customer_id 字段）
 CREATE TABLE IF NOT EXISTS fac_factory_bill (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     bill_no VARCHAR(50) NOT NULL UNIQUE COMMENT '账单编号',
-    factory_id BIGINT NOT NULL COMMENT '工厂ID',
+    -- 以下两个字段保留兼容性，但主要使用 customer_id
+    factory_id BIGINT COMMENT '原工厂ID（保留兼容）',
     factory_name VARCHAR(200) COMMENT '工厂名称（冗余）',
+    -- 新增：关联合并后的客户ID
+    customer_id BIGINT COMMENT '客户ID（关联crm_customer，customer_type=2为工厂客户）',
+    -- 业务员信息
+    salesman_id BIGINT COMMENT '业务员ID（关联fac_factory_salesman）',
+    salesman_name VARCHAR(100) COMMENT '业务员姓名（冗余）',
     month VARCHAR(20) NOT NULL COMMENT '账单月份（如 2026年04月）',
     total_amount DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '账单总额',
     paid_amount DECIMAL(15,2) DEFAULT 0 COMMENT '已付金额',
@@ -270,11 +351,59 @@ CREATE TABLE IF NOT EXISTS fac_factory_bill (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted TINYINT NOT NULL DEFAULT 0,
     INDEX idx_factory_id (factory_id),
+    INDEX idx_customer_id (customer_id),
     INDEX idx_month (month),
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工厂账单表';
 
--- 财务流水表
+-- 5.2 工厂账单明细表（每日登记记录，支持3种计价模式）
+CREATE TABLE IF NOT EXISTS fac_factory_bill_detail (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    bill_id     BIGINT NOT NULL COMMENT '关联账单ID（fac_factory_bill.id）',
+    bill_no     VARCHAR(50) COMMENT '账单编号（冗余，方便查询）',
+    record_date DATE NOT NULL COMMENT '登记日期（如 2026-04-01）',
+    item_name   VARCHAR(200) NOT NULL COMMENT '项目名称（如：名片印刷/宣传册）',
+    spec        VARCHAR(200) COMMENT '规格说明',
+    quantity    DECIMAL(10,2) DEFAULT 1 COMMENT '数量（按数量计价时使用）',
+    unit        VARCHAR(20) COMMENT '单位（张/本/项/平方米）',
+    unit_price  DECIMAL(15,2) DEFAULT 0 COMMENT '单价（按数量=每件单价，按面积=每㎡单价）',
+    calc_mode   TINYINT NOT NULL DEFAULT 1 COMMENT '计价方式: 1=按数量 2=按面积(平方) 3=固定价格',
+    length_val  DECIMAL(10,3) COMMENT '长度(m)，按面积计价时使用',
+    width_val   DECIMAL(10,3) COMMENT '宽度(m)，按面积计价时使用',
+    area_sq     DECIMAL(10,3) COMMENT '计算面积(㎡)，系统自动算',
+    amount      DECIMAL(15,2) DEFAULT 0 COMMENT '小计金额（根据 calcMode 自动计算）',
+    remark      VARCHAR(500) COMMENT '备注',
+    creator_id  BIGINT,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_bill_id (bill_id),
+    INDEX idx_bill_no (bill_no),
+    INDEX idx_record_date (record_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工厂账单明细（每日登记记录，支持多计价模式）';
+
+-- 5.3 工厂业务员表
+CREATE TABLE IF NOT EXISTS fac_factory_salesman (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL COMMENT '业务员姓名',
+    phone VARCHAR(20) COMMENT '联系电话',
+    email VARCHAR(100) COMMENT '邮箱',
+    factory_id BIGINT COMMENT '所属工厂ID（关联crm_customer.id where customer_type=2）',
+    status TINYINT DEFAULT 1 COMMENT '状态：1启用 0禁用',
+    remark VARCHAR(500) COMMENT '备注',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT DEFAULT 0,
+    INDEX idx_factory_id (factory_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工厂业务员表';
+
+
+-- =========================================================
+-- 6. 财务管理模块（3 张表）
+-- =========================================================
+
+-- 6.1 财务流水表
 CREATE TABLE IF NOT EXISTS fin_record (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     record_no VARCHAR(50) NOT NULL UNIQUE COMMENT '流水号',
@@ -292,199 +421,54 @@ CREATE TABLE IF NOT EXISTS fin_record (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务流水表';
 
--- =========================================================
--- 3. 初始数据
--- =========================================================
-
--- 初始管理员用户（密码: 123456）
-INSERT INTO sys_user (username, password, real_name, phone, status) VALUES
-('admin', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '系统管理员', '13800138000', 1),
-('finance', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '财务小王', '13800138001', 1),
-('operator', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '操作员小李', '13800138002', 1);
-
--- 初始角色
-INSERT INTO sys_role (role_name, role_code, description, sort, status) VALUES
-('超级管理员', 'SUPER_ADMIN', '拥有所有权限', 1, 1),
-('管理员', 'ADMIN', '除系统配置外全部权限', 2, 1),
-('财务', 'FINANCE', '财务和订单查看', 3, 1),
-('操作员', 'OPERATOR', '订单增删改', 4, 1),
-('访客', 'VIEWER', '只读权限', 5, 1);
-
--- 给 admin 分配 SUPER_ADMIN 角色
-INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
-INSERT INTO sys_user_role (user_id, role_id) VALUES (2, 3);
-INSERT INTO sys_user_role (user_id, role_id) VALUES (3, 4);
-
--- 初始权限（菜单）
-INSERT INTO sys_permission (id, parent_id, name, type, path, component, icon, sort, status) VALUES
--- 一级菜单
-(1, 0, '仪表盘', 'menu', '/dashboard', 'dashboard/index', '📊', 1, 1),
-(2, 0, '订单管理', 'menu', '/orders', 'order/index', '📋', 2, 1),
-(3, 0, '客户管理', 'menu', '/customers', 'customer/index', '👥', 3, 1),
-(4, 0, '会员管理', 'menu', '/members', 'member/index', '🎫', 4, 1),
-(5, 0, '工厂账单', 'menu', '/factory', 'factory/index', '🏭', 5, 1),
-(6, 0, '财务管理', 'menu', '/finance', 'finance/index', '💰', 6, 1),
-(7, 0, '系统管理', 'menu', '/system', 'system/index', '⚙️', 7, 1);
-
--- 二级菜单和按钮权限
-INSERT INTO sys_permission (parent_id, name, type, permission_code, sort, status) VALUES
--- 仪表盘按钮
-(1, '查看仪表盘', 'button', 'dashboard:view', 1, 1),
--- 订单按钮
-(2, '查看订单', 'button', 'order:list', 1, 1),
-(2, '新建订单', 'button', 'order:create', 2, 1),
-(2, '编辑订单', 'button', 'order:edit', 3, 1),
-(2, '删除订单', 'button', 'order:delete', 4, 1),
--- 客户按钮
-(3, '查看客户', 'button', 'customer:list', 1, 1),
-(3, '新建客户', 'button', 'customer:create', 2, 1),
-(3, '编辑客户', 'button', 'customer:edit', 3, 1),
-(3, '删除客户', 'button', 'customer:delete', 4, 1),
--- 会员按钮
-(4, '查看会员', 'button', 'member:list', 1, 1),
-(4, '新建会员', 'button', 'member:create', 2, 1),
-(4, '编辑会员', 'button', 'member:edit', 3, 1),
-(4, '删除会员', 'button', 'member:delete', 4, 1),
-(4, '会员充值', 'button', 'member:recharge', 5, 1),
--- 工厂按钮
-(5, '查看账单', 'button', 'factory:list', 1, 1),
-(5, '新建账单', 'button', 'factory:create', 2, 1),
-(5, '编辑账单', 'button', 'factory:edit', 3, 1),
-(5, '删除账单', 'button', 'factory:delete', 4, 1),
--- 财务按钮
-(6, '查看财务', 'button', 'finance:view', 1, 1),
-(6, '编辑财务', 'button', 'finance:edit', 2, 1),
--- 系统管理按钮
-(7, '用户管理', 'button', 'system:user', 1, 1);
-
--- SUPER_ADMIN 角色拥有所有权限
-INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT 1, id FROM sys_permission WHERE deleted = 0;
-
--- ADMIN 角色拥有除系统管理外的所有权限
-INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT 2, id FROM sys_permission WHERE deleted = 0 AND id != 36;
-
--- FINANCE 角色
-INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT 3, id FROM sys_permission WHERE deleted = 0 AND (
-    permission_code LIKE 'order:list' OR
-    permission_code LIKE 'customer:list' OR
-    permission_code LIKE 'finance:%' OR
-    permission_code LIKE 'dashboard:view');
-
--- OPERATOR 角色
-INSERT INTO sys_role_permission (role_id, permission_id)
-SELECT 4, id FROM sys_permission WHERE deleted = 0 AND (
-    permission_code LIKE 'order:%' OR
-    permission_code LIKE 'customer:%' OR
-    permission_code LIKE 'dashboard:view');
-
--- 初始工厂数据
-INSERT INTO fac_factory (factory_name, contact_person, phone, address, type, status) VALUES
-('杭州印刷一厂', '张经理', '0571-88881001', '浙江省杭州市西湖区文三路123号', '印刷', 1),
-('上海印刷集团', '李总监', '021-55551002', '上海市浦东新区张江高科路456号', '印刷', 1),
-('北京印刷厂', '王主任', '010-66661003', '北京市朝阳区望京西路789号', '印刷', 1),
-('深圳包装公司', '陈经理', '0755-88881004', '广东省深圳市南山区科技园路101号', '包装', 1),
-('广州印务', '刘经理', '020-88881005', '广东省广州市天河区珠江新城花城大道88号', '广告制作', 1);
-
--- 初始工厂账单
-INSERT INTO fac_factory_bill (bill_no, factory_id, factory_name, month, total_amount, paid_amount, status) VALUES
-('FB202603001', 1, '杭州印刷一厂', '2026年03月', 86500.00, 60000.00, 1),
-('FB202603002', 1, '杭州印刷一厂', '2026年02月', 72000.00, 72000.00, 4),
-('FB202603003', 2, '上海印刷集团', '2026年03月', 120000.00, 50000.00, 3),
-('FB202603004', 2, '上海印刷集团', '2026年02月', 98000.00, 98000.00, 4),
-('FB202603005', 3, '北京印刷厂', '2026年03月', 56000.00, 0.00, 1),
-('FB202603006', 4, '深圳包装公司', '2026年03月', 78000.00, 30000.00, 3),
-('FB202603007', 5, '广州印务', '2026年03月', 43000.00, 43000.00, 4);
-
--- 初始会员
-INSERT INTO mem_member (member_name, contact_person, phone, level, balance, total_recharge, status) VALUES
-('杭州苏润阀门厂', '苏高于', '19818226202', '金牌', 50000.00, 100000.00, 1),
-('浙江华新传媒', '王总', '13900139001', '钻石', 80000.00, 200000.00, 1),
-('上海蓝图设计', '李总监', '13800138010', '银牌', 30000.00, 50000.00, 1);
-
--- 初始会员充值记录
-INSERT INTO mem_member_transaction (member_id, type, amount, balance_before, balance_after, remark) VALUES
-(1, 'recharge', 100000.00, 0.00, 50000.00, '初始充值'),
-(2, 'recharge', 200000.00, 0.00, 80000.00, '初始充值'),
-(3, 'recharge', 50000.00, 0.00, 30000.00, '初始充值');
-
--- 初始客户
-INSERT INTO crm_customer (customer_name, contact_person, phone, address, industry, total_amount, order_count, level) VALUES
-('杭州苏润阀门厂', '苏高于', '19818226202', '浙江台州', '工业制造', 120000.00, 15, 2),
-('浙江华新传媒', '王总', '13900139001', '浙江杭州', '广告传媒', 200000.00, 25, 3),
-('上海蓝图设计', '李总监', '13800138010', '上海', '设计服务', 80000.00, 10, 2),
-('深圳智联招聘', '张HR', '13900139002', '广东深圳', '人力资源', 50000.00, 8, 1);
-
--- 初始订单
-INSERT INTO ord_order (order_no, customer_id, customer_name, title, order_type, total_amount, paid_amount, status, payment_status, contact_person, contact_phone, create_time) VALUES
-('ORD20260418001', 1, '杭州苏润阀门厂', '名片印刷500张 + 宣传册1000本', 1, 8500.00, 5000.00, 2, 2, '苏高于', '19818226202', NOW()),
-('ORD20260418002', 2, '浙江华新传媒', '户外广告牌设计制作', 2, 35000.00, 20000.00, 2, 2, '王总', '13900139001', NOW()),
-('ORD20260418003', 3, '上海蓝图设计', '企业VI全套设计', 3, 15000.00, 15000.00, 3, 3, '李总监', '13800138010', NOW());
-
--- 初始财务记录
-INSERT INTO fin_record (record_no, type, category, amount, related_name, payment_method, remark) VALUES
-('FIN20260418001', 'income', '订单收入', 15000.00, 'ORD20260418003', '转账', '企业VI设计尾款'),
-('FIN20260418002', 'income', '充值收入', 10000.00, '杭州苏润阀门厂', '转账', '会员充值'),
-('FIN20260418003', 'expense', '采购支出', 5000.00, '杭州印刷一厂', '转账', '印刷材料采购'),
-('FIN20260418004', 'income', '订单收入', 20000.00, 'ORD20260418002', '微信', '户外广告预付款');
-
--- =========================================================
--- 4. 会员等级配置（可扩展）
--- =========================================================
--- 铜牌：累计充值 0~50000，享9.5折
--- 银牌：累计充值 50001~100000，享9折
--- 金牌：累计充值 100001~200000，享8.5折
--- 钻石：累计充值 200000以上，享8折
-
--- =========================================================
--- 5. 消息通知模块
--- =========================================================
-
--- 通知表
-CREATE TABLE IF NOT EXISTS sys_notice (
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    title       VARCHAR(200) NOT NULL COMMENT '通知标题',
-    content     TEXT COMMENT '通知内容',
-    type        VARCHAR(50) COMMENT '类型：system/system_order/finance/warning',
-    level       TINYINT DEFAULT 1 COMMENT '级别：1普通 2重要 3紧急',
-    user_id     BIGINT COMMENT '接收用户ID（null表示全部）',
-    user_ids    VARCHAR(500) COMMENT '指定多个用户ID逗号分隔',
-    is_read     TINYINT NOT NULL DEFAULT 0 COMMENT '是否已读：0未读 1已读',
-    read_user_id BIGINT COMMENT '读取用户ID',
-    read_time   DATETIME COMMENT '读取时间',
+-- 6.2 报价记录表
+CREATE TABLE IF NOT EXISTS fin_quote (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    quote_no VARCHAR(50) NOT NULL COMMENT '报价编号',
+    customer_name VARCHAR(100) COMMENT '客户名称',
+    project_name VARCHAR(200) COMMENT '项目名称',
+    total_amount DECIMAL(12,2) DEFAULT 0 COMMENT '报价金额',
+    discount DECIMAL(5,2) DEFAULT 100 COMMENT '折扣百分比',
+    final_amount DECIMAL(12,2) DEFAULT 0 COMMENT '最终金额',
+    status VARCHAR(20) DEFAULT 'pending' COMMENT '状态：pending/accepted/rejected/expired',
+    valid_until VARCHAR(20) COMMENT '有效期至',
+    remark TEXT COMMENT '备注',
+    creator_id BIGINT COMMENT '创建人ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted     TINYINT NOT NULL DEFAULT 0,
-    INDEX idx_user_id (user_id),
-    INDEX idx_is_read (is_read),
-    INDEX idx_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统通知表';
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    UNIQUE INDEX idx_quote_no (quote_no),
+    INDEX idx_customer (customer_name),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报价记录表';
 
--- 通知设置表
-CREATE TABLE IF NOT EXISTS sys_notice_setting (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id         BIGINT NOT NULL UNIQUE COMMENT '用户ID',
-    order_notify    TINYINT DEFAULT 1 COMMENT '订单通知：1开启 0关闭',
-    finance_notify  TINYINT DEFAULT 1 COMMENT '财务通知',
-    system_notify   TINYINT DEFAULT 1 COMMENT '系统通知',
-    warning_notify  TINYINT DEFAULT 1 COMMENT '预警通知',
-    create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time     DATETIME,
-    deleted         TINYINT NOT NULL DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户通知设置表';
+-- 6.3 发票记录表
+CREATE TABLE IF NOT EXISTS fin_invoice (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    invoice_no VARCHAR(50) NOT NULL COMMENT '发票编号',
+    customer_name VARCHAR(100) COMMENT '客户名称',
+    type VARCHAR(20) DEFAULT 'normal' COMMENT '类型：special专票/normal普票/receipt收据',
+    amount DECIMAL(12,2) DEFAULT 0 COMMENT '发票金额',
+    tax_rate DECIMAL(5,2) DEFAULT 0 COMMENT '税率',
+    tax_amount DECIMAL(12,2) DEFAULT 0 COMMENT '税额',
+    status VARCHAR(20) DEFAULT 'pending' COMMENT '状态：completed已开具/pending待开具/cancelled已作废',
+    issue_date VARCHAR(20) COMMENT '开具日期',
+    remark TEXT COMMENT '备注',
+    creator_id BIGINT COMMENT '创建人ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    UNIQUE INDEX idx_invoice_no (invoice_no),
+    INDEX idx_customer (customer_name),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='发票记录表';
 
--- 初始通知数据
-INSERT INTO sys_notice (title, content, type, level, create_time) VALUES
-('系统上线通知', '企业广告管理系统已正式上线，欢迎使用！', 'system', 2, NOW()),
-('订单ORD20260418001已确认', '客户杭州苏润阀门厂的订单（名片印刷500张）已确认，请及时安排生产。', 'system_order', 1, NOW()),
-('财务收款提醒', '收到客户浙江华新传媒转账2万元，请核对并更新订单状态。', 'finance', 1, NOW());
 
 -- =========================================================
--- 6. 物料管理模块
+-- 7. 物料管理模块（3 张表）
 -- =========================================================
 
--- 物料分类表
+-- 7.1 物料分类表（含 status 字段）
 CREATE TABLE IF NOT EXISTS mat_category (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     name        VARCHAR(100) NOT NULL COMMENT '分类名称',
@@ -496,13 +480,13 @@ CREATE TABLE IF NOT EXISTS mat_category (
     deleted     TINYINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料分类表';
 
--- 物料表
+-- 7.2 物料库存表
 CREATE TABLE IF NOT EXISTS mat_material (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     name            VARCHAR(200) NOT NULL COMMENT '物料名称',
     code            VARCHAR(100) UNIQUE COMMENT '物料编码',
     category_id     BIGINT COMMENT '分类ID',
-    category_name   VARCHAR(100) COMMENT '分类名称',
+    category_name   VARCHAR(100) COMMENT '分类名称（冗余）',
     spec            VARCHAR(200) COMMENT '规格型号',
     unit            VARCHAR(20) COMMENT '计量单位',
     price           DECIMAL(15,2) COMMENT '零售价',
@@ -520,7 +504,7 @@ CREATE TABLE IF NOT EXISTS mat_material (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料库存表';
 
--- 库存变动记录表
+-- 7.3 库存变动日志表（含 operator_id 字段）
 CREATE TABLE IF NOT EXISTS mat_stock_log (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     material_id     BIGINT NOT NULL,
@@ -532,34 +516,19 @@ CREATE TABLE IF NOT EXISTS mat_stock_log (
     unit_price      DECIMAL(15,2),
     total_price     DECIMAL(15,2),
     remark          VARCHAR(500),
-    operator_name   VARCHAR(100),
+    operator_id     BIGINT COMMENT '操作人ID',
+    operator_name   VARCHAR(100) COMMENT '操作人姓名',
     create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted         TINYINT NOT NULL DEFAULT 0,
     INDEX idx_material (material_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存变动日志';
 
--- 初始物料分类
-INSERT INTO mat_category (name, code, sort_order) VALUES
-('印刷材料', 'PRINT', 1),
-('广告材料', 'AD', 2),
-('耗材', 'CONSUMABLE', 3),
-('包装材料', 'PACKAGE', 4);
-
--- 初始物料数据
-INSERT INTO mat_material (name, code, category_id, category_name, spec, unit, price, cost_price, stock_quantity, warning_quantity, min_quantity, status) VALUES
-('铜版纸 A4', 'MAT001', 1, '印刷材料', 'A4 105g', '张', 0.50, 0.30, 5000, 500, 200, 1),
-('铜版纸 A3', 'MAT002', 1, '印刷材料', 'A3 105g', '张', 0.90, 0.55, 3000, 300, 100, 1),
-('哑粉纸 A4', 'MAT003', 1, '印刷材料', 'A4 128g', '张', 0.60, 0.38, 2000, 200, 100, 1),
-('KT板 60x90cm', 'MAT004', 2, '广告材料', '60x90cm 5mm', '张', 15.00, 8.00, 200, 30, 10, 1),
-('写真布 1m宽', 'MAT005', 2, '广告材料', '1m宽 灯箱布', '米', 12.00, 7.00, 500, 50, 20, 1),
-('墨盒（黑色）', 'MAT006', 3, '耗材', '通用型', '个', 85.00, 55.00, 20, 5, 2, 1),
-('装订胶', 'MAT007', 3, '耗材', '500ml', '瓶', 35.00, 20.00, 15, 5, 3, 1);
 
 -- =========================================================
--- 7. 设计广场模块
+-- 8. 设计广场模块（3 张表）
 -- =========================================================
 
--- 需求单表
+-- 8.1 设计需求单表
 CREATE TABLE IF NOT EXISTS sq_requirement (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     req_no          VARCHAR(50) UNIQUE COMMENT '需求单号',
@@ -580,7 +549,7 @@ CREATE TABLE IF NOT EXISTS sq_requirement (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计广场需求单';
 
--- 设计师申请表
+-- 8.2 设计师申请表
 CREATE TABLE IF NOT EXISTS sq_application (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     requirement_id  BIGINT NOT NULL COMMENT '需求ID',
@@ -596,7 +565,7 @@ CREATE TABLE IF NOT EXISTS sq_application (
     INDEX idx_requirement (requirement_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计师申请表';
 
--- 设计师收入记录表
+-- 8.3 设计师收入记录表
 CREATE TABLE IF NOT EXISTS sq_income (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     requirement_id  BIGINT COMMENT '需求单ID',
@@ -609,11 +578,12 @@ CREATE TABLE IF NOT EXISTS sq_income (
     deleted         TINYINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计师收入记录';
 
+
 -- =========================================================
--- 8. 设计文件模块
+-- 9. 设计文件模块（2 张表）
 -- =========================================================
 
--- 设计文件表
+-- 9.1 设计文件表
 CREATE TABLE IF NOT EXISTS des_file (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     name            VARCHAR(200) NOT NULL COMMENT '文件名',
@@ -636,7 +606,7 @@ CREATE TABLE IF NOT EXISTS des_file (
     INDEX idx_order (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计文件表';
 
--- 设计文件版本表
+-- 9.2 设计文件版本记录表
 CREATE TABLE IF NOT EXISTS des_file_version (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     file_id     BIGINT NOT NULL COMMENT '文件ID',
@@ -650,93 +620,49 @@ CREATE TABLE IF NOT EXISTS des_file_version (
     INDEX idx_file (file_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计文件版本记录';
 
+
 -- =========================================================
--- 9. 系统管理扩展
+-- 10. 通知模块（2 张表）
 -- =========================================================
 
--- 数据字典表
-CREATE TABLE IF NOT EXISTS sys_dict (
+-- 10.1 系统通知表
+CREATE TABLE IF NOT EXISTS sys_notice (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    name        VARCHAR(100) NOT NULL COMMENT '字典名称',
-    code        VARCHAR(100) NOT NULL UNIQUE COMMENT '字典编码',
-    description VARCHAR(500) COMMENT '描述',
-    sort_order  INT DEFAULT 0,
-    status      TINYINT DEFAULT 1,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME,
-    deleted     TINYINT NOT NULL DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典表';
-
--- 数据字典项表
-CREATE TABLE IF NOT EXISTS sys_dict_item (
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    dict_id     BIGINT NOT NULL COMMENT '字典ID',
-    label       VARCHAR(100) NOT NULL COMMENT '标签',
-    value       VARCHAR(100) NOT NULL COMMENT '值',
-    sort_order  INT DEFAULT 0,
-    status      TINYINT DEFAULT 1,
-    remark      VARCHAR(500),
+    title       VARCHAR(200) NOT NULL COMMENT '通知标题',
+    content     TEXT COMMENT '通知内容',
+    type        VARCHAR(50) COMMENT '类型：system/order/finance/warning',
+    level       TINYINT DEFAULT 1 COMMENT '级别：1普通 2重要 3紧急',
+    user_id     BIGINT COMMENT '接收用户ID（null表示全部）',
+    user_ids    VARCHAR(500) COMMENT '指定多个用户ID逗号分隔',
+    is_read     TINYINT NOT NULL DEFAULT 0 COMMENT '是否已读：0未读 1已读',
+    read_user_id BIGINT COMMENT '读取用户ID',
+    read_time   DATETIME COMMENT '读取时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted     TINYINT NOT NULL DEFAULT 0,
-    INDEX idx_dict (dict_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典项';
+    INDEX idx_user_id (user_id),
+    INDEX idx_is_read (is_read),
+    INDEX idx_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统通知表';
 
--- 操作日志表
-CREATE TABLE IF NOT EXISTS sys_operation_log (
+-- 10.2 用户通知设置表
+CREATE TABLE IF NOT EXISTS sys_notice_setting (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id         BIGINT COMMENT '操作用户ID',
-    username        VARCHAR(100) COMMENT '操作用户名',
-    module          VARCHAR(100) COMMENT '操作模块',
-    action          VARCHAR(200) COMMENT '操作类型',
-    description     VARCHAR(500) COMMENT '操作描述',
-    method          VARCHAR(200) COMMENT '请求方法',
-    url             VARCHAR(500) COMMENT '请求URL',
-    ip              VARCHAR(50) COMMENT '操作IP',
-    user_agent      VARCHAR(500) COMMENT 'UserAgent',
-    param           TEXT COMMENT '请求参数',
-    result          TEXT COMMENT '响应结果（摘要）',
-    status          TINYINT DEFAULT 1 COMMENT '1成功 0失败',
-    duration        BIGINT COMMENT '耗时（毫秒）',
+    user_id         BIGINT NOT NULL UNIQUE COMMENT '用户ID',
+    order_notify    TINYINT DEFAULT 1 COMMENT '订单通知：1开启 0关闭',
+    finance_notify  TINYINT DEFAULT 1 COMMENT '财务通知',
+    system_notify   TINYINT DEFAULT 1 COMMENT '系统通知',
+    warning_notify  TINYINT DEFAULT 1 COMMENT '预警通知',
     create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted         TINYINT NOT NULL DEFAULT 0,
-    INDEX idx_user (user_id),
-    INDEX idx_time (create_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+    update_time     DATETIME,
+    deleted         TINYINT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户通知设置表';
 
--- 初始数据字典
-INSERT INTO sys_dict (name, code, description, sort_order, status) VALUES
-('订单类型', 'order_type', '订单类型枚举', 1, 1),
-('订单状态', 'order_status', '订单状态枚举', 2, 1),
-('支付方式', 'payment_method', '支付方式枚举', 3, 1),
-('客户等级', 'customer_level', '客户等级枚举', 4, 1);
-
-INSERT INTO sys_dict_item (dict_id, label, value, sort_order) VALUES
-(1, '印刷', '1', 1), (1, '广告', '2', 2), (1, '设计', '3', 3),
-(2, '待确认', '1', 1), (2, '进行中', '2', 2), (2, '已完成', '3', 3), (2, '已取消', '4', 4),
-(3, '现金', 'cash', 1), (3, '转账', 'transfer', 2), (3, '微信', 'wechat', 3), (3, '支付宝', 'alipay', 4),
-(4, '普通', '1', 1), (4, '银牌', '2', 2), (4, '金牌', '3', 3), (4, '钻石', '4', 4);
 
 -- =========================================================
--- 补充表：按钮管理、数据备份、报价管理、发票管理
+-- 11. 系统维护模块（1 张表）
 -- =========================================================
 
--- 按钮权限资源表
-CREATE TABLE IF NOT EXISTS sys_button (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL COMMENT '按钮名称',
-    permission      VARCHAR(200) COMMENT '权限标识，如 system:user:add',
-    type            VARCHAR(20) DEFAULT 'button' COMMENT '类型：button/menu/api',
-    parent_id       BIGINT DEFAULT 0 COMMENT '上级菜单ID',
-    sort            INT DEFAULT 0 COMMENT '排序',
-    status          TINYINT DEFAULT 1 COMMENT '1启用 0停用',
-    create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted         TINYINT NOT NULL DEFAULT 0,
-    INDEX idx_parent (parent_id),
-    INDEX idx_permission (permission)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='按钮权限资源表';
-
--- 数据备份记录表
+-- 11.1 数据备份记录表
 CREATE TABLE IF NOT EXISTS sys_backup (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     file_name       VARCHAR(255) NOT NULL COMMENT '备份文件名',
@@ -753,45 +679,232 @@ CREATE TABLE IF NOT EXISTS sys_backup (
     INDEX idx_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据备份记录表';
 
--- 报价记录表
-CREATE TABLE IF NOT EXISTS fin_quote (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    quote_no        VARCHAR(50) NOT NULL COMMENT '报价编号',
-    customer_name   VARCHAR(100) COMMENT '客户名称',
-    project_name    VARCHAR(200) COMMENT '项目名称',
-    total_amount    DECIMAL(12,2) DEFAULT 0 COMMENT '报价金额',
-    discount        DECIMAL(5,2) DEFAULT 100 COMMENT '折扣百分比',
-    final_amount    DECIMAL(12,2) DEFAULT 0 COMMENT '最终金额',
-    status          VARCHAR(20) DEFAULT 'pending' COMMENT '状态：pending/accepted/rejected/expired',
-    valid_until     VARCHAR(20) COMMENT '有效期至',
-    remark          TEXT COMMENT '备注',
-    creator_id      BIGINT COMMENT '创建人ID',
-    create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted         TINYINT NOT NULL DEFAULT 0,
-    UNIQUE INDEX idx_quote_no (quote_no),
-    INDEX idx_customer (customer_name),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报价记录表';
 
--- 发票记录表
-CREATE TABLE IF NOT EXISTS fin_invoice (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    invoice_no      VARCHAR(50) NOT NULL COMMENT '发票编号',
-    customer_name   VARCHAR(100) COMMENT '客户名称',
-    type            VARCHAR(20) DEFAULT 'normal' COMMENT '类型：special专票/normal普票/receipt收据',
-    amount          DECIMAL(12,2) DEFAULT 0 COMMENT '发票金额',
-    tax_rate        DECIMAL(5,2) DEFAULT 0 COMMENT '税率',
-    tax_amount      DECIMAL(12,2) DEFAULT 0 COMMENT '税额',
-    status          VARCHAR(20) DEFAULT 'pending' COMMENT '状态：completed已开具/pending待开具/cancelled已作废',
-    issue_date      VARCHAR(20) COMMENT '开具日期',
-    remark          TEXT COMMENT '备注',
-    creator_id      BIGINT COMMENT '创建人ID',
-    create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted         TINYINT NOT NULL DEFAULT 0,
-    UNIQUE INDEX idx_invoice_no (invoice_no),
-    INDEX idx_customer (customer_name),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='发票记录表';
+-- =========================================================
+-- 12. 初始数据
+-- =========================================================
 
+-- ------------------- 12.1 系统管理员用户（密码: 123456） -------------------
+INSERT INTO sys_user (username, password, real_name, phone, status) VALUES
+('admin', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '系统管理员', '13800138000', 1),
+('finance', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '财务小王', '13800138001', 1),
+('operator', '$2b$12$MPNCwxVVTbgUfTtoplfF.e4rCXbD7zb6529bQGIrzVRlQe6MoYYIS', '操作员小李', '13800138002', 1);
+
+-- ------------------- 12.2 初始角色 -------------------
+INSERT INTO sys_role (role_name, role_code, description, sort, status) VALUES
+('超级管理员', 'SUPER_ADMIN', '拥有所有权限', 1, 1),
+('管理员', 'ADMIN', '除系统配置外全部权限', 2, 1),
+('财务', 'FINANCE', '财务和订单查看', 3, 1),
+('操作员', 'OPERATOR', '订单增删改', 4, 1),
+('访客', 'VIEWER', '只读权限', 5, 1);
+
+-- ------------------- 12.3 用户-角色分配 -------------------
+INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
+INSERT INTO sys_user_role (user_id, role_id) VALUES (2, 3);
+INSERT INTO sys_user_role (user_id, role_id) VALUES (3, 4);
+
+-- ------------------- 12.4.1 按钮资源初始数据 -------------------
+INSERT INTO sys_button (name, permission, type, parent_id, sort, status) VALUES
+('查看仪表盘', 'dashboard:view', 'button', 0, 1, 1),
+('查看订单', 'order:list', 'button', 0, 2, 1),
+('新建订单', 'order:create', 'button', 0, 3, 1),
+('编辑订单', 'order:edit', 'button', 0, 4, 1),
+('删除订单', 'order:delete', 'button', 0, 5, 1),
+('查看客户', 'customer:list', 'button', 0, 6, 1),
+('新建客户', 'customer:create', 'button', 0, 7, 1),
+('编辑客户', 'customer:edit', 'button', 0, 8, 1),
+('删除客户', 'customer:delete', 'button', 0, 9, 1),
+('查看会员', 'member:list', 'button', 0, 10, 1),
+('新建会员', 'member:create', 'button', 0, 11, 1),
+('编辑会员', 'member:edit', 'button', 0, 12, 1),
+('删除会员', 'member:delete', 'button', 0, 13, 1),
+('会员充值', 'member:recharge', 'button', 0, 14, 1),
+('查看账单', 'factory:list', 'button', 0, 15, 1),
+('新建账单', 'factory:create', 'button', 0, 16, 1),
+('编辑账单', 'factory:edit', 'button', 0, 17, 1),
+('删除账单', 'factory:delete', 'button', 0, 18, 1),
+('查看财务', 'finance:view', 'button', 0, 19, 1),
+('编辑财务', 'finance:edit', 'button', 0, 20, 1),
+('用户管理', 'system:user', 'button', 0, 21, 1),
+('角色权限', 'system:role', 'button', 0, 22, 1),
+('操作日志', 'system:log', 'button', 0, 23, 1),
+('数据字典', 'system:dict', 'button', 0, 24, 1),
+('数据备份', 'system:backup', 'button', 0, 25, 1),
+('公告管理', 'system:notice', 'button', 0, 26, 1),
+('按钮管理', 'system:menu', 'button', 0, 27, 1),
+('查看物料', 'material:view', 'button', 0, 28, 1),
+('查看文件', 'design:file', 'button', 0, 29, 1),
+('查看报表', 'statistics:view', 'button', 0, 30, 1),
+('查看广场', 'square:manage', 'button', 0, 31, 1);
+
+-- ------------------- 12.4.2 初始权限（菜单 + 按钮 + 补丁权限码） -------------------
+INSERT INTO sys_permission (id, parent_id, name, type, path, component, icon, sort, visible, status) VALUES
+-- 一级菜单（id 1~11）
+(1, 0, '仪表盘', 'menu', '/dashboard', 'dashboard/index', '📊', 1, 1, 1),
+(2, 0, '订单管理', 'menu', '/orders', 'order/index', '📋', 2, 1, 1),
+(3, 0, '客户管理', 'menu', '/customers', 'customer/index', '👥', 3, 1, 1),
+(4, 0, '会员管理', 'menu', '/members', 'member/index', '🎫', 4, 1, 1),
+(5, 0, '工厂账单', 'menu', '/factory', 'factory/index', '🏭', 5, 1, 1),
+(6, 0, '财务管理', 'menu', '/finance', 'finance/index', '💰', 6, 1, 1),
+(7, 0, '系统管理', 'menu', '/system', 'system/index', '⚙️', 7, 1, 1),
+(8, 0, '物料管理', 'menu', '/material', 'material/index', '📦', 8, 1, 1),
+(9, 0, '设计文件', 'menu', '/design', 'design/file', '🎨', 9, 1, 1),
+(10, 0, '统计报表', 'menu', '/statistics', 'statistics/index', '📈', 10, 1, 1),
+(11, 0, '广场管理', 'menu', '/square', 'square/index', '✏️', 11, 1, 1);
+
+-- 二级按钮权限（id 12~37）
+INSERT INTO sys_permission (parent_id, name, type, permission_code, sort, visible, status) VALUES
+-- 仪表盘按钮
+(1,  '查看仪表盘',   'button', 'dashboard:view',    1, 1, 1),
+-- 订单按钮
+(2,  '查看订单',     'button', 'order:list',         1, 1, 1),
+(2,  '新建订单',     'button', 'order:create',       2, 1, 1),
+(2,  '编辑订单',     'button', 'order:edit',         3, 1, 1),
+(2,  '删除订单',     'button', 'order:delete',       4, 1, 1),
+-- 客户按钮
+(3,  '查看客户',     'button', 'customer:list',      1, 1, 1),
+(3,  '新建客户',     'button', 'customer:create',    2, 1, 1),
+(3,  '编辑客户',     'button', 'customer:edit',      3, 1, 1),
+(3,  '删除客户',     'button', 'customer:delete',    4, 1, 1),
+-- 会员按钮
+(4,  '查看会员',     'button', 'member:list',        1, 1, 1),
+(4,  '新建会员',     'button', 'member:create',      2, 1, 1),
+(4,  '编辑会员',     'button', 'member:edit',        3, 1, 1),
+(4,  '删除会员',     'button', 'member:delete',      4, 1, 1),
+(4,  '会员充值',     'button', 'member:recharge',    5, 1, 1),
+-- 工厂账单按钮
+(5,  '查看账单',     'button', 'factory:list',       1, 1, 1),
+(5,  '新建账单',     'button', 'factory:create',     2, 1, 1),
+(5,  '编辑账单',     'button', 'factory:edit',       3, 1, 1),
+(5,  '删除账单',     'button', 'factory:delete',     4, 1, 1),
+-- 财务按钮
+(6,  '查看财务',     'button', 'finance:view',       1, 1, 1),
+(6,  '编辑财务',     'button', 'finance:edit',       2, 1, 1),
+-- 系统管理按钮
+(7,  '用户管理',     'button', 'system:user',        1, 1, 1),
+(7,  '角色权限',     'button', 'system:role',        2, 1, 1),
+(7,  '操作日志',     'button', 'system:log',         3, 1, 1),
+(7,  '数据字典',     'button', 'system:dict',        4, 1, 1),
+(7,  '数据备份',     'button', 'system:backup',      5, 1, 1),
+(7,  '公告管理',     'button', 'system:notice',      6, 1, 1),
+(7,  '按钮管理',     'button', 'system:menu',        7, 1, 1),
+-- 物料管理按钮
+(8,  '查看物料',     'button', 'material:view',      1, 1, 1),
+-- 设计文件按钮
+(9,  '查看文件',     'button', 'design:file',        1, 1, 1),
+-- 统计报表按钮
+(10, '查看报表',     'button', 'statistics:view',    1, 1, 1),
+-- 广场管理按钮
+(11, '查看广场',     'button', 'square:manage',      1, 1, 1);
+
+-- ------------------- 12.5 角色权限分配 -------------------
+
+-- SUPER_ADMIN(role_id=1): 所有权限
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 1, id FROM sys_permission WHERE deleted = 0;
+
+-- ADMIN(role_id=2): 除"数据备份"外的所有权限
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 2, id FROM sys_permission WHERE deleted = 0 AND permission_code != 'system:backup';
+
+-- FINANCE(role_id=3): 查看 + 财务相关
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 3, id FROM sys_permission WHERE deleted = 0 AND (
+    permission_code LIKE 'order:list' OR
+    permission_code LIKE 'customer:list' OR
+    permission_code LIKE 'finance:%' OR
+    permission_code LIKE 'dashboard:view'
+);
+
+-- OPERATOR(role_id=4): 订单 + 客户 + 仪表盘
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 4, id FROM sys_permission WHERE deleted = 0 AND (
+    permission_code LIKE 'order:%' OR
+    permission_code LIKE 'customer:%' OR
+    permission_code LIKE 'dashboard:view'
+);
+
+
+-- ------------------- 12.6 零售客户（系统默认客户，用于门店零散订单） -------------------
+INSERT INTO crm_customer (customer_name, contact_person, phone, industry, customer_type, total_amount, order_count, level, status) VALUES
+('零售客户', NULL, NULL, '零售', 1, 0.00, 0, 1, 1);
+
+
+-- ------------------- 12.7 客户等级初始数据 -------------------
+
+
+-- ------------------- 12.8 会员初始数据（无） -------------------
+-- 会员数据由用户手动创建
+
+
+-- ------------------- 12.9 订单初始数据（无） -------------------
+-- 订单数据由用户手动创建
+
+
+-- ------------------- 12.10 工厂账单（关联到合并后的工厂客户） -------------------
+-- 账单数据由用户手动创建
+
+
+-- ------------------- 12.11 财务记录（无） -------------------
+-- 财务流水由业务操作自动生成
+
+
+-- ------------------- 12.12 物料分类与物料 -------------------
+INSERT INTO mat_category (name, code, sort_order) VALUES
+('印刷材料', 'PRINT', 1),
+('广告材料', 'AD', 2),
+('耗材', 'CONSUMABLE', 3),
+('包装材料', 'PACKAGE', 4);
+
+INSERT INTO mat_material (name, code, category_id, category_name, spec, unit, price, cost_price, stock_quantity, warning_quantity, min_quantity, status) VALUES
+('铜版纸 A4', 'MAT001', 1, '印刷材料', 'A4 105g', '张', 0.50, 0.30, 5000, 500, 200, 1),
+('铜版纸 A3', 'MAT002', 1, '印刷材料', 'A3 105g', '张', 0.90, 0.55, 3000, 300, 100, 1),
+('哑粉纸 A4', 'MAT003', 1, '印刷材料', 'A4 128g', '张', 0.60, 0.38, 2000, 200, 100, 1),
+('KT板 60x90cm', 'MAT004', 2, '广告材料', '60x90cm 5mm', '张', 15.00, 8.00, 200, 30, 10, 1),
+('写真布 1m宽', 'MAT005', 2, '广告材料', '1m宽 灯箱布', '米', 12.00, 7.00, 500, 50, 20, 1),
+('墨盒（黑色）', 'MAT006', 3, '耗材', '通用型', '个', 85.00, 55.00, 20, 5, 2, 1),
+('装订胶', 'MAT007', 3, '耗材', '500ml', '瓶', 35.00, 20.00, 15, 5, 3, 1);
+
+
+-- ------------------- 12.13 通知初始数据（无） -------------------
+-- 通知由系统运行时自动生成
+
+
+-- ------------------- 12.14 数据字典 -------------------
+INSERT INTO sys_dict (name, code, description, sort_order, status) VALUES
+('订单类型', 'order_type', '订单类型枚举', 1, 1),
+('订单状态', 'order_status', '订单状态枚举', 2, 1),
+('支付方式', 'payment_method', '支付方式枚举', 3, 1),
+('客户等级', 'customer_level', '客户等级枚举', 4, 1);
+
+INSERT INTO sys_dict_item (dict_id, label, value, sort_order) VALUES
+(1, '印刷', '1', 1), (1, '广告', '2', 2), (1, '设计', '3', 3),
+(2, '待确认', '1', 1), (2, '进行中', '2', 2), (2, '已完成', '3', 3), (2, '已取消', '4', 4),
+(3, '现金', 'cash', 1), (3, '转账', 'transfer', 2), (3, '微信', 'wechat', 3), (3, '支付宝', 'alipay', 4),
+(4, '普通', '1', 1), (4, '银牌', '2', 2), (4, '金牌', '3', 3), (4, '钻石', '4', 4);
+
+
+
+-- =========================================================
+-- 完成！v2.3 共 32 张表（干净初始状态）
+--
+-- 初始数据说明：
+--   系统用户: admin/123456, finance/123456, operator/123456
+--   角色: SUPER_ADMIN, ADMIN, FINANCE, OPERATOR, VIEWER
+--   零售客户: crm_customer 中 1 条（用于门店零散订单）
+--   业务数据(订单/账单/会员/财务): 均为空，由用户手动创建
+--
+-- 表清单：
+--   系统管理(9): sys_user, sys_role, sys_permission, sys_user_role,
+--               sys_role_permission, sys_button, sys_dict, sys_dict_item, sys_operation_log
+--   客户管理(3): crm_customer(含工厂), customer_tag, customer_level
+--   会员管理(2): mem_member, mem_member_transaction
+--   订单管理(2): ord_order, ord_order_material
+--   工厂账单(3): fac_factory_bill, fac_factory_bill_detail, fac_factory_salesman
+--   财务管理(3): fin_record, fin_quote, fin_invoice
+--   物料管理(3): mat_category, mat_material, mat_stock_log
+--   设计广场(3): sq_requirement, sq_application, sq_income
+--   设计文件(2): des_file, des_file_version
+--   通知模块(2): sys_notice, sys_notice_setting
+--   系统维护(1): sys_backup
+-- =========================================================

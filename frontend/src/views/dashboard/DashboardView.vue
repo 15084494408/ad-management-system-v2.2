@@ -14,6 +14,80 @@
       </div>
     </div>
     
+    <!-- 未收款订单提醒 -->
+    <div v-if="unpaidOrders.length > 0" class="payment-reminder">
+      <div class="reminder-header" @click="showUnpaidDetail = !showUnpaidDetail">
+        <span class="reminder-icon">💰</span>
+        <span class="reminder-title">未收款订单提醒</span>
+        <span class="reminder-count">{{ unpaidOrders.length }} 笔待收</span>
+        <span class="reminder-total">
+          共 ¥{{ unpaidOrders.reduce((sum, o) => sum + o.unpaidAmount, 0).toFixed(2) }}
+        </span>
+        <span class="toggle-btn">{{ showUnpaidDetail ? '收起' : '展开' }} ▼</span>
+      </div>
+
+      <div v-show="showUnpaidDetail" class="reminder-cards">
+        <div
+          v-for="order in unpaidOrders"
+          :key="order.id"
+          class="order-card"
+          :class="{ 'partial-paid': order.paymentStatus === 2 }"
+        >
+          <div class="card-left">
+            <div class="card-order-no">{{ order.orderNo }}</div>
+            <div class="card-customer">{{ order.customerName }}</div>
+          </div>
+          <div class="card-center">
+            <div class="card-amount-info">
+              <span>总额 ¥{{ order.totalAmount.toFixed(2) }}</span>
+              <span class="card-divider">|</span>
+              <span>已付 ¥{{ order.paidAmount.toFixed(2) }}</span>
+              <span class="card-divider">|</span>
+              <span class="card-unpaid">未付 ¥{{ order.unpaidAmount.toFixed(2) }}</span>
+            </div>
+            <div v-if="order.memberId && paymentMemberBalanceMap[order.id] > 0" class="member-balance-tip">
+              🎫 会员预存：¥{{ (paymentMemberBalanceMap[order.id] || 0).toFixed(2) }}
+            </div>
+          </div>
+          <div class="card-right">
+            <button class="collect-btn" @click="showPayment(order)">收款</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 收款对话框 -->
+    <div v-if="paymentDialogVisible" class="payment-modal-overlay" @click.self="paymentDialogVisible = false">
+      <div class="payment-modal">
+        <div class="modal-header">
+          <h3>收款 — {{ paymentOrder?.orderNo }}</h3>
+          <button class="close-btn" @click="paymentDialogVisible = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-customer">客户：{{ paymentOrder?.customerName }}</p>
+          <div class="modal-row"><label>订单金额：</label><span>¥{{ paymentOrder?.totalAmount?.toFixed(2) }}</span></div>
+          <div class="modal-row"><label>已付金额：</label><span>¥{{ paymentOrder?.paidAmount?.toFixed(2) }}</span></div>
+          <div class="modal-row highlight">
+            <label>本次收款：</label>
+            <input type="number" v-model.number="paymentForm.amount" min="0.01"
+              :max="paymentOrder?.unpaidAmount" step="0.01" class="modal-input" placeholder="输入收款金额" />
+          </div>
+          <div v-if="paymentMemberBalance > 0" class="member-balance-card">
+            <div class="balance-header">🎫 会员预存可用</div>
+            <div class="balance-amount">¥{{ paymentMemberBalance.toFixed(2) }}</div>
+            <div class="balance-hint">将优先从预存余额扣除（最多扣除 ¥{{ Math.min(paymentForm.amount, paymentMemberBalance).toFixed(2) }}）</div>
+          </div>
+          <div class="modal-row"><label>备注：</label>
+            <input type="text" v-model="paymentForm.remark" class="modal-input" placeholder="可选备注" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="paymentDialogVisible = false">取消</button>
+          <button class="confirm-btn" @click="confirmPayment">确认收款</button>
+        </div>
+      </div>
+    </div>
+    
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
@@ -209,6 +283,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/api/request'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 
@@ -234,6 +309,130 @@ const dashboard = reactive({
 
 const recentOrders = ref<any[]>([])
 const pendingItems = ref<any[]>([])
+
+// ========== 未收款订单提醒 ==========
+const unpaidOrders = ref<any[]>([])
+const unpaidLoading = ref(false)
+const showUnpaidDetail = ref(true)
+const paymentMemberBalanceMap = ref<Record<number, number>>({})
+
+// 收款对话框
+const paymentDialogVisible = ref(false)
+const paymentOrder = ref<any>(null)
+const paymentForm = reactive({
+  amount: 0,
+  remark: '',
+})
+const paymentMemberBalance = ref(0) // 会员预存余额
+
+// 加载未收款订单（payment_status != 3）
+const loadUnpaidOrders = async () => {
+  unpaidLoading.value = true
+  try {
+    const res = await request.get('/orders', {
+      params: { page: 1, size: 50, paymentStatus: 1 }
+    })
+    const records = res.data?.records || res.data || []
+    let unpaidList = records.map((o: any) => {
+      const total = o.totalAmount || 0
+      const paid = o.paidAmount || 0
+      return {
+        id: o.id,
+        orderNo: o.orderNo || '',
+        customerName: o.customerName || '',
+        memberId: o.memberId || null,
+        totalAmount: total,
+        paidAmount: paid,
+        unpaidAmount: Math.max(0, total - paid),
+        status: o.status || '',
+        paymentStatus: o.paymentStatus || 1,
+      }
+    })
+    // 同时加载部分付款的订单（payment_status = 2）
+    const res2 = await request.get('/orders', {
+      params: { page: 1, size: 50, paymentStatus: 2 }
+    })
+    const records2 = res2.data?.records || res2.data || []
+    const partialPaid = records2.map((o: any) => ({
+      id: o.id,
+      orderNo: o.orderNo || '',
+      customerName: o.customerName || '',
+      memberId: o.memberId || null,
+      totalAmount: o.totalAmount || 0,
+      paidAmount: o.paidAmount || 0,
+      unpaidAmount: Math.max(0, (o.totalAmount || 0) - (o.paidAmount || 0)),
+      status: o.status || '',
+      paymentStatus: 2,
+    }))
+    // 合并并去重
+    const allOrders = [...unpaidList, ...partialPaid]
+    const uniqueOrders = allOrders.filter((order, index, self) =>
+      index === self.findIndex(o => o.id === order.id)
+    )
+    unpaidOrders.value = uniqueOrders
+
+    // 查询每个订单关联会员的预存余额
+    const balanceMap: Record<number, number> = {}
+    for (const order of uniqueOrders) {
+      if (order.memberId) {
+        try {
+          const res = await request.get(`/members/${order.memberId}`)
+          const member = res.data || {}
+          balanceMap[order.id] = member.balance || 0
+        } catch {
+          balanceMap[order.id] = 0
+        }
+      }
+    }
+    paymentMemberBalanceMap.value = balanceMap
+  } catch (e: any) {
+    unpaidOrders.value = []
+  } finally {
+    unpaidLoading.value = false
+  }
+}
+
+// 显示收款对话框
+const showPayment = async (order: any) => {
+  paymentOrder.value = order
+  paymentForm.amount = order.unpaidAmount
+  paymentForm.remark = ''
+  paymentMemberBalance.value = 0
+
+  if (order.memberId) {
+    try {
+      const res = await request.get(`/members/${order.memberId}`)
+      const member = res.data || {}
+      paymentMemberBalance.value = member.balance || 0
+    } catch {
+      paymentMemberBalance.value = 0
+    }
+  }
+
+  paymentDialogVisible.value = true
+}
+
+// 确认收款
+const confirmPayment = async () => {
+  if (!paymentOrder.value) return
+  if (paymentForm.amount <= 0) {
+    ElMessage.warning('收款金额必须大于0')
+    return
+  }
+
+  try {
+    await request.post(`/orders/${paymentOrder.value.id}/payment`, {
+      amount: paymentForm.amount,
+      remark: paymentForm.remark,
+    })
+    ElMessage.success('收款成功！')
+    paymentDialogVisible.value = false
+    loadUnpaidOrders()
+    loadDashboard()
+  } catch (e: any) {
+    ElMessage.error('收款失败：' + (e?.message || '请稍后重试'))
+  }
+}
 
 const pieGradient = computed(() => {
   const list = dashboard.revenueBreakdown
@@ -323,6 +522,7 @@ onMounted(() => {
   loadDashboard()
   loadRecentOrders()
   loadPendingItems()
+  loadUnpaidOrders()
 })
 </script>
 
@@ -536,4 +736,68 @@ onMounted(() => {
   &.delete { background: #fef0f0; color: $danger; }
   &:hover { opacity: 0.8; }
 }
+
+// ========== 未收款订单提醒 ==========
+.payment-reminder {
+  background: linear-gradient(135deg, #fff7e6, #fff3d3);
+  border: 1px solid #e6a23c;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(230, 162, 60, .15);
+}
+.reminder-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; cursor: pointer; transition: background .2s; }
+.reminder-header:hover { background: rgba(230,162,60,.08); }
+.reminder-icon { font-size: 22px; }
+.reminder-title { font-size: 15px; font-weight: 600; color: #e6a23c; }
+.reminder-count { background: #e6a23c; color: #fff; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.reminder-total { margin-left: auto; font-size: 16px; font-weight: 700; color: #e6a23c; }
+.toggle-btn { font-size: 12px; color: #909399; cursor: pointer; }
+
+.reminder-cards {
+  padding: 0 20px 20px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.order-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: #fff; border-radius: 10px;
+  border: 1px solid rgba(230,162,60,.3);
+  transition: all .25s;
+}
+.order-card:hover { box-shadow: 0 4px 12px rgba(230,162,60,.15); transform: translateY(-2px); }
+.order-card.partial-paid { border-color: rgba(64,158,255,.3); }
+.card-left { flex-shrink: 0; min-width: 110px; }
+.card-order-no { font-size: 13px; font-weight: 600; color: $text-primary; }
+.card-customer { font-size: 11px; color: $text-secondary; margin-top: 3px; }
+.card-center { flex: 1; min-width: 0; }
+.card-amount-info { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
+.card-divider { color: #dcdfe6; }
+.card-unpaid { color: #e6a23c; font-weight: 600; }
+.member-balance-tip { margin-top: 4px; font-size: 11px; color: #409eff; background: #ecf5ff; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+.card-right { flex-shrink: 0; }
+.collect-btn { background: linear-gradient(135deg,#e6a23c,#ebb563); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all .25s; flex-shrink: 0; }
+.collect-btn:hover { background: linear-gradient(135deg,#cf8f1a,#d9a03e); box-shadow: 0 4px 12px rgba(230,162,60,.4); }
+
+// 收款对话框
+.payment-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.payment-modal { background: #fff; border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #eef0f2; }
+.modal-header h3 { font-size: 16px; font-weight: 600; color: $text-primary; }
+.close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: #909399; &:hover { color: $text-primary; } }
+.modal-body { margin-bottom: 20px; }
+.modal-customer { font-size: 14px; color: $text-secondary; margin-bottom: 16px; }
+.modal-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 14px; label { width: 100px; color: $text-secondary; flex-shrink: 0; } span { font-weight: 500; color: $text-primary; } &.highlight label { color: $warning; font-weight: 600; } }
+.modal-input { flex: 1; padding: 8px 12px; border: 1px solid $border-light; border-radius: 6px; font-size: 14px; &:focus { outline: none; border-color: $primary; box-shadow: 0 0 0 2px rgba(64,158,255,.2); } }
+.member-balance-card { background: linear-gradient(135deg,#ecf5ff,#d9ecff); border: 1px solid #b3d8ff; border-radius: 8px; padding: 14px; margin: 12px 0; text-align: center; }
+.balance-header { font-size: 13px; color: #409eff; margin-bottom: 6px; }
+.balance-amount { font-size: 24px; font-weight: 700; color: #409eff; }
+.balance-hint { font-size: 12px; color: #909399; margin-top: 6px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; border-top: 1px solid #eef0f2; }
+.cancel-btn { padding: 8px 20px; border-radius: 6px; border: 1px solid $border-light; background: #fff; cursor: pointer; font-size: 14px; color: $text-primary; &:hover { background: $bg-base; } }
+.confirm-btn { padding: 8px 20px; border-radius: 6px; border: none; background: $success; color: #fff; cursor: pointer; font-size: 14px; &:hover { background: #85ce61; } }
+.loading-tip { text-align: center; padding: 20px; color: #909399; font-size: 14px; }
+
 </style>

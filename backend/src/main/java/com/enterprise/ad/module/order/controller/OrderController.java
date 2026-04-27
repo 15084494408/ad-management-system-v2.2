@@ -4,6 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.module.member.entity.Member;
+import com.enterprise.ad.module.member.entity.MemberTransaction;
+import com.enterprise.ad.module.member.mapper.MemberMapper;
+import com.enterprise.ad.module.member.mapper.MemberTransactionMapper;
 import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.entity.OrderMaterial;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
@@ -32,6 +36,8 @@ public class OrderController {
 
     private final OrderMapper orderMapper;
     private final OrderMaterialMapper orderMaterialMapper;
+    private final MemberMapper memberMapper;
+    private final MemberTransactionMapper memberTransactionMapper;
 
     // 订单编号序列（生产环境应使用 Redis 自增或数据库序列）
     private static final AtomicInteger orderSeq = new AtomicInteger(0);
@@ -323,23 +329,72 @@ public class OrderController {
     }
 
     /**
-     * 登记收款 — 累加已付金额
+     * 登记收款 — 优先从会员预存金额扣除，累加已付金额
      */
     @PostMapping("/{id}/payment")
     @Operation(summary = "登记收款")
     @PreAuthorize("hasAuthority('order:edit')")
+    @Transactional
     public Result<Void> addPayment(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
         Order existing = orderMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("订单不存在");
         }
+
         BigDecimal amount = new BigDecimal(body.getOrDefault("amount", "0").toString());
         BigDecimal currentPaid = existing.getPaidAmount() != null ? existing.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal newPaid = currentPaid.add(amount);
 
+        // 优先从会员预存金额扣除
+        BigDecimal fromBalance = BigDecimal.ZERO;  // 从预存扣除的金额
+        BigDecimal fromOther = amount;                // 其他支付方式金额
+
+        Long memberId = existing.getMemberId();
+        if (memberId != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            Member member = memberMapper.selectById(memberId);
+            if (member != null && member.getBalance() != null && member.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal balance = member.getBalance();
+                // 预存金额足够覆盖本次收款
+                if (balance.compareTo(amount) >= 0) {
+                    fromBalance = amount;
+                    fromOther = BigDecimal.ZERO;
+                } else {
+                    // 预存不够，先扣完预存，剩余用其他方式支付
+                    fromBalance = balance;
+                    fromOther = amount.subtract(balance);
+                }
+
+                // 更新会员余额
+                BigDecimal newBalance = balance.subtract(fromBalance);
+                Member memberUpdate = new Member();
+                memberUpdate.setId(memberId);
+                memberUpdate.setBalance(newBalance);
+                memberUpdate.setTotalConsume(
+                    (member.getTotalConsume() != null ? member.getTotalConsume() : BigDecimal.ZERO)
+                        .add(fromBalance)
+                );
+                memberUpdate.setUpdateTime(LocalDateTime.now());
+                memberMapper.updateById(memberUpdate);
+
+                // 记录会员消费流水
+                MemberTransaction tx = new MemberTransaction();
+                tx.setMemberId(memberId);
+                tx.setType("consume");
+                tx.setAmount(fromBalance);
+                tx.setBalanceBefore(balance);
+                tx.setBalanceAfter(newBalance);
+                tx.setOrderId(id);
+                tx.setRemark("订单收款扣除预存：" + existing.getOrderNo());
+                tx.setCreateTime(LocalDateTime.now());
+                memberTransactionMapper.insert(tx);
+            }
+        }
+
+        // 更新订单已付金额（本次收款总额）
+        BigDecimal newPaid = currentPaid.add(amount);
         Order update = new Order();
         update.setId(id);
         update.setPaidAmount(newPaid);
+
         // 如果已付>=总额，自动更新为已付清
         BigDecimal total = existing.getTotalAmount() != null ? existing.getTotalAmount() : BigDecimal.ZERO;
         if (newPaid.compareTo(total) >= 0) {
@@ -349,6 +404,7 @@ public class OrderController {
         }
         update.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(update);
+
         return Result.ok();
     }
 

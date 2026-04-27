@@ -64,23 +64,6 @@ const menuGroups = [
     ],
   },
   {
-    title: '系统管理',
-    items: [
-      {
-        name: 'system', icon: '⚙️', label: '系统管理', perm: 'system:user',
-        children: [
-          { path: '/system/users', label: '用户管理', perm: 'system:user' },
-          { path: '/system/roles', label: '角色权限', perm: 'system:role' },
-          { path: '/system/config', label: '系统配置', perm: 'system:user' },
-          { path: '/system/logs', label: '操作日志', perm: 'system:log' },
-          { path: '/system/dict', label: '数据字典', perm: 'system:dict' },
-          { path: '/system/backup', label: '数据备份', perm: 'system:backup' },
-          { path: '/system/buttons', label: '🎨 按钮管理', perm: 'system:user' },
-        ],
-      },
-    ],
-  },
-  {
     title: '业务管理',
     items: [
       {
@@ -88,8 +71,6 @@ const menuGroups = [
         children: [
           { path: '/customers', label: '客户列表', perm: 'customer:list' },
           { path: '/customers/levels', label: '客户等级', perm: 'customer:list' },
-          { path: '/customers/follow', label: '客户跟进', perm: 'customer:list' },
-          { path: '/customers/tags', label: '客户标签', perm: 'customer:list' },
           { path: '/factory-bills', label: '🏭 工厂账单', perm: 'factory:list', badge: 'V2.1' },
         ],
       },
@@ -170,6 +151,23 @@ const menuGroups = [
           { path: '/statistics/customer', label: '客户统计', perm: 'statistics:view' },
           { path: '/statistics/material', label: '物料统计', perm: 'statistics:view' },
           { path: '/statistics/flow', label: '流水统计', perm: 'statistics:view', badge: 'V2.2' },
+        ],
+      },
+    ],
+  },
+  {
+    title: '系统管理',
+    items: [
+      {
+        name: 'system', icon: '⚙️', label: '系统管理', perm: 'system:user',
+        children: [
+          { path: '/system/users', label: '用户管理', perm: 'system:user' },
+          { path: '/system/roles', label: '角色权限', perm: 'system:role' },
+          { path: '/system/config', label: '系统配置', perm: 'system:user' },
+          { path: '/system/logs', label: '操作日志', perm: 'system:log' },
+          { path: '/system/dict', label: '数据字典', perm: 'system:dict' },
+          { path: '/system/backup', label: '数据备份', perm: 'system:backup' },
+          { path: '/system/buttons', label: '🎨 按钮管理', perm: 'system:user' },
         ],
       },
     ],

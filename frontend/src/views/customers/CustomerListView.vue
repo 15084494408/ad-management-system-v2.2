@@ -11,7 +11,6 @@
     <div class="page-header">
       <h1 class="page-title">👥 客户列表</h1>
       <div class="page-actions">
-        <button class="btn btn-default" @click="showImport = true">⬆️ 批量导入</button>
         <button class="btn btn-default" @click="handleExport">⬇️ 导出</button>
         <button class="btn btn-primary" @click="openAddModal">+ 新增客户</button>
       </div>
@@ -25,17 +24,10 @@
       </div>
       <div class="form-group">
         <label>客户类型</label>
-        <select v-model="searchForm.type" class="form-control">
+        <select v-model="searchForm.customerType" class="form-control">
           <option value="">全部</option>
-          <option value="普通客户">普通客户</option>
-          <option value="工厂客户">工厂客户</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>客户标签</label>
-        <select v-model="searchForm.tag" class="form-control">
-          <option value="">全部</option>
-          <option v-for="t in tagOptions" :key="t.id" :value="t.name">{{ t.icon || '🏷️' }} {{ t.name }}</option>
+          <option :value="1">👤 普通客户（有订单）</option>
+          <option :value="2">🏭 工厂客户（有账单）</option>
         </select>
       </div>
       <div class="form-group" style="align-self:flex-end;">
@@ -51,41 +43,39 @@
           <tr>
             <th>客户ID</th>
             <th>客户名称</th>
-            <th>类型</th>
+            <th>客户类型</th>
+            <th>工厂类型</th>
             <th>联系人</th>
             <th>联系电话</th>
-            <th>标签</th>
             <th>累计消费</th>
-            <th>跟进人</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="9" style="text-align:center;padding:40px;color:#909399;">
+            <td colspan="8" style="text-align:center;padding:40px;color:#909399;">
               <div class="loading-spinner" style="margin:0 auto 8px;"></div>加载中...
             </td>
           </tr>
           <tr v-for="row in list" :key="row.id">
             <td>{{ row.id }}</td>
             <td><strong>{{ row.name || row.customerName }}</strong></td>
-            <td><span class="tag tag-primary">{{ row.type || '普通客户' }}</span></td>
-            <td>{{ row.contact || row.contactName || '-' }}</td>
-            <td>{{ row.phone || '-' }}</td>
             <td>
-              <span v-if="row.tags" class="tag tag-success">{{ row.tags }}</span>
-              <span v-else style="color:#c0c4cc;">-</span>
+              <span v-if="row.customerType === 2" class="tag tag-warning">🏭 工厂客户</span>
+              <span v-else class="tag tag-primary">👤 普通客户</span>
             </td>
+            <td>{{ row.factoryType || '-' }}</td>
+            <td>{{ row.contact || row.contactPerson || '-' }}</td>
+            <td>{{ row.phone || '-' }}</td>
             <td style="font-weight:600;">¥{{ Number(row.totalAmount || 0).toLocaleString() }}</td>
-            <td>{{ row.follower || '-' }}</td>
             <td class="action-btns">
               <button class="action-btn view" @click="viewCustomer(row)">查看</button>
               <button class="action-btn edit" @click="openEditModal(row)">编辑</button>
-              <button class="action-btn view" @click="showFollowDialog = true">跟进</button>
+              <button v-if="isSuperAdmin" class="action-btn delete" @click="confirmDeleteCustomer(row)" title="仅超级管理员可删除">删除</button>
             </td>
           </tr>
           <tr v-if="!loading && list.length === 0">
-            <td colspan="9" style="text-align:center;padding:40px;color:#c0c4cc;">暂无客户数据</td>
+            <td colspan="8" style="text-align:center;padding:40px;color:#c0c4cc;">暂无客户数据</td>
           </tr>
         </tbody>
       </table>
@@ -121,11 +111,21 @@
             </div>
             <div class="form-group">
               <label class="form-label">客户类型 *</label>
-              <select v-model="editForm.type" class="form-input">
-                <option value="">请选择类型</option>
-                <option value="企业客户">企业客户</option>
-                <option value="个人客户">个人客户</option>
-                <option value="工厂客户">工厂客户</option>
+              <select v-model.number="editForm.customerType" class="form-input" @change="onCustomerTypeChange">
+                <option :value="1">👤 普通客户（有订单）</option>
+                <option :value="2">🏭 工厂客户（有账单）</option>
+              </select>
+            </div>
+          </div>
+          <!-- 工厂类型（仅工厂客户显示） -->
+          <div class="form-row" v-if="editForm.customerType === 2">
+            <div class="form-group">
+              <label class="form-label">工厂类型 *</label>
+              <select v-model="editForm.factoryType" class="form-input">
+                <option value="">请选择工厂类型</option>
+                <option value="印刷">🖨️ 印刷</option>
+                <option value="包装">📦 包装</option>
+                <option value="广告制作">📢 广告制作</option>
               </select>
             </div>
           </div>
@@ -142,18 +142,11 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">客户等级</label>
-              <select v-model="editForm.level" class="form-input">
-                <option value="1">普通会员</option>
-                <option value="2">银牌会员</option>
-                <option value="3">金牌会员</option>
-                <option value="4">钻石会员</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">客户标签</label>
-              <select v-model="editForm.tags" class="form-input">
-                <option value="">无标签</option>
-                <option v-for="t in tagOptions" :key="t.id" :value="t.name">{{ t.icon || '🏷️' }} {{ t.name }}</option>
+              <select v-model.number="editForm.level" class="form-input">
+                <option :value="1">普通会员</option>
+                <option :value="2">银牌会员</option>
+                <option :value="3">金牌会员</option>
+                <option :value="4">钻石会员</option>
               </select>
             </div>
           </div>
@@ -161,12 +154,6 @@
             <div class="form-group">
               <label class="form-label">详细地址</label>
               <input v-model="editForm.address" type="text" class="form-input" placeholder="详细地址">
-            </div>
-          </div>
-          <div class="form-row full">
-            <div class="form-group">
-              <label class="form-label">备注</label>
-              <textarea v-model="editForm.remark" class="form-input" placeholder="客户备注信息..."></textarea>
             </div>
           </div>
         </div>
@@ -187,8 +174,8 @@
         <div class="modal-body" v-if="viewData">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;">
             <div style="background:#f5f7fa;padding:15px;border-radius:8px;text-align:center;">
-              <div style="font-size:30px;margin-bottom:10px;">🏢</div>
-              <div style="font-size:16px;font-weight:600;">{{ viewData.name }}</div>
+              <div style="font-size:30px;margin-bottom:10px;">{{ viewData.customerType === 2 ? '🏭' : '🏢' }}</div>
+              <div style="font-size:16px;font-weight:600;">{{ viewData.name || viewData.customerName }}</div>
               <div style="font-size:12px;color:#909399;">客户ID: {{ viewData.id }}</div>
             </div>
             <div style="background:#f0f9eb;padding:15px;border-radius:8px;text-align:center;">
@@ -196,10 +183,17 @@
               <div style="font-size:12px;color:#909399;">累计消费</div>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;">
             <div style="background:#f5f7fa;padding:12px;border-radius:6px;">
               <div style="font-size:11px;color:#909399;">客户类型</div>
-              <div style="font-size:14px;"><span class="tag tag-primary">{{ viewData.type || '企业客户' }}</span></div>
+              <div style="font-size:14px;">
+                <span v-if="viewData.customerType === 2" class="tag tag-warning">🏭 工厂客户</span>
+                <span v-else class="tag tag-primary">👤 普通客户</span>
+              </div>
+            </div>
+            <div style="background:#f5f7fa;padding:12px;border-radius:6px;" v-if="viewData.customerType === 2">
+              <div style="font-size:11px;color:#909399;">工厂类型</div>
+              <div style="font-size:14px;"><span class="tag tag-info">{{ viewData.factoryType || '-' }}</span></div>
             </div>
             <div style="background:#f5f7fa;padding:12px;border-radius:6px;">
               <div style="font-size:11px;color:#909399;">客户等级</div>
@@ -207,16 +201,12 @@
             </div>
             <div style="background:#f5f7fa;padding:12px;border-radius:6px;">
               <div style="font-size:11px;color:#909399;">联系人</div>
-              <div style="font-size:14px;">{{ viewData.contact || '-' }}</div>
+              <div style="font-size:14px;">{{ viewData.contact || viewData.contactPerson || '-' }}</div>
             </div>
             <div style="background:#f5f7fa;padding:12px;border-radius:6px;">
               <div style="font-size:11px;color:#909399;">联系电话</div>
               <div style="font-size:14px;">{{ viewData.phone || '-' }}</div>
             </div>
-          </div>
-          <div v-if="viewData.tags" style="margin-top:15px;">
-            <div style="font-size:12px;color:#909399;margin-bottom:5px;">客户标签</div>
-            <div><span class="tag tag-success">{{ viewData.tags }}</span></div>
           </div>
           <div v-if="viewData.address" style="margin-top:15px;">
             <div style="font-size:12px;color:#909399;margin-bottom:5px;">地址</div>
@@ -230,125 +220,48 @@
       </div>
     </div>
 
-    <!-- 客户跟进弹窗 -->
-    <div class="modal-overlay" :class="{ show: showFollowDialog }" @click.self="showFollowDialog = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">📝 客户跟进</span>
-          <button class="modal-close" @click="showFollowDialog = false">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">跟进方式</label>
-              <select v-model="followForm.method" class="form-input">
-                <option>电话沟通</option>
-                <option>上门拜访</option>
-                <option>微信/短信</option>
-                <option>邮件沟通</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">跟进时间</label>
-              <input v-model="followForm.time" type="datetime-local" class="form-input">
-            </div>
-          </div>
-          <div class="form-row full">
-            <div class="form-group">
-              <label class="form-label">跟进内容 *</label>
-              <textarea v-model="followForm.content" class="form-input" placeholder="请详细记录本次跟进内容..."></textarea>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">下次跟进计划</label>
-            <input v-model="followForm.nextDate" type="date" class="form-input">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-default" @click="showFollowDialog = false">取消</button>
-          <button class="btn btn-success" @click="saveFollow">💾 保存记录</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 批量导入弹窗 -->
-    <div class="modal-overlay" :class="{ show: showImport }" @click.self="showImport = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">⬆️ 批量导入客户</span>
-          <button class="modal-close" @click="showImport = false">✕</button>
-        </div>
-        <div class="modal-body">
-          <div style="border:2px dashed #dcdfe6;border-radius:8px;padding:40px;text-align:center;margin-bottom:20px;cursor:pointer;">
-            <div style="font-size:48px;margin-bottom:15px;">📁</div>
-            <div style="font-size:14px;color:#606266;">点击或拖拽文件到此处上传</div>
-            <div style="font-size:12px;color:#909399;margin-top:8px;">支持 Excel (.xlsx, .xls) 或 CSV 格式</div>
-          </div>
-          <div style="background:#f5f7fa;padding:15px;border-radius:8px;margin-bottom:15px;">
-            <h4 style="font-size:13px;margin-bottom:10px;">📥 下载导入模板</h4>
-            <p style="font-size:12px;color:#909399;margin-bottom:10px;">请先下载模板，按照格式填写后上传</p>
-            <button class="btn btn-default btn-sm">⬇️ 下载模板</button>
-          </div>
-          <div class="form-group">
-            <label class="form-label">导入说明</label>
-            <ul style="font-size:12px;color:#909399;line-height:1.8;padding-left:20px;">
-              <li>Excel文件请包含表头：客户名称、联系人、电话、客户类型</li>
-              <li>一次最多导入500条数据</li>
-              <li>重复的客户数据将被跳过</li>
-            </ul>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-default" @click="showImport = false">取消</button>
-          <button class="btn btn-primary" @click="showImport = false; alert('导入功能开发中')">⬆️ 开始导入</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+
+// 超级管理员判断
+const isSuperAdmin = computed(() => {
+  const roles = authStore.userInfo?.roles || []
+  return roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')
+})
 
 const levelNames: Record<number, string> = { 1: '普通会员', 2: '银牌会员', 3: '金牌会员', 4: '钻石会员' }
 function getLevelName(level: any) { return levelNames[level] || '普通会员' }
 
 const list = ref<any[]>([])
 const loading = ref(false)
-const tagOptions = ref<any[]>([])
 
-async function loadTags() {
-  try {
-    const res = await request.get('/customers/tags')
-    tagOptions.value = res.data || []
-  } catch {
-    tagOptions.value = []
+// 客户类型变更时清空工厂类型
+function onCustomerTypeChange() {
+  if (editForm.value.customerType !== 2) {
+    editForm.value.factoryType = ''
   }
 }
+
 const total = ref(0)
 const current = ref(1)
 const size = ref(10)
 const showModal = ref(false)
 const showView = ref(false)
-const showFollowDialog = ref(false)
-const showImport = ref(false)
 const viewData = ref<any>(null)
 
-const searchForm = ref({ keyword: '', type: '', tag: '' })
+const searchForm = ref({ keyword: '', customerType: null as number | null })
 
 const editForm = ref<any>({
-  id: null, name: '', type: '', contact: '', phone: '',
-  level: 1, tags: '', address: '', remark: ''
-})
-
-const followForm = ref({
-
-  method: '电话沟通',
-  time: new Date().toISOString().slice(0, 16),
-  content: '',
-  nextDate: ''
+  id: null, name: '', customerType: 1 as number, factoryType: '',
+  contact: '', phone: '', level: 1 as number, address: ''
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
@@ -372,15 +285,16 @@ const pageButtons = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    const res = await request.get('/customers', {
-      params: {
-        current: current.value,
-        size: size.value,
-        keyword: searchForm.value.keyword || undefined,
-        type: searchForm.value.type || undefined,
-        tag: searchForm.value.tag || undefined
-      }
-    })
+    const params: Record<string, any> = {
+      current: current.value,
+      size: size.value,
+      keyword: searchForm.value.keyword || undefined,
+    }
+    // 只传有值的客户类型筛选
+    if (searchForm.value.customerType !== null && searchForm.value.customerType !== '') {
+      params.customerType = searchForm.value.customerType
+    }
+    const res = await request.get('/customers', { params })
     const data = res.data
     list.value = data?.records || data?.list || []
     total.value = data?.total || list.value.length
@@ -398,22 +312,26 @@ function changePage(p: number) {
 }
 
 function resetSearch() {
-  searchForm.value = { keyword: '', type: '', tag: '' }
+  searchForm.value = { keyword: '', customerType: null as number | null }
   current.value = 1
   loadData()
 }
 
 function openAddModal() {
-  editForm.value = { id: null, name: '', type: '', contact: '', phone: '', level: 1, tags: '', address: '', remark: '' }
+  editForm.value = { id: null, name: '', customerType: 1, factoryType: '', contact: '', phone: '', level: 1, address: '' }
   showModal.value = true
 }
 
 function openEditModal(row: any) {
   editForm.value = {
-    id: row.id, name: row.name || row.customerName, type: row.type || '',
-    contact: row.contact || row.contactName || '', phone: row.phone || '',
-    level: row.level || 1, tags: row.tags || '',
-    address: row.address || '', remark: row.remark || ''
+    id: row.id,
+    name: row.name || row.customerName,
+    customerType: row.customerType || 1,
+    factoryType: row.factoryType || '',
+    contact: row.contact || row.contactPerson || '',
+    phone: row.phone || '',
+    level: row.level || 1,
+    address: row.address || ''
   }
   showModal.value = true
 }
@@ -426,6 +344,11 @@ function viewCustomer(row: any) {
 async function saveCustomer() {
   if (!editForm.value.name) {
     ElMessage.warning('请填写客户名称')
+    return
+  }
+  // 工厂客户必须选择工厂类型
+  if (editForm.value.customerType === 2 && !editForm.value.factoryType) {
+    ElMessage.warning('工厂客户必须选择工厂类型')
     return
   }
   try {
@@ -443,19 +366,20 @@ async function saveCustomer() {
   }
 }
 
-function saveFollow() {
-  if (!followForm.value.content) {
-    ElMessage.warning('请填写跟进内容')
-    return
-  }
-  ElMessage.success('跟进记录已保存')
-  showFollowDialog.value = false
-  followForm.value = { method: '电话沟通', time: new Date().toISOString().slice(0, 16), content: '', nextDate: '' }
-}
-
 function handleExport() {
   ElMessage.info('导出功能开发中')
 }
 
-onMounted(() => { loadData(); loadTags() })
+async function confirmDeleteCustomer(row: any) {
+  if (!confirm(`确定要删除客户「${row.name || row.customerName}」吗？\n\n⚠️ 关联数据可能受影响，此操作不可恢复！`)) return
+  try {
+    await request.delete(`/customers/${row.id}`)
+    ElMessage.success(`已删除客户「${row.name || row.customerName}」`)
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '删除失败')
+  }
+}
+
+onMounted(() => { loadData() })
 </script>

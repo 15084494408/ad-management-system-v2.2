@@ -6,6 +6,10 @@ export const customerApi = {
   getList(params?: Record<string, any>) {
     return request.get<any, ApiResponse<PageResult<Customer>>>('/customers', { params })
   },
+  /** 工厂客户列表（customerType=2）— 用于业务员所属工厂选择 */
+  getFactoryCustomers() {
+    return request.get<any, ApiResponse<Customer[]>>('/customers/factories')
+  },
   /** 客户详情 — 对齐后端 GET /customers/{id} */
   getDetail(id: number) {
     return request.get<any, ApiResponse<Customer>>(`/customers/${id}`)
