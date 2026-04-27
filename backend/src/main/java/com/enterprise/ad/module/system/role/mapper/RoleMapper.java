@@ -2,6 +2,8 @@ package com.enterprise.ad.module.system.role.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.enterprise.ad.module.system.role.entity.Role;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -21,4 +23,21 @@ public interface RoleMapper extends BaseMapper<Role> {
             "GROUP BY p.permission_code, p.sort " +
             "ORDER BY p.sort")
     List<String> selectPermissionsByRoleId(@Param("roleId") Long roleId);
+
+    /**
+     * 删除角色所有权限关联
+     */
+    @Delete("DELETE FROM sys_role_permission WHERE role_id = #{roleId}")
+    int deletePermissionsByRoleId(@Param("roleId") Long roleId);
+
+    /**
+     * 批量插入角色权限关联
+     */
+    @Insert("<script>" +
+            "INSERT INTO sys_role_permission (role_id, permission_id) VALUES " +
+            "<foreach collection='permissionIds' item='pid' separator=','>" +
+            "(#{roleId}, #{pid})" +
+            "</foreach>" +
+            "</script>")
+    int batchInsertPermissions(@Param("roleId") Long roleId, @Param("permissionIds") List<Long> permissionIds);
 }

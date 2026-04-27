@@ -495,6 +495,7 @@ CREATE TABLE IF NOT EXISTS fin_designer_commission (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计师提成表';
 
+
 -- =========================================================
 -- 7. 物料管理模块（3 张表）
 -- =========================================================

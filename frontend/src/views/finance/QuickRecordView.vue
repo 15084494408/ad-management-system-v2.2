@@ -56,8 +56,8 @@
             <el-option
               v-for="c in companies"
               :key="c.id || c"
-              :label="c.customerName || c"
-              :value="c.customerName || c"
+              :label="c.name || c"
+              :value="c.name || c"
             />
           </el-select>
         </el-form-item>

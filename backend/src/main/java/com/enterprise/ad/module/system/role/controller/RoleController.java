@@ -3,6 +3,7 @@ package com.enterprise.ad.module.system.role.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.system.role.entity.Role;
+import com.enterprise.ad.module.system.role.entity.RoleRequest;
 import com.enterprise.ad.module.system.role.entity.RoleVO;
 import com.enterprise.ad.module.system.role.mapper.RoleMapper;
 import com.enterprise.ad.module.system.user.entity.SysPermission;
@@ -54,21 +55,39 @@ public class RoleController {
     @PostMapping
     @Operation(summary = "新增角色")
     @PreAuthorize("hasAuthority('system:role')")
-    public Result<Long> create(@RequestBody Role role) {
+    public Result<Long> create(@RequestBody RoleRequest req) {
+        Role role = new Role();
+        role.setRoleName(req.getRoleName());
+        role.setRoleCode(req.getRoleCode());
+        role.setDescription(req.getDescription());
+        role.setSort(req.getSort());
+        role.setStatus(1);
         role.setCreateTime(LocalDateTime.now());
         role.setUpdateTime(LocalDateTime.now());
         role.setDeleted(0);
         roleMapper.insert(role);
+
+        // 同步权限到 sys_role_permission
+        syncRolePermissions(role.getId(), req.getPermissions());
+
         return Result.ok(role.getId());
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "更新角色")
     @PreAuthorize("hasAuthority('system:role')")
-    public Result<Void> update(@PathVariable Long id, @RequestBody Role role) {
+    public Result<Void> update(@PathVariable Long id, @RequestBody RoleRequest req) {
+        Role role = new Role();
         role.setId(id);
+        role.setRoleName(req.getRoleName());
+        role.setDescription(req.getDescription());
+        role.setSort(req.getSort());
         role.setUpdateTime(LocalDateTime.now());
         roleMapper.updateById(role);
+
+        // 同步权限到 sys_role_permission
+        syncRolePermissions(id, req.getPermissions());
+
         return Result.ok();
     }
 
@@ -76,11 +95,10 @@ public class RoleController {
     @Operation(summary = "删除角色")
     @PreAuthorize("hasAuthority('system:role')")
     public Result<Void> delete(@PathVariable Long id) {
-        Role role = new Role();
-        role.setId(id);
-        role.setDeleted(1);
-        role.setUpdateTime(LocalDateTime.now());
-        roleMapper.updateById(role);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        roleMapper.deleteById(id);
+        // 同时清理权限关联
+        roleMapper.deletePermissionsByRoleId(id);
         return Result.ok();
     }
 
@@ -150,9 +168,35 @@ public class RoleController {
      * 根据角色ID查询关联的权限码
      */
     private List<String> getPermissionsByRoleId(Long roleId) {
-        // 通过 MyBatis-Plus 的 selectList 无法直接跨表联查，
-        // 这里用 SysPermission 的 selectList + 手动过滤
-        // 实际上需要 SQL 联查，所以加一个方法到 RoleMapper
         return roleMapper.selectPermissionsByRoleId(roleId);
+    }
+
+    /**
+     * 同步角色权限：先删除旧的，再根据权限码列表查出ID批量插入
+     */
+    private void syncRolePermissions(Long roleId, List<String> permissionCodes) {
+        // 先清除旧关联
+        roleMapper.deletePermissionsByRoleId(roleId);
+
+        if (permissionCodes == null || permissionCodes.isEmpty()) {
+            return;
+        }
+
+        // 根据权限码查出对应的 permission_id
+        List<SysPermission> perms = permissionMapper.selectList(
+            new LambdaQueryWrapper<SysPermission>()
+                .eq(SysPermission::getStatus, 1)
+                .eq(SysPermission::getDeleted, 0)
+                .in(SysPermission::getPermissionCode, permissionCodes)
+        );
+
+        List<Long> permissionIds = perms.stream()
+            .map(SysPermission::getId)
+            .distinct()
+            .collect(Collectors.toList());
+
+        if (!permissionIds.isEmpty()) {
+            roleMapper.batchInsertPermissions(roleId, permissionIds);
+        }
     }
 }

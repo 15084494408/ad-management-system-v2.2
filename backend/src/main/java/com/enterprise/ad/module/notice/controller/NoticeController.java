@@ -137,12 +137,8 @@ public class NoticeController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除通知")
     public Result<Void> delete(@PathVariable Long id) {
-        // ★ 修复：使用逻辑删除而非物理删除
-        Notice notice = new Notice();
-        notice.setId(id);
-        notice.setDeleted(1);
-        notice.setUpdateTime(LocalDateTime.now());
-        noticeMapper.updateById(notice);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        noticeMapper.deleteById(id);
         return Result.ok();
     }
 

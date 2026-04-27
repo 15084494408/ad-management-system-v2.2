@@ -112,11 +112,8 @@ public class FactoryController {
     @Operation(summary = "删除工厂")
     @PreAuthorize("hasAuthority('factory:delete')")
     public Result<Void> deleteFactory(@PathVariable Long id) {
-        Factory f = new Factory();
-        f.setId(id);
-        f.setDeleted(1);
-        f.setUpdateTime(LocalDateTime.now());
-        factoryMapper.updateById(f);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        factoryMapper.deleteById(id);
         return Result.ok();
     }
 

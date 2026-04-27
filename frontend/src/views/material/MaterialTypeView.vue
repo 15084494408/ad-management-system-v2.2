@@ -23,7 +23,7 @@
         <el-table-column prop="icon" label="图标" width="80">
           <template #default="{ row }">{{ row.icon || '📦' }}</template>
         </el-table-column>
-        <el-table-column prop="sort" label="排序" width="80" />
+        <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column prop="materialCount" label="物料数量" width="100" />
         <el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="80">
@@ -59,7 +59,7 @@
           </div>
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="editForm.sort" :min="1" :max="999" />
+          <el-input-number v-model="editForm.sortOrder" :min="1" :max="999" />
           <span class="form-tip">数值越小排越前</span>
         </el-form-item>
         <el-form-item label="分类说明">
@@ -96,7 +96,7 @@ const defaultForm = {
   id: null as number | null,
   name: '',
   icon: '📦',
-  sort: 1,
+  sortOrder: 1,
   description: '',
   status: 1
 }
@@ -111,12 +111,12 @@ const loadData = async () => {
     tableData.value = res.data || []
   } catch (e) {
     tableData.value = [
-      { id: 1, name: '纸张类', icon: '📄', sort: 1, materialCount: 25, description: '各类印刷用纸张', status: 1 },
-      { id: 2, name: '油墨类', icon: '🎨', sort: 2, materialCount: 12, description: '印刷油墨、墨水', status: 1 },
-      { id: 3, name: '耗材类', icon: '📦', sort: 3, materialCount: 35, description: '各类辅助耗材', status: 1 },
-      { id: 4, name: '装订材料', icon: '📋', sort: 4, materialCount: 8, description: '装订用材料', status: 1 },
-      { id: 5, name: '覆膜材料', icon: '🖼️', sort: 5, materialCount: 6, description: '覆膜、冷裱材料', status: 1 },
-      { id: 6, name: '写真材料', icon: '🖌️', sort: 6, materialCount: 15, description: '写真、喷绘材料', status: 1 }
+      { id: 1, name: '纸张类', icon: '📄', sortOrder: 1, materialCount: 25, description: '各类印刷用纸张', status: 1 },
+      { id: 2, name: '油墨类', icon: '🎨', sortOrder: 2, materialCount: 12, description: '印刷油墨、墨水', status: 1 },
+      { id: 3, name: '耗材类', icon: '📦', sortOrder: 3, materialCount: 35, description: '各类辅助耗材', status: 1 },
+      { id: 4, name: '装订材料', icon: '📋', sortOrder: 4, materialCount: 8, description: '装订用材料', status: 1 },
+      { id: 5, name: '覆膜材料', icon: '🖼️', sortOrder: 5, materialCount: 6, description: '覆膜、冷裱材料', status: 1 },
+      { id: 6, name: '写真材料', icon: '🖌️', sortOrder: 6, materialCount: 15, description: '写真、喷绘材料', status: 1 }
     ]
   } finally {
     loading.value = false
@@ -149,9 +149,7 @@ const saveCategory = async () => {
     dialogVisible.value = false
     loadData()
   } catch (e) {
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
-    loadData()
+    ElMessage.error('保存失败')
   }
 }
 
@@ -166,7 +164,7 @@ const deleteRow = async (row: any) => {
     ElMessage.success('删除成功')
     loadData()
   } catch (e: any) {
-    if (e !== 'cancel') ElMessage.success('删除成功')
+    if (e !== 'cancel') ElMessage.error('删除失败')
   }
 }
 

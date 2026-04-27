@@ -63,8 +63,8 @@ public class DashboardController {
                 .le(Order::getCreateTime, todayEnd));
         stats.put("todayOrders", todayOrders);
 
-        // 今日营收（今日完成的订单金额之和）
-        BigDecimal todayRevenue = orderMapper.selectList(
+        // 今日营收 = 今日完成订单金额 + 今日快速记账（收入类）
+        BigDecimal todayOrderRevenue = orderMapper.selectList(
             new LambdaQueryWrapper<Order>()
                 .eq(Order::getDeleted, 0)
                 .eq(Order::getStatus, 3)
@@ -72,6 +72,14 @@ public class DashboardController {
                 .le(Order::getCreateTime, todayEnd)
         ).stream().map(o -> o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO)
          .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal todayQuickIncome = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getDeleted, 0)
+                .eq(FinanceRecord::getType, "income")
+                .ge(FinanceRecord::getCreateTime, todayStart)
+                .le(FinanceRecord::getCreateTime, todayEnd)
+        ).stream().map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal todayRevenue = todayOrderRevenue.add(todayQuickIncome);
         stats.put("todayRevenue", todayRevenue);
 
         // 客户总数
@@ -97,8 +105,8 @@ public class DashboardController {
             : (todayOrders > 0 ? 100 : 0);
         stats.put("orderTrend", orderTrend);
 
-        // 营收趋势（较昨日）
-        BigDecimal yesterdayRevenue = orderMapper.selectList(
+        // 营收趋势（较昨日，同样包含快速记账收入）
+        BigDecimal yesterdayOrderRevenue = orderMapper.selectList(
             new LambdaQueryWrapper<Order>()
                 .eq(Order::getDeleted, 0)
                 .eq(Order::getStatus, 3)
@@ -106,6 +114,14 @@ public class DashboardController {
                 .le(Order::getCreateTime, today.minusDays(1).atTime(23, 59, 59))
         ).stream().map(o -> o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO)
          .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal yesterdayQuickIncome = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getDeleted, 0)
+                .eq(FinanceRecord::getType, "income")
+                .ge(FinanceRecord::getCreateTime, today.minusDays(1).atStartOfDay())
+                .le(FinanceRecord::getCreateTime, today.minusDays(1).atTime(23, 59, 59))
+        ).stream().map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal yesterdayRevenue = yesterdayOrderRevenue.add(yesterdayQuickIncome);
         int revenueTrend = yesterdayRevenue.compareTo(BigDecimal.ZERO) > 0
             ? todayRevenue.subtract(yesterdayRevenue).multiply(new BigDecimal("100"))
                 .divide(yesterdayRevenue, 0, RoundingMode.HALF_UP).intValue()

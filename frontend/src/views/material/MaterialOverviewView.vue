@@ -78,6 +78,7 @@
           <div class="material-name">{{ item.name }}</div>
           <div class="material-tags">
             <el-tag size="small" type="primary">{{ item.categoryName }}</el-tag>
+            <el-tag v-if="item.paperGroup" size="small" type="info" title="同纸张类型+材质共享库存">🔗 共享库存</el-tag>
             <el-tag size="small" :type="item.stockQuantity <= item.warningQuantity ? 'danger' : 'success'">
               {{ item.stockQuantity <= item.warningQuantity ? '⚠️ 预警' : '✅ 正常' }}
             </el-tag>
@@ -130,14 +131,43 @@
       />
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="editForm.id ? '编辑物料' : '添加物料'" width="500px">
+    <el-dialog v-model="dialogVisible" :title="editForm.id ? '编辑物料' : '添加物料'" width="550px">
       <el-form :model="editForm" label-width="90px">
-        <el-form-item label="物料名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="物料分类">
-          <el-select v-model="editForm.categoryId" style="width: 100%;">
+          <el-select v-model="editForm.categoryId" style="width: 100%;" @change="onCategoryChange">
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
+        <el-divider content-position="left">纸张属性（印刷类物料）</el-divider>
+        <el-form-item label="纸张类型">
+          <el-select v-model="editForm.paperType" placeholder="非印刷物料可不选" clearable style="width: 100%;" @change="autoGenerateName">
+            <el-option v-for="t in paperTypes" :key="t" :label="t" :value="t" />
+            <template #footer>
+              <div style="padding:0 12px 8px;">
+                <el-input v-model="newPaperType" size="small" placeholder="输入新纸张类型后回车" @keyup.enter="addPaperType" />
+              </div>
+            </template>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="纸张材质">
+          <el-select v-model="editForm.paperSpec" placeholder="非印刷物料可不选" clearable style="width: 100%;" @change="autoGenerateName">
+            <el-option v-for="s in paperSpecs" :key="s" :label="s" :value="s" />
+            <template #footer>
+              <div style="padding:0 12px 8px;">
+                <el-input v-model="newPaperSpec" size="small" placeholder="输入新材质后回车" @keyup.enter="addPaperSpec" />
+              </div>
+            </template>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="色彩类型">
+          <el-radio-group v-model="editForm.colourType" @change="autoGenerateName">
+            <el-radio :label="0">黑白</el-radio>
+            <el-radio :label="1">彩色</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-divider content-position="left">基本信息</el-divider>
+        <el-form-item label="物料名称"><el-input v-model="editForm.name" placeholder="可手动修改自动生成的名称" /></el-form-item>
+        <el-form-item label="物料编码"><el-input v-model="editForm.code" placeholder="可手动修改自动生成的编码" /></el-form-item>
         <el-form-item label="规格"><el-input v-model="editForm.spec" /></el-form-item>
         <el-form-item label="单位"><el-input v-model="editForm.unit" /></el-form-item>
         <el-form-item label="零售价"><el-input-number v-model="editForm.price" :min="0" :precision="2" style="width: 100%;" /></el-form-item>
@@ -206,12 +236,73 @@ const defaultForm = {
   id: null as number | null,
   name: '',
   categoryId: null,
+  paperType: '',
+  paperSpec: '',
+  paperGroup: '',
+  colourType: 0,
   spec: '',
   unit: '',
   price: 0,
   costPrice: 0,
   stockQuantity: 0,
   warningQuantity: 10
+}
+
+// 纸张类型和材质选项（可动态新增）
+const paperTypes = ref<string[]>(['A4', 'A3', 'SRA3'])
+const paperSpecs = ref<string[]>(['80g双胶纸', '128g铜版纸', '157g铜版纸', '200g铜版纸', '250g铜版纸', '300g铜版纸'])
+const newPaperType = ref('')
+const newPaperSpec = ref('')
+
+function addPaperType() {
+  const v = newPaperType.value.trim()
+  if (v && !paperTypes.value.includes(v)) {
+    paperTypes.value.push(v)
+    editForm.paperType = v
+    newPaperType.value = ''
+    autoGenerateName()
+  }
+}
+
+function addPaperSpec() {
+  const v = newPaperSpec.value.trim()
+  if (v && !paperSpecs.value.includes(v)) {
+    paperSpecs.value.push(v)
+    editForm.paperSpec = v
+    newPaperSpec.value = ''
+    autoGenerateName()
+  }
+}
+
+const colourLabel = (t: number) => t === 1 ? '彩色' : '黑白'
+
+function autoGenerateName() {
+  if (editForm.paperType && editForm.paperSpec) {
+    editForm.name = `${editForm.paperType} - ${editForm.paperSpec} - ${colourLabel(editForm.colourType)}`
+    // 自动生成编码：A4-128G-TB-C / A4-80G-SJ-B
+    const typeCode = editForm.paperType.toUpperCase()
+    const specMatch = editForm.paperSpec.match(/(\d+)g(.*)/)
+    let specCode = ''
+    if (specMatch) {
+      specCode = specMatch[1] + 'G'
+      const materialType = specMatch[2]
+      if (materialType.includes('铜版')) specCode += '-TB'
+      else if (materialType.includes('双胶')) specCode += '-SJ'
+      else if (materialType.includes('特种')) specCode += '-TZ'
+      else if (materialType.includes('白卡')) specCode += '-BK'
+      else specCode += '-QT'
+    }
+    // 纸张分组标识（同尺寸+材质共享库存，不含色彩后缀）
+    editForm.paperGroup = `${typeCode}-${specCode}`
+    const colourCode = editForm.colourType === 1 ? '-C' : '-B'
+    editForm.code = `${typeCode}-${specCode}${colourCode}`
+  }
+}
+
+function onCategoryChange() {
+  // 选择分类时自动更新 categoryName
+  const cat = categories.value.find((c: any) => c.id === editForm.categoryId)
+  if (cat) editForm.categoryName = cat.name
 }
 
 const editForm = reactive<any>({ ...defaultForm })
@@ -292,6 +383,11 @@ const saveMaterial = async () => {
   if (!editForm.name) {
     ElMessage.warning('请输入物料名称')
     return
+  }
+  // ★ 根据 categoryId 自动同步 categoryName
+  const cat = categories.value.find((c: any) => c.id === editForm.categoryId)
+  if (cat) {
+    editForm.categoryName = cat.name
   }
   try {
     if (editForm.id) {

@@ -186,11 +186,8 @@ public class DesignFileController {
     @DeleteMapping("/{id}")
     @Operation(summary = "删除文件")
     public Result<Void> delete(@PathVariable Long id) {
-        DesignFile f = new DesignFile();
-        f.setId(id);
-        f.setDeleted(1);
-        f.setUpdateTime(LocalDateTime.now());
-        fileMapper.updateById(f);
+        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        fileMapper.deleteById(id);
         return Result.ok();
     }
 

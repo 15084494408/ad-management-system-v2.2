@@ -149,7 +149,7 @@ function showDialog(row?: any) {
 function viewDetail(row: any) { ElMessage.info('查看报价: ' + row.quoteNo) }
 function convertToOrder(row: any) { ElMessage.success('已转为订单: ' + row.quoteNo) }
 async function submitForm() {
-  try { await request.post('/finance/quote/save', formData); ElMessage.success('保存成功'); dialogVisible.value = false; loadData() } catch {}
+  try { await request.post('/finance/quote/save', formData); ElMessage.success('保存成功'); dialogVisible.value = false; loadData() } catch { ElMessage.error('保存失败') }
 }
 onMounted(loadData)
 </script>

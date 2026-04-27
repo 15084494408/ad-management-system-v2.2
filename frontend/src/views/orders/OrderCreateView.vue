@@ -54,8 +54,10 @@
         </div>
         <div class="form-group" style="flex:1;">
           <label>设计师（关联抽成）</label>
-          <input type="text" :value="form.designerName" class="form-control"
-            readonly style="background:#f5f7fa;color:var(--text1);cursor:default;" />
+          <select v-model="form.designerId" class="form-control" @change="onDesignerChange" style="cursor:pointer;">
+            <option :value="null" disabled>选择设计师...</option>
+            <option v-for="u in designerList" :key="u.id" :value="u.id">{{ u.realName || u.username }}</option>
+          </select>
         </div>
       </div>
 
@@ -135,72 +137,70 @@
         </div>
       </div>
 
-      <!-- 物料表格（可滚动） -->
-      <div class="materials-scroll-area" v-if="!materialsLoading">
-        <table class="data-table" style="margin:0;">
-          <thead>
-            <tr>
-              <th style="width:40px;text-align:center;">#</th>
-              <th style="width:30%;">物料名称</th>
-              <th style="width:15%;">分类</th>
-              <th style="width:100px;">规格</th>
-              <th style="width:60px;">单位</th>
-              <th style="width:80px;text-align:right;">零售价</th>
-              <th style="width:70px;text-align:center;">数量</th>
-              <th style="width:95px;text-align:right;">单价</th>
-              <th style="width:95px;text-align:right;">小计</th>
-              <th style="width:50px;text-align:center;">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-if="filteredMaterialList.length > 0">
-              <tr v-for="(m, idx) in filteredMaterialList" :key="m.id"
-                :class="{ 'row-selected': isMaterialSelected(m.id) }">
-                <td style="text-align:center;color:#c0c4cc;">{{ idx + 1 }}</td>
-                <td>
-                  <strong>{{ m.name }}</strong>
-                  <div v-if="m.code" style="font-size:11px;color:#909399;margin-top:2px;">编码：{{ m.code }}</div>
-                </td>
-                <td><span class="tag">{{ m.categoryName }}</span></td>
-                <td>{{ m.spec || '-' }}</td>
-                <td style="text-align:center;">{{ m.unit || '个' }}</td>
-                <td style="text-align:right;color:#e6a23c;">¥{{ formatMoney(m.price) }}</td>
-                <td style="text-align:center;">
-                  <input v-if="isMaterialSelected(m.id)" type="number"
-                    v-model.number="getSelected(m.id).quantity"
-                    class="qty-input"
-                    min="1" step="1" @change="recalcLine(m.id)"
-                    style="width:60px;text-align:center;padding:2px 4px;" />
-                  <span v-else style="color:#c0c4cc;">-</span>
-                </td>
-                <td style="text-align:right;">
-                  <input v-if="isMaterialSelected(m.id)" type="number"
-                    v-model.number="getSelected(m.id).unitPrice"
-                    class="price-input"
-                    min="0" step="0.01" @change="recalcLine(m.id)"
-                    style="width:75px;text-align:right;padding:2px 4px;" />
-                  <span v-else style="color:#c0c4cc;">-</span>
-                </td>
-                <td style="text-align:right;font-weight:600;color:#e6a23c;">
-                  <span v-if="isMaterialSelected(m.id)">¥{{ formatMoney(getSelected(m.id).amount) }}</span>
-                  <span v-else>-</span>
-                </td>
-                <td style="text-align:center;">
-                  <button v-if="isMaterialSelected(m.id)"
-                    class="action-btn delete-sm" title="移除"
-                    @click="removeMaterial(m.id)">✕</button>
-                  <button v-else class="btn-sm btn-primary-outline" title="选用此物料"
-                    @click="addMaterial(m)">+ 选</button>
-                </td>
-              </tr>
-            </template>
-            <tr v-else>
-              <td colspan="10" style="text-align:center;padding:40px;color:#909399;">
-                暂无匹配的物料
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- 物料表格（两列并排） -->
+      <div class="materials-two-col" v-if="!materialsLoading">
+        <template v-if="filteredMaterialList.length > 0">
+          <div class="materials-col" v-for="(col, colIdx) in materialColumns" :key="colIdx">
+            <table class="data-table" style="margin:0;">
+              <thead>
+                <tr>
+                  <th style="width:30px;text-align:center;">#</th>
+                  <th style="width:32%;">物料名称</th>
+                  <th style="width:14%;">分类</th>
+                  <th style="width:60px;">规格</th>
+                  <th style="width:40px;">单位</th>
+                  <th style="width:60px;text-align:right;">零售价</th>
+                  <th style="width:50px;text-align:center;">数量</th>
+                  <th style="width:65px;text-align:right;">单价</th>
+                  <th style="width:65px;text-align:right;">小计</th>
+                  <th style="width:40px;text-align:center;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(m, idx) in col" :key="m.id"
+                  :class="{ 'row-selected': isMaterialSelected(m.id) }">
+                  <td style="text-align:center;color:#c0c4cc;">{{ colIdx * Math.ceil(filteredMaterialList.length / 2) + idx + 1 }}</td>
+                  <td>
+                    <strong>{{ m.name }}</strong>
+                    <div v-if="m.code" style="font-size:11px;color:#909399;margin-top:2px;">编码：{{ m.code }}</div>
+                  </td>
+                  <td><span class="tag" style="font-size:11px;">{{ m.categoryName }}</span></td>
+                  <td style="font-size:12px;">{{ m.spec || '-' }}</td>
+                  <td style="text-align:center;font-size:12px;">{{ m.unit || '个' }}</td>
+                  <td style="text-align:right;color:#e6a23c;font-size:12px;">¥{{ formatMoney(m.price) }}</td>
+                  <td style="text-align:center;">
+                    <input v-if="isMaterialSelected(m.id)" type="number"
+                      v-model.number="getSelected(m.id).quantity"
+                      class="qty-input"
+                      min="1" step="1" @change="recalcLine(m.id)"
+                      style="width:45px;text-align:center;padding:2px 3px;font-size:12px;" />
+                    <span v-else style="color:#c0c4cc;">-</span>
+                  </td>
+                  <td style="text-align:right;">
+                    <input v-if="isMaterialSelected(m.id)" type="number"
+                      v-model.number="getSelected(m.id).unitPrice"
+                      class="price-input"
+                      min="0" step="0.01" @change="recalcLine(m.id)"
+                      style="width:55px;text-align:right;padding:2px 3px;font-size:12px;" />
+                    <span v-else style="color:#c0c4cc;">-</span>
+                  </td>
+                  <td style="text-align:right;font-weight:600;color:#e6a23c;font-size:12px;">
+                    <span v-if="isMaterialSelected(m.id)">¥{{ formatMoney(getSelected(m.id).amount) }}</span>
+                    <span v-else>-</span>
+                  </td>
+                  <td style="text-align:center;">
+                    <button v-if="isMaterialSelected(m.id)"
+                      class="action-btn delete-sm" title="移除"
+                      @click="removeMaterial(m.id)">✕</button>
+                    <button v-else class="btn-sm btn-primary-outline" title="选用此物料"
+                      @click="addMaterial(m)">+</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+        <div v-else class="materials-empty">暂无匹配的物料</div>
       </div>
 
       <!-- 加载中 -->
@@ -265,6 +265,7 @@ const form = reactive({
   customerId: null as number | null,
   customerName: '',
   designerName: '',                          // 初始化时自动填入当前登录用户
+  designerId: null as number | null,         // 设计师用户ID
   contactPerson: '',
   contactPhone: '',
   deliveryAddress: '',
@@ -276,20 +277,13 @@ const form = reactive({
 
 // ========== 客户下拉 ==========
 const customers = ref<any[]>([])
+const designerList = ref<any[]>([])
 
 async function loadCustomers() {
   try {
     const res: any = await customerApi.getList({ current: 1, size: 500 })
     const list = res.data?.records || res.data || []
     customers.value = list
-    // 默认选中"零售客户"（数据库中的第一条或名称匹配的）
-    if (list.length > 0) {
-      const retail = list.find((c: any) => (c.name || c.customerName) === '零售客户') || list[0]
-      form.customerId = retail.id
-      form.customerName = retail.name || retail.customerName
-    } else {
-      ElMessage.warning('未找到客户数据，请先在客户管理中添加客户')
-    }
   } catch (e: any) {
     ElMessage.error('加载客户列表失败：' + (e?.message || '请检查网络'))
   }
@@ -302,6 +296,29 @@ function onCustomerChange() {
     // 自动填充联系人（后端返回字段可能是 contactPerson 或 contact_person）
     form.contactPerson = c.contactPerson || c.contact_person || ''
     form.contactPhone = c.phone || ''
+  }
+}
+
+// ========== 设计师下拉 ==========
+async function loadDesigners() {
+  try {
+    const res: any = await request.get('/system/users', { params: { current: 1, size: 200 } })
+    designerList.value = (res.data?.records || res.data || []).map((u: any) => ({
+      id: u.id,
+      realName: u.realName || u.real_name,
+      username: u.username,
+    }))
+  } catch {
+    designerList.value = []
+  }
+}
+
+function onDesignerChange() {
+  const u = designerList.value.find((d: any) => d.id === form.designerId)
+  if (u) {
+    form.designerName = u.realName || u.username
+  } else {
+    form.designerName = ''
   }
 }
 
@@ -353,6 +370,13 @@ function filterMaterials() {
 function isMaterialSelected(id: number): boolean {
   return selectedMaterials.value.some(s => s.materialId === id)
 }
+
+// 两列布局：将物料列表一分为二
+const materialColumns = computed(() => {
+  const list = filteredMaterialList.value
+  const mid = Math.ceil(list.length / 2)
+  return [list.slice(0, mid), list.slice(mid)]
+})
 
 function getSelected(id: number): any {
   return selectedMaterials.value.find(s => s.materialId === id)
@@ -445,16 +469,16 @@ async function submitOrder() {
 
 // ========== 初始化 ==========
 onMounted(async () => {
-  // 设计师默认为当前登录用户
-  if (authStore.userInfo?.real_name) {
-    form.designerName = authStore.userInfo.real_name
-  } else if (authStore.userInfo?.username) {
-    form.designerName = authStore.userInfo.username
-  }
   await Promise.all([
     loadCustomers(),
     loadMaterialsAndCategories(),
+    loadDesigners(),
   ])
+  // 设计师默认为当前登录用户
+  if (authStore.userInfo?.id) {
+    form.designerId = authStore.userInfo.id
+    form.designerName = authStore.userInfo.real_name || authStore.userInfo.username || ''
+  }
 })
 </script>
 
@@ -548,6 +572,37 @@ textarea.form-control { resize: vertical; }
 .materials-scroll-area::-webkit-scrollbar { width: 6px; }
 .materials-scroll-area::-webkit-scrollbar-thumb {
   background: #c0c4cc; border-radius: 3px;
+}
+
+/* 两列并排物料布局 */
+.materials-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-height: calc(100vh - 520px);
+  min-height: 240px;
+  overflow-y: auto;
+}
+.materials-two-col::-webkit-scrollbar { width: 6px; }
+.materials-two-col::-webkit-scrollbar-thumb {
+  background: #c0c4cc; border-radius: 3px;
+}
+.materials-col {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafafa;
+}
+.materials-col .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.materials-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #909399;
 }
 
 .row-selected {
