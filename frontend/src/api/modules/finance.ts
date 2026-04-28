@@ -60,4 +60,48 @@ export const financeApi = {
   deleteCommission(id: number) {
     return request.delete<any, ApiResponse>(`/finance/designer-commission/${id}`)
   },
+
+  // ── 报价管理 ──
+  /** 报价列表 */
+  getQuoteList(params?: Record<string, any>) {
+    return request.get<any, ApiResponse>('/finance/quote/list', { params })
+  },
+  /** 报价详情（含明细） */
+  getQuoteDetail(id: number) {
+    return request.get<any, ApiResponse>(`/finance/quote/${id}`)
+  },
+  /** 新建报价（主表+明细） */
+  createQuote(data: Record<string, any>) {
+    return request.post<any, ApiResponse<number>>('/finance/quote/create', data)
+  },
+  /** 简单保存报价（兼容旧接口） */
+  saveQuote(data: Record<string, any>) {
+    return request.post<any, ApiResponse<number>>('/finance/quote/save', data)
+  },
+  /** 删除报价 */
+  deleteQuote(id: number) {
+    return request.delete<any, ApiResponse>(`/finance/quote/${id}`)
+  },
+  /** 变更报价状态 */
+  updateQuoteStatus(id: number, status: string) {
+    return request.put<any, ApiResponse>(`/finance/quote/${id}/status`, { status })
+  },
+
+  // ── 公司管理 ──
+  /** 公司列表 */
+  getCompanyList() {
+    return request.get<any, ApiResponse>('/system/companies')
+  },
+  /** 新建公司 */
+  createCompany(data: Record<string, any>) {
+    return request.post<any, ApiResponse<number>>('/system/companies', data)
+  },
+  /** 更新公司 */
+  updateCompany(id: number, data: Record<string, any>) {
+    return request.put<any, ApiResponse>(`/system/companies/${id}`, data)
+  },
+  /** 删除公司 */
+  deleteCompany(id: number) {
+    return request.delete<any, ApiResponse>(`/system/companies/${id}`)
+  },
 }

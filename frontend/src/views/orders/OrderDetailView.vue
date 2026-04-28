@@ -101,10 +101,15 @@
         <div v-if="activeTab === 'material'" class="tab-content">
           <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:13px;color:#606266;">共 {{ detailMaterials.length }} 项物料/工艺</span>
+            <span v-if="canEditCost" style="font-size:12px;color:#909399;">💡 点击成本列可编辑</span>
           </div>
           <table class="data-table" v-if="detailMaterials.length">
             <thead>
-              <tr><th>物料/工艺</th><th>规格</th><th>数量</th><th>单价</th><th>小计</th></tr>
+              <tr>
+                <th>物料/工艺</th><th>规格</th><th>数量</th><th>单价</th>
+                <th>小计</th>
+                <th v-if="canViewCost">成本价</th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="m in detailMaterials" :key="m.id">
@@ -113,6 +118,16 @@
                 <td>{{ m.quantity }} {{ m.unit || '' }}</td>
                 <td>¥{{ formatMoney(m.unitPrice) }}</td>
                 <td style="font-weight:600;color:#67c23a;">¥{{ formatMoney(m.amount) }}</td>
+                <td v-if="canViewCost" style="min-width:120px;">
+                  <div v-if="canEditCost && editingMaterialId === m.id" style="display:flex;align-items:center;gap:4px;">
+                    <input type="number" class="cost-input" v-model.number="editingCost" style="width:80px;" min="0" step="0.01">
+                    <button class="btn-icon btn-confirm" @click="saveCost(m)" title="保存">✓</button>
+                    <button class="btn-icon btn-cancel" @click="cancelEditCost" title="取消">✗</button>
+                  </div>
+                  <div v-else class="cost-cell" :class="{ 'cost-zero': !m.unitCost }" @click="startEditCost(m)" :title="canEditCost ? '点击编辑成本' : ''">
+                    {{ m.unitCost != null ? '¥' + formatMoney(m.unitCost) : '—' }}
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -141,6 +156,30 @@
             <div class="finance-card" style="border-color:#f56c6c;">
               <div class="finance-label" style="color:#f56c6c;">待收余额</div>
               <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney((detailData.totalAmount || 0) - (detailData.paidAmount || 0) - (detailData?.roundingAmount || 0)) }}</div>
+            </div>
+          </div>
+
+          <!-- 成本利润区（管理员/财务可见） -->
+          <div v-if="canViewCost" style="margin-top:20px;">
+            <div style="font-weight:600;margin-bottom:10px;">💰 成本与利润</div>
+            <div class="finance-summary">
+              <div class="finance-card" style="border-color:#909399;">
+                <div class="finance-label" style="color:#909399;">总成本</div>
+                <div class="finance-value" style="color:#909399;">¥{{ formatMoney(detailTotalCost) }}</div>
+              </div>
+              <div class="finance-card" style="border-color:#e6a23c;">
+                <div class="finance-label" style="color:#e6a23c;">设计师提成</div>
+                <div class="finance-value" style="color:#e6a23c;">¥{{ formatMoney(detailCommission) }}</div>
+              </div>
+              <div class="finance-card" style="border-color:#9c27b0;">
+                <div class="finance-label" style="color:#9c27b0;font-weight:600;">💎 预估利润</div>
+                <div class="finance-value" :style="{ color: detailProfit >= 0 ? '#67c23a' : '#f56c6c' }">
+                  ¥{{ formatMoney(detailProfit) }}
+                </div>
+              </div>
+            </div>
+            <div v-if="detailProfit === 0 && (detailTotalCost === 0 || detailTotalCost === '0' || detailTotalCost === 0.00)" style="margin-top:10px;padding:10px 14px;background:#fffbe6;border-radius:8px;font-size:13px;color:#856404;">
+              💡 当前成本未填写，请在物料明细中为每项物料填入成本价，利润将自动计算
             </div>
           </div>
         </div>
@@ -250,11 +289,20 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orderApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const loading = ref(false)
 const activeTab = ref('basic')
+
+// 成本/利润仅管理员和财务可见
+const canViewCost = computed(() => {
+  const roles = authStore.userInfo?.roles || []
+  return roles.includes('SUPER_ADMIN') || roles.includes('FINANCE') || roles.includes('ADMIN')
+})
+const canEditCost = canViewCost  // 可查看即可编辑成本
 
 const statusFlow = ['待确认', '进行中', '已完成', '已取消']
 const statusLabelMap: Record<number, string> = { 1: '待确认', 2: '进行中', 3: '已完成', 4: '已取消' }
@@ -271,6 +319,16 @@ const detailStatusIdx = computed(() => {
   if (s === 1) return 0; if (s === 2) return 1; if (s === 3) return 2; return 0
 })
 
+// 成本相关计算（从 API 返回的 detailData 中取）
+const detailTotalCost = computed(() => detailData.value?.totalCost || 0)
+const detailCommission = computed(() => detailData.value?.designerCommission || 0)
+const detailProfit = computed(() => {
+  const total = detailData.value?.totalAmount || 0
+  const cost = detailData.value?.totalCost || 0
+  const commission = detailData.value?.designerCommission || 0
+  return total - cost - commission
+})
+
 const processVisible = ref(false)
 const processForm = reactive({ designerName: '', deliveryDate: '' })
 const paymentVisible = ref(false)
@@ -280,6 +338,24 @@ const remainingAmount = computed(() => {
   const paid = detailData.value?.paidAmount || 0
   return Math.max(total - paid, 0)
 })
+
+// 物料成本编辑
+const editingMaterialId = ref<number | null>(null)
+const editingCost = ref<number>(0)
+
+function startEditCost(m: any) {
+  editingMaterialId.value = m.id
+  editingCost.value = m.unitCost || 0
+}
+async function saveCost(m: any) {
+  if (!canEditCost.value) return
+  await orderApi.updateMaterial(detailData.value.id, m.id, { unitCost: editingCost.value })
+  editingMaterialId.value = null
+  loadDetail()
+}
+function cancelEditCost() {
+  editingMaterialId.value = null
+}
 
 async function loadDetail() {
   loading.value = true
@@ -393,6 +469,20 @@ onMounted(loadDetail)
   padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0;
 }
 .data-table th { background: #fafbfc; color: #606266; font-weight: 600; font-size: 12px; }
+.cost-cell {
+  cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.2s;
+  &:hover { background: #ecf5ff; color: #409eff; }
+  &.cost-zero { color: #c0c4cc; }
+}
+.cost-input {
+  border: 1px solid #dcdfe6; border-radius: 4px; padding: 3px 6px; font-size: 13px;
+  &:focus { outline: none; border-color: #409eff; }
+}
+.btn-icon {
+  border: none; background: none; cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 13px;
+  &.btn-confirm { color: #67c23a; &:hover { background: #f0f9eb; } }
+  &.btn-cancel { color: #f56c6c; &:hover { background: #fef0f0; } }
+}
 
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45);

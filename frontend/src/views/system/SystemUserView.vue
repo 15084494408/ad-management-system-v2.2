@@ -116,6 +116,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const showDialog = ref(false)
@@ -209,7 +210,19 @@ async function toggleStatus(row: any) {
   } catch {}
 }
 
-function exportData() { ElMessage.info('正在导出用户列表...') }
+function exportData() {
+  exportToExcel({
+    filename: '用户列表',
+    header: ['用户ID', '用户名', '真实姓名', '手机号', '角色', '状态', '最后登录'],
+    data: tableData.value.map(row => [
+      row.id, row.username, row.realName || '-', row.phone || '-',
+      (row.roles || []).map((r: any) => roleMap.value[Number(r)] || `角色${r}`).join(', '),
+      row.status === 1 ? '正常' : '禁用',
+      (row.lastLoginTime || '').toString().slice(0, 16),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+  })
+}
 
 onMounted(async () => {
   loadData()

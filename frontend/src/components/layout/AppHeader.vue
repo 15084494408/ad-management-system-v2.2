@@ -8,11 +8,33 @@
       </div>
     </div>
 
-    <!-- 右侧：快速记账 / 通知 / 用户 -->
+    <!-- 右侧：快速记账 / 公司切换 / 通知 / 用户 -->
     <div class="header-right">
       <button class="quick-btn" @click="showQuickAccount = true">
         <span>+</span> 快速记账
       </button>
+
+      <!-- ★ 多公司切换（仅管理员可见） -->
+      <el-dropdown v-if="authStore.isSuperAdmin" @command="handleSwitchCompany" trigger="click" style="margin-right: 12px;">
+        <button class="company-switch-btn">
+          🏢 {{ authStore.currentCompany?.companyName || '切换公司' }}
+          <span style="font-size:10px;opacity:0.7;">▼</span>
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="c in authStore.companyList"
+              :key="c.id"
+              :command="c.id"
+              :class="{ 'company-active': c.id === authStore.currentCompanyId }"
+            >
+              <span>{{ c.companyType === 'headquarters' ? '🏛️' : '🏪' }}</span>
+              {{ c.companyName }}
+              <span v-if="c.id === authStore.currentCompanyId" style="color:#67c23a;margin-left:6px;">✓</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
 
       <div class="notif-wrapper">
         <button class="notif-btn" @click="showNotif = !showNotif">
@@ -170,7 +192,7 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useFinanceStore } from '@/stores/finance'
-import { financeApi, customerApi } from '@/api'
+import { financeApi, customerApi, systemApi } from '@/api'
 
 defineEmits(['toggle-sidebar'])
 const props = defineProps<{ collapsed?: boolean }>()
@@ -280,6 +302,22 @@ async function loadCompanyList() {
   }
 }
 
+// ★ 加载系统公司列表（多公司切换）
+async function loadSystemCompanies() {
+  try {
+    const r = await systemApi.getCompanyList()
+    authStore.companyList = r.data || []
+  } catch {
+    authStore.companyList = []
+  }
+}
+
+// 切换公司
+function handleSwitchCompany(id: number) {
+  authStore.switchCompany(id)
+  ElMessage.success('已切换到 ' + (authStore.companyList.find(c => c.id === id)?.companyName || ''))
+}
+
 // 弹窗打开后自动聚焦金额输入框 + 刷新客户列表
 watch(showQuickAccount, (val) => {
   if (val) {
@@ -295,6 +333,7 @@ function onShowQuickAccount() {
 onMounted(() => {
   window.addEventListener('show-quick-account', onShowQuickAccount)
   loadCompanyList()
+  loadSystemCompanies() // ★ 加载系统公司列表
 })
 onUnmounted(() => {
   window.removeEventListener('show-quick-account', onShowQuickAccount)
@@ -336,6 +375,12 @@ onUnmounted(() => {
     transform: scale(1.05);
     box-shadow: 0 5px 15px rgba(103, 194, 58, 0.45);
   }
+}
+.company-switch-btn {
+  background: #f0f9eb; color: #67c23a; border: 1px solid #c2e7b0;
+  padding: 6px 14px; border-radius: 16px; cursor: pointer; font-size: 13px;
+  font-weight: 500; transition: all 0.3s; display: flex; align-items: center; gap: 6px;
+  &:hover { background: #e1f3d8; border-color: #67c23a; }
 }
 .notif-wrapper { position: relative; }
 .notif-btn {

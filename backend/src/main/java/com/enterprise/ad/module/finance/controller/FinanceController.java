@@ -7,9 +7,11 @@ import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.finance.entity.FinanceRecord;
 import com.enterprise.ad.module.finance.entity.FinanceQuote;
 import com.enterprise.ad.module.finance.entity.FinanceInvoice;
+import com.enterprise.ad.module.finance.entity.FinQuoteDetail;
 import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
 import com.enterprise.ad.module.finance.mapper.FinanceQuoteMapper;
 import com.enterprise.ad.module.finance.mapper.FinanceInvoiceMapper;
+import com.enterprise.ad.module.finance.mapper.FinQuoteDetailMapper;
 import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
 import com.enterprise.ad.module.factory.entity.FactoryBill;
@@ -38,6 +40,7 @@ public class FinanceController {
     private final FinanceRecordMapper financeRecordMapper;
     private final FinanceQuoteMapper quoteMapper;
     private final FinanceInvoiceMapper invoiceMapper;
+    private final FinQuoteDetailMapper quoteDetailMapper;
     private final OrderMapper orderMapper;
     private final FactoryBillMapper factoryBillMapper;
 
@@ -257,6 +260,112 @@ public class FinanceController {
             .orderByDesc(FinanceQuote::getCreateTime);
         Page<FinanceQuote> result = quoteMapper.selectPage(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
+    }
+
+    @GetMapping("/quote/{id}")
+    @Operation(summary = "报价详情（含明细）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public Result<Map<String, Object>> quoteDetail(@PathVariable Long id) {
+        FinanceQuote quote = quoteMapper.selectById(id);
+        if (quote == null) {
+            return Result.fail(404, "报价不存在");
+        }
+        List<FinQuoteDetail> details = quoteDetailMapper.selectList(
+            new LambdaQueryWrapper<FinQuoteDetail>()
+                .eq(FinQuoteDetail::getQuoteId, id)
+                .eq(FinQuoteDetail::getDeleted, 0)
+                .orderByAsc(FinQuoteDetail::getId)
+        );
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("quote", quote);
+        data.put("details", details);
+        return Result.ok(data);
+    }
+
+    @PostMapping("/quote/create")
+    @Operation(summary = "新建报价（主表+明细同时提交）")
+    @PreAuthorize("hasAuthority('finance:edit')")
+    public Result<Long> createQuote(@RequestBody Map<String, Object> body) {
+        // 解析主表数据
+        FinanceQuote quote = new FinanceQuote();
+        // 生成编号：QT + 日期 + 3位序列
+        String dateStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        long seq = System.currentTimeMillis() % 1000;
+        quote.setQuoteNo("QT" + dateStr + String.format("%03d", seq));
+        
+        if (body.containsKey("customerName")) quote.setCustomerName((String) body.get("customerName"));
+        if (body.containsKey("customerId")) quote.setCustomerId(((Number) body.get("customerId")).longValue());
+        if (body.containsKey("projectName")) quote.setProjectName((String) body.get("projectName"));
+        if (body.containsKey("companyId")) quote.setCompanyId(((Number) body.get("companyId")).longValue());
+        if (body.containsKey("discount")) quote.setDiscount(new BigDecimal(body.get("discount").toString()));
+        else quote.setDiscount(BigDecimal.valueOf(100));
+        if (body.containsKey("taxRate")) quote.setTaxRate(new BigDecimal(body.get("taxRate").toString()));
+        if (body.containsKey("validUntil")) quote.setValidUntil((String) body.get("validUntil"));
+        if (body.containsKey("quoteDate")) quote.setQuoteDate((String) body.get("quoteDate"));
+        if (body.containsKey("remark")) quote.setRemark((String) body.get("remark"));
+        if (body.containsKey("totalAmount")) quote.setTotalAmount(new BigDecimal(body.get("totalAmount").toString()));
+        if (body.containsKey("finalAmount")) quote.setFinalAmount(new BigDecimal(body.get("finalAmount").toString()));
+        if (body.containsKey("taxAmount")) quote.setTaxAmount(new BigDecimal(body.get("taxAmount").toString()));
+
+        quote.setStatus("pending");
+        quote.setCreateTime(LocalDateTime.now());
+        quote.setDeleted(0);
+        quoteMapper.insert(quote);
+
+        // 插入明细
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> detailList = (List<Map<String, Object>>) body.get("details");
+        if (detailList != null && !detailList.isEmpty()) {
+            for (Map<String, Object> d : detailList) {
+                FinQuoteDetail detail = new FinQuoteDetail();
+                detail.setQuoteId(quote.getId());
+                detail.setMaterialName((String) d.get("materialName"));
+                if (d.containsKey("spec")) detail.setSpec((String) d.get("spec"));
+                if (d.containsKey("unit")) detail.setUnit((String) d.get("unit"));
+                if (d.containsKey("quantity")) detail.setQuantity(new BigDecimal(d.get("quantity").toString()));
+                if (d.containsKey("unitPrice")) detail.setUnitPrice(new BigDecimal(d.get("unitPrice").toString()));
+                if (d.containsKey("amount")) detail.setAmount(new BigDecimal(d.get("amount").toString()));
+                if (d.containsKey("remark")) detail.setRemark((String) d.get("remark"));
+                if (d.containsKey("isCustom")) detail.setIsCustom(((Number) d.get("isCustom")).intValue());
+                else detail.setIsCustom(0);
+                detail.setCreateTime(LocalDateTime.now());
+                detail.setDeleted(0);
+                quoteDetailMapper.insert(detail);
+            }
+        }
+
+        return Result.ok(quote.getId());
+    }
+
+    @DeleteMapping("/quote/{id}")
+    @Operation(summary = "删除报价（含明细）")
+    @PreAuthorize("hasAuthority('finance:edit')")
+    public Result<Void> deleteQuote(@PathVariable Long id) {
+        quoteMapper.deleteById(id);
+        // 同时逻辑删除明细
+        List<FinQuoteDetail> details = quoteDetailMapper.selectList(
+            new LambdaQueryWrapper<FinQuoteDetail>().eq(FinQuoteDetail::getQuoteId, id)
+        );
+        for (FinQuoteDetail d : details) {
+            quoteDetailMapper.deleteById(d.getId());
+        }
+        return Result.ok();
+    }
+
+    @PutMapping("/quote/{id}/status")
+    @Operation(summary = "变更报价状态")
+    @PreAuthorize("hasAuthority('finance:edit')")
+    public Result<Void> updateQuoteStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String status = body.get("status");
+        if (status == null || (!List.of("pending", "accepted", "rejected", "expired").contains(status))) {
+            return Result.fail(400, "无效的状态值");
+        }
+        FinanceQuote update = new FinanceQuote();
+        update.setId(id);
+        update.setStatus(status);
+        update.setUpdateTime(LocalDateTime.now());
+        quoteMapper.updateById(update);
+        return Result.ok();
     }
 
     @PostMapping("/quote/save")

@@ -112,6 +112,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Close } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -187,7 +188,20 @@ async function viewItems(row: any) {
   showItemDialog.value = true
 }
 
-function exportDict() { ElMessage.info('正在导出字典数据...') }
+function exportDict() {
+  exportToExcel({
+    filename: '数据字典',
+    header: ['字典编码', '字典名称', '字典项数量', '排序', '状态', '备注'],
+    data: tableData.value.map(row => [
+      row.code || '-', row.name || '-',
+      row.itemCount || 0,
+      row.sortOrder || 0,
+      row.status === 1 ? '启用' : '禁用',
+      row.description || '-',
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+  })
+}
 
 onMounted(loadData)
 </script>

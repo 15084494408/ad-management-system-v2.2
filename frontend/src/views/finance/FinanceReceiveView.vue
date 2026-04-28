@@ -194,6 +194,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import { useFinanceStore } from '@/stores/finance'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const financeStore = useFinanceStore()
 // 全局财务数据变动时，自动刷新收款管理
@@ -333,7 +334,12 @@ const viewDetail = (row: any) => {
 }
 
 const exportData = () => {
-  ElMessage.info('导出功能开发中')
+  if (!tableData.value.length) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '收款记录',
+    header: ['收款编号', '关联订单', '客户名', '收款方式', '收款金额(¥)', '收款人', '备注', '收款时间'],
+    data: tableData.value.map(r => [r.receiveNo || r.no || '-', r.orderNo || '-', r.customerName || '-', r.payMethod || r.method || '-', r.amount, r.operator || '-', r.remark || '-', r.createTime || r.createdAt || '-']),
+  })
 }
 
 onMounted(() => {

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.module.designer.entity.DesignerCommissionConfig;
+import com.enterprise.ad.module.designer.mapper.DesignerCommissionConfigMapper;
 import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
@@ -12,6 +14,8 @@ import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.entity.OrderMaterial;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
 import com.enterprise.ad.module.order.mapper.OrderMaterialMapper;
+import com.enterprise.ad.module.system.user.entity.SysUser;
+import com.enterprise.ad.module.system.user.mapper.SysUserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -38,6 +43,8 @@ public class OrderController {
     private final OrderMaterialMapper orderMaterialMapper;
     private final MemberMapper memberMapper;
     private final MemberTransactionMapper memberTransactionMapper;
+    private final DesignerCommissionConfigMapper commissionMapper;
+    private final SysUserMapper userMapper;
 
     // 订单编号前缀
     private static final String ORDER_PREFIX = "DD";
@@ -187,6 +194,12 @@ public class OrderController {
                 .eq(OrderMaterial::getDeleted, 0)
                 .orderByAsc(OrderMaterial::getCreateTime));
 
+        // 计算利润
+        BigDecimal totalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal totalCost = order.getTotalCost() != null ? order.getTotalCost() : BigDecimal.ZERO;
+        BigDecimal commission = order.getDesignerCommission() != null ? order.getDesignerCommission() : BigDecimal.ZERO;
+        BigDecimal profit = totalAmount.subtract(totalCost).subtract(commission);
+
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("order", order);
         detail.put("materials", materials);
@@ -195,6 +208,10 @@ public class OrderController {
                 ? m.getQuantity().multiply(m.getUnitPrice())
                 : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
+        // 成本相关（管理员/财务可见）
+        detail.put("totalCost", totalCost);
+        detail.put("designerCommission", commission);
+        detail.put("profit", profit);
         return Result.ok(detail);
     }
 
@@ -218,9 +235,11 @@ public class OrderController {
         if (order.getDepositAmount() == null) order.setDepositAmount(BigDecimal.ZERO);
         if (order.getPriority() == null) order.setPriority(1);
         if (order.getSource() == null) order.setSource(1);
+        if (order.getTotalCost() == null) order.setTotalCost(BigDecimal.ZERO);
+        if (order.getDesignerCommission() == null) order.setDesignerCommission(BigDecimal.ZERO);
         orderMapper.insert(order);
 
-        // 同时插入物料明细
+        // 同时插入物料明细（预设物料自动带入成本价）
         if (order.getMaterials() != null) {
             for (OrderMaterial m : order.getMaterials()) {
                 m.setOrderId(order.getId());
@@ -231,8 +250,13 @@ public class OrderController {
                 }
                 orderMaterialMapper.insert(m);
             }
-            // 重算总额
-            recalcOrderAmount(order.getId());
+            // 重算总额、成本、提成
+            recalcOrderAmountAndCost(order.getId());
+        }
+
+        // ★ 新增：自动计算设计师提成
+        if (order.getDesignerId() != null && order.getTotalAmount() != null) {
+            autoCalcCommission(order.getId(), order.getDesignerId(), order.getTotalAmount());
         }
 
         return Result.ok(order.getId());
@@ -241,6 +265,7 @@ public class OrderController {
     @PutMapping("/{id}")
     @Operation(summary = "更新订单")
     @PreAuthorize("hasAuthority('order:edit')")
+    @Transactional
     public Result<Void> update(@PathVariable Long id, @RequestBody Order order) {
         Order existing = orderMapper.selectById(id);
         if (existing == null || existing.getDeleted() == 1) {
@@ -250,6 +275,17 @@ public class OrderController {
         order.setOrderNo(null);  // 不允许修改订单编号
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
+
+        // ★ 新增：如果订单金额变化，重新计算设计师提成
+        if (order.getTotalAmount() != null && !order.getTotalAmount().equals(existing.getTotalAmount())) {
+            Long designerId = order.getDesignerId() != null ? order.getDesignerId() : existing.getDesignerId();
+            if (designerId != null) {
+                autoCalcCommission(id, designerId, order.getTotalAmount());
+            }
+        } else if (order.getDesignerId() != null && !order.getDesignerId().equals(existing.getDesignerId())) {
+            // 设计师变更，重新计算提成
+            autoCalcCommission(id, order.getDesignerId(), existing.getTotalAmount() != null ? existing.getTotalAmount() : BigDecimal.ZERO);
+        }
         return Result.ok();
     }
 
@@ -285,8 +321,29 @@ public class OrderController {
         }
         orderMaterialMapper.insert(material);
 
-        // ★ 新增：自动更新订单总额
-        recalcOrderAmount(id);
+        // ★ 新增：自动更新订单总额和总成本
+        recalcOrderAmountAndCost(id);
+        return Result.ok();
+    }
+
+    /**
+     * 更新物料明细（管理员可更新成本）
+     */
+    @PutMapping("/{id}/materials/{materialId}")
+    @Operation(summary = "更新物料明细")
+    @PreAuthorize("hasAuthority('order:edit')")
+    public Result<Void> updateMaterial(@PathVariable Long id, @PathVariable Long materialId, @RequestBody OrderMaterial material) {
+        OrderMaterial existing = orderMaterialMapper.selectById(materialId);
+        if (existing == null || existing.getDeleted() == 1 || !existing.getOrderId().equals(id)) {
+            return Result.fail("物料不存在");
+        }
+        material.setId(materialId);
+        material.setOrderId(id);
+        material.setCreateTime(null); // 不更新创建时间
+        orderMaterialMapper.updateById(material);
+
+        // 重新计算订单总额和总成本
+        recalcOrderAmountAndCost(id);
         return Result.ok();
     }
 
@@ -298,7 +355,7 @@ public class OrderController {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         orderMaterialMapper.deleteById(materialId);
 
-        recalcOrderAmount(id);
+        recalcOrderAmountAndCost(id);
         return Result.ok();
     }
 
@@ -484,9 +541,9 @@ public class OrderController {
     }
 
     /**
-     * 重算订单金额
+     * 重算订单金额和成本
      */
-    private void recalcOrderAmount(Long orderId) {
+    private void recalcOrderAmountAndCost(Long orderId) {
         var materials = orderMaterialMapper.selectList(
             new LambdaQueryWrapper<OrderMaterial>()
                 .eq(OrderMaterial::getOrderId, orderId)
@@ -498,9 +555,54 @@ public class OrderController {
                 : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // 计算总成本（单位成本 × 数量）
+        BigDecimal totalCost = materials.stream()
+            .map(m -> m.getUnitCost() != null && m.getQuantity() != null
+                ? m.getUnitCost().multiply(m.getQuantity())
+                : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         Order update = new Order();
         update.setId(orderId);
         update.setTotalAmount(total);
+        update.setTotalCost(totalCost);
+        update.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(update);
+    }
+
+    /**
+     * ★ 自动计算设计师提成
+     * 提成 = 订单总额 × 设计师提成比例
+     */
+    private void autoCalcCommission(Long orderId, Long designerId, BigDecimal totalAmount) {
+        if (designerId == null || totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        DesignerCommissionConfig config = commissionMapper.selectOne(
+            new LambdaQueryWrapper<DesignerCommissionConfig>()
+                .eq(DesignerCommissionConfig::getDesignerId, designerId)
+                .eq(DesignerCommissionConfig::getEnabled, 1)
+                .eq(DesignerCommissionConfig::getDeleted, 0)
+        );
+
+        BigDecimal rate = BigDecimal.ZERO;
+        if (config != null && config.getCommissionRate() != null && config.getCommissionRate().compareTo(BigDecimal.ZERO) > 0) {
+            rate = config.getCommissionRate();
+        }
+
+        // 提成 = 总额 × 比例 / 100
+        BigDecimal commission = totalAmount.multiply(rate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+        // 获取设计师姓名
+        SysUser designer = userMapper.selectById(designerId);
+        String designerName = designer != null && designer.getRealName() != null
+            ? designer.getRealName() : (designer != null ? designer.getUsername() : "");
+
+        Order update = new Order();
+        update.setId(orderId);
+        update.setDesignerCommission(commission);
+        update.setDesignerName(designerName);
+        update.setDesignerId(designerId);
         update.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(update);
     }

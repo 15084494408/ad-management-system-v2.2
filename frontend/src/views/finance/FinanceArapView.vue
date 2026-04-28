@@ -120,6 +120,7 @@
 import { ref, onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const activeTab = ref('receivable')
 const loading = ref(false)
@@ -160,7 +161,26 @@ async function loadData() {
 }
 
 function resetSearch() { searchForm.value = { customerName: '', status: '', supplier: '' }; loadData() }
-function exportData() { window.open('/api/finance/arap/export', '_blank') }
+function exportData() {
+  const isReceivable = activeTab.value === 'receivable'
+  const list = isReceivable ? receivableList.value : payableList.value
+  const header = isReceivable
+    ? ['订单编号', '客户名称', '应收金额', '已收金额', '待收金额', '状态', '截止日期']
+    : ['账单编号', '供应商', '应付金额', '已付金额', '待付金额', '状态', '截止日期']
+  const data = list.map(row => {
+    if (isReceivable) {
+      return [row.orderNo, row.customerName, row.totalAmount, row.receivedAmount, row.remainingAmount, statusMap[row.status]?.label || row.status, row.deadline]
+    }
+    return [row.billNo, row.supplierName, row.totalAmount, row.paidAmount, row.remainingAmount, { pending:'未付款', partial:'部分付', completed:'已付清', overdue:'已逾期' }[row.status] || row.status, row.deadline]
+  })
+  exportToExcel({
+    filename: '应收应付明细',
+    header,
+    data,
+    title: (isReceivable ? '应收' : '应付') + '明细表',
+    infoRows: [['导出时间：', new Date().toLocaleString()]],
+  })
+}
 
 onMounted(loadData)
 </script>

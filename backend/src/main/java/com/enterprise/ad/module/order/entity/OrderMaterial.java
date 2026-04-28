@@ -19,6 +19,7 @@ public class OrderMaterial {
     private BigDecimal unitPrice;  // 单价
     private BigDecimal amount;      // 小计金额
     private String remark;
+    private BigDecimal unitCost;   // 单位成本（管理员填写，财务/超管可见）
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

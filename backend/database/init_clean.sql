@@ -442,6 +442,11 @@ CREATE TABLE IF NOT EXISTS fin_quote (
     status VARCHAR(20) DEFAULT 'pending' COMMENT '状态：pending/accepted/rejected/expired',
     valid_until VARCHAR(20) COMMENT '有效期至',
     remark TEXT COMMENT '备注',
+    customer_id BIGINT COMMENT '客户ID',
+    company_id BIGINT DEFAULT NULL COMMENT '报价公司ID',
+    tax_rate DECIMAL(5,2) DEFAULT 0 COMMENT '税率%',
+    tax_amount DECIMAL(12,2) DEFAULT 0 COMMENT '税额',
+    quote_date VARCHAR(20) COMMENT '报价日期',
     creator_id BIGINT COMMENT '创建人ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -718,6 +723,50 @@ CREATE TABLE IF NOT EXISTS sys_backup (
     deleted         TINYINT NOT NULL DEFAULT 0,
     INDEX idx_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据备份记录表';
+
+
+-- =========================================================
+-- 7. 公司信息表（支持多公司）
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS sys_company (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    company_name VARCHAR(200) NOT NULL COMMENT '公司名称',
+    address VARCHAR(500) COMMENT '地址',
+    phone VARCHAR(50) COMMENT '电话',
+    fax VARCHAR(50) COMMENT '传真',
+    email VARCHAR(100) COMMENT '邮箱',
+    bank_name VARCHAR(200) COMMENT '开户银行',
+    bank_account VARCHAR(50) COMMENT '银行账号',
+    tax_no VARCHAR(50) COMMENT '税号',
+    logo_url VARCHAR(500) COMMENT 'Logo URL',
+    is_default TINYINT DEFAULT 0 COMMENT '是否默认公司(1=是)',
+    status TINYINT DEFAULT 1 COMMENT '状态:0=禁用,1=启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公司信息表';
+
+
+-- =========================================================
+-- 8. 报价物料明细子表
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS fin_quote_detail (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    quote_id BIGINT NOT NULL COMMENT '关联报价ID',
+    material_name VARCHAR(200) NOT NULL COMMENT '物料名称',
+    spec VARCHAR(200) COMMENT '规格',
+    unit VARCHAR(20) COMMENT '单位',
+    quantity DECIMAL(10,2) DEFAULT 1 COMMENT '数量',
+    unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '单价',
+    amount DECIMAL(15,2) DEFAULT 0 COMMENT '小计金额',
+    remark VARCHAR(500) COMMENT '备注',
+    is_custom TINYINT DEFAULT 0 COMMENT '是否手动物料(0=否,1=是)',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_quote_id (quote_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报价物料明细表';
 
 
 -- =========================================================

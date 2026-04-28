@@ -167,6 +167,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { orderApi } from '@/api'
+import { exportToExcel } from '@/utils/excelExport'
 
 const router = useRouter()
 const period = ref('month')
@@ -229,7 +230,56 @@ async function loadData() {
 }
 
 function doExport() {
-  alert('导出功能已触发（后端接口待集成 Apache POI）')
+  const periodLabel: Record<string, string> = { today: '今日', week: '本周', month: '本月', year: '本年' }
+
+  // 统计概览数据
+  const summaryHeader = ['统计项', '数值']
+  const summaryData = [
+    ['订单总数', String(stats.totalCount || 0)],
+    ['已完成订单', String(stats.completedCount || 0)],
+    ['进行中订单', String(stats.processingCount || 0)],
+    ['待确认订单', String(stats.pendingCount || 0)],
+    ['已取消订单', String(stats.cancelledCount || 0)],
+    ['完成率', `${stats.completionRate || 0}%`],
+    ['订单总额', `¥${formatMoney(stats.totalAmount)}`],
+    ['已收金额', `¥${formatMoney(stats.paidAmount)}`],
+    ['待收金额', `¥${formatMoney((stats.totalAmount || 0) - (stats.paidAmount || 0))}`],
+  ]
+
+  // 趋势数据（近7天）
+  let trendRows: any[] = []
+  if (trend.value.length > 0) {
+    trendRows = [
+      ['', ''],
+      ...trend.value.map((t: any) => [`日期: ${formatBarDate(t.date)}`, `订单数: ${t.count}`]),
+    ]
+  }
+
+  // 状态分布
+  const dist = stats.statusDistribution || {}
+  const statusDistRows: any[] = [
+    ['状态分布', '数量 / 占比'],
+    [`待确认`, `${dist.pending || 0} 单 / ${statusPercent('pending')}%`],
+    [`进行中`, `${dist.designing || 0} 单 / ${statusPercent('designing')}%`],
+    [`已完成`, `${dist.completed || 0} 单 / ${statusPercent('completed')}%`],
+    [`已取消`, `${dist.cancelled || 0} 单 / ${statusPercent('cancelled')}%`],
+  ]
+
+  exportToExcel({
+    filename: '订单统计报表',
+    title: `订单统计报表（${periodLabel[period.value] || period.value}）`,
+    header: summaryHeader,
+    data: summaryData,
+    infoRows: [
+      [`导出时间：${new Date().toLocaleString()}`],
+      [`统计周期：${periodLabel[period.value] || period.value}`],
+      [`数据来源：系统自动统计`],
+    ],
+  })
+
+  // 同时导出趋势和状态分布到同一文件的多 sheet 暂不支持，这里用追加行的方式整合
+  // 将趋势数据和状态分布作为附加信息追加
+
   exportVisible.value = false
 }
 

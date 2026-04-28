@@ -4,12 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
-import com.enterprise.ad.module.factory.entity.Factory;
 import com.enterprise.ad.module.factory.entity.FactoryBill;
 import com.enterprise.ad.module.factory.entity.FactoryBillDetail;
 import com.enterprise.ad.module.customer.mapper.CustomerMapper;
 import com.enterprise.ad.module.customer.entity.Customer;
-import com.enterprise.ad.module.factory.mapper.FactoryMapper;
 import com.enterprise.ad.module.factory.mapper.FactoryBillMapper;
 import com.enterprise.ad.module.factory.mapper.FactorySalesmanMapper;
 import com.enterprise.ad.module.factory.entity.FactorySalesman;
@@ -31,7 +29,6 @@ import java.util.List;
 @Tag(name = "工厂管理")
 public class FactoryController {
 
-    private final FactoryMapper factoryMapper;
     private final FactoryBillMapper factoryBillMapper;
     private final FactoryBillDetailMapper factoryBillDetailMapper;
     private final CustomerMapper customerMapper;
@@ -41,80 +38,20 @@ public class FactoryController {
 
     /**
      * 工厂列表（从客户表中筛选 customer_type=2 的记录）
-     * 兼容旧的 fac_factory 表数据
+     * 注意：fac_factory 表已在 v2.2 合并到 crm_customer，不再使用
      */
     @GetMapping("/list")
     @Operation(summary = "工厂列表（从客户表获取工厂客户）")
     @PreAuthorize("hasAuthority('factory:list')")
     public Result<List<Customer>> listFactories() {
-        // 优先从客户表查询工厂客户
+        // 从客户表查询工厂客户（customer_type=2）
         List<Customer> factoryCustomers = customerMapper.selectList(
             new LambdaQueryWrapper<Customer>()
                 .eq(Customer::getDeleted, 0)
                 .eq(Customer::getCustomerType, Customer.TYPE_FACTORY)
                 .orderByAsc(Customer::getCustomerName));
         
-        // 如果客户表中没有工厂客户，回退到旧 fac_factory 表（兼容迁移期）
-        if (factoryCustomers.isEmpty()) {
-            List<Factory> oldFactories = factoryMapper.selectList(
-                new LambdaQueryWrapper<Factory>()
-                    .eq(Factory::getDeleted, 0)
-                    .orderByAsc(Factory::getFactoryName));
-            
-            // 将旧的 Factory 对象转为 Customer 对象格式返回给前端
-            List<Customer> converted = oldFactories.stream().map(f -> {
-                Customer c = new Customer();
-                c.setId(f.getId());
-                c.setCustomerName(f.getFactoryName());
-                c.setContactPerson(f.getContactPerson());
-                c.setPhone(f.getPhone());
-                c.setAddress(f.getAddress());
-                c.setCustomerType(Customer.TYPE_FACTORY);
-                c.setFactoryType(f.getType());
-                c.setStatus(f.getStatus());
-                return c;
-            }).toList();
-            return Result.ok(converted);
-        }
-        
         return Result.ok(factoryCustomers);
-    }
-
-    @GetMapping("/{id}")
-    @Operation(summary = "工厂详情")
-    @PreAuthorize("hasAuthority('factory:list')")
-    public Result<Factory> getFactory(@PathVariable Long id) {
-        return Result.ok(factoryMapper.selectById(id));
-    }
-
-    @PostMapping
-    @Operation(summary = "新建工厂")
-    @PreAuthorize("hasAuthority('factory:create')")
-    public Result<Long> createFactory(@RequestBody Factory factory) {
-        factory.setCreateTime(LocalDateTime.now());
-        factory.setUpdateTime(LocalDateTime.now());
-        if (factory.getStatus() == null) factory.setStatus(1);
-        factoryMapper.insert(factory);
-        return Result.ok(factory.getId());
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "更新工厂")
-    @PreAuthorize("hasAuthority('factory:edit')")
-    public Result<Void> updateFactory(@PathVariable Long id, @RequestBody Factory factory) {
-        factory.setId(id);
-        factory.setUpdateTime(LocalDateTime.now());
-        factoryMapper.updateById(factory);
-        return Result.ok();
-    }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "删除工厂")
-    @PreAuthorize("hasAuthority('factory:delete')")
-    public Result<Void> deleteFactory(@PathVariable Long id) {
-        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        factoryMapper.deleteById(id);
-        return Result.ok();
     }
 
     // ========== 工厂账单 ==========

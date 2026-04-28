@@ -47,7 +47,8 @@ public class SecurityConfig {
                     "/swagger-resources/**",
                     "/v3/api-docs/**",
                     "/favicon.ico",
-                    "/uploads/**"
+                    "/uploads/**",
+                    "/system/users/designer-list"
                 ).permitAll()
                 .anyRequest().authenticated())
             // 把 JWT 过滤器放在 UsernamePasswordAuthenticationFilter 之前

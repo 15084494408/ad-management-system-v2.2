@@ -111,6 +111,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { memberApi } from '@/api'
+import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
 const loading = ref(false)
@@ -136,7 +137,19 @@ const pageRange = computed(() => {
 })
 
 function handleSearch() { page.value = 1; load() }
-function exportData() { ElMessage.success('导出功能开发中') }
+function exportData() {
+  exportToExcel({
+    filename: '会员消费记录',
+    header: ['消费单号', '会员姓名', '消费金额', '消费类型', '余额变动', '消费时间'],
+    data: list.value.map(r => [
+      `#${r.transactionNo || r.id}`, r.memberName || r.memberId,
+      `-¥${formatMoney(r.amount)}`, '余额消费',
+      `${formatMoney(r.balanceBefore)} → ${formatMoney(r.balanceAfter)}`,
+      fmtDate(r.createTime),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${list.value.length} 条记录`]],
+  })
+}
 
 async function load() {
   loading.value = true

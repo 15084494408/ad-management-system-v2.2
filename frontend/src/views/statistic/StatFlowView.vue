@@ -202,6 +202,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { useFinanceStore } from '@/stores/finance'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const financeStore = useFinanceStore()
 // 全局财务数据变动时，自动刷新流水统计
@@ -331,7 +332,22 @@ function onSearch() {
 
 // ── 导出 ──
 function exportData() {
-  window.open('/api/statistics/flow/export', '_blank')
+  if (tableData.value.length === 0) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '流水统计报表',
+    header: ['流水编号', '金额', '类型', '支付方式', '关联', '备注', '记账人', '发生时间'],
+    data: tableData.value.map(r => [
+      r.recordNo || `LF${r.id}`,
+      `${r.type === 'income' ? '+' : '-'}¥${(r.amount || 0).toLocaleString()}`,
+      r.type === 'income' ? '收入' : '支出',
+      r.paymentMethod || '-',
+      r.relatedName || '-',
+      r.remark || '-',
+      r.creatorId || '系统',
+      (r.createTime || '').toString(),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+  })
 }
 
 // ── 初始化 ──

@@ -105,6 +105,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const searchForm = ref({ period: 'month', categoryId: '' })
 const totalTypes = ref(0)
@@ -140,7 +141,19 @@ async function loadData() {
   topMaterials.value = []
 }
 
-function exportData() { window.open('/api/statistics/material/export', '_blank') }
+function exportData() {
+  if (topMaterials.value.length === 0) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '物料统计报表',
+    header: ['排名', '物料名称', '分类', '消耗数量', '单位', '消耗金额'],
+    data: topMaterials.value.map((row, i) => [
+      i + 1, row.name, row.categoryName || '-',
+      row.totalConsumed || 0, row.unit || '-',
+      `¥${(row.totalCost || 0).toLocaleString()}`,
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`统计周期：${searchForm.value.period === 'month' ? '按月' : '按季'}`]],
+  })
+}
 onMounted(loadData)
 </script>
 

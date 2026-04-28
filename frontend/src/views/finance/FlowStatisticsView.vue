@@ -93,6 +93,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { useFinanceStore } from '@/stores/finance'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const financeStore = useFinanceStore()
 // 全局财务数据变动时，自动刷新流水统计
@@ -125,7 +126,23 @@ async function loadData() {
   trendData.value = []
 }
 
-function exportData() { window.open('/api/finance/flow/statistics/export', '_blank') }
+function exportData() {
+  exportToExcel({
+    filename: '流水统计',
+    title: '流水统计报表',
+    header: ['统计项', '金额(¥)', '笔数', '备注'],
+    data: [
+      ['总收入', stats.value.totalIncome || 0, '', ''],
+      ['总支出', stats.value.totalExpense || 0, '', ''],
+      ['净流水', stats.value.netAmount || 0, '', `收入-支出`],
+      ['今日总收入', stats.value.todayIncome || 0, `${stats.value.todayCount || 0} 笔`, ''],
+      ['今日总支出', stats.value.todayExpense || 0, '', ''],
+      ['今日平均单笔', stats.value.avgPerRecord || 0, '', ''],
+      ['今日最大单笔', stats.value.maxRecord || 0, '', ''],
+    ],
+    summaryRow: ['', '', '', `导出时间：${new Date().toLocaleString()}`],
+  })
+}
 onMounted(loadData)
 </script>
 

@@ -109,6 +109,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const showDetailDialog = ref(false)
@@ -142,19 +143,52 @@ function showDetail(row: any) { currentLog.value = row; showDetailDialog.value =
 async function doExport() {
   exporting.value = true
   try {
-    const params: any = { ...exportForm }
-    if (!params.startDate && dateRange.value?.length) { params.startDate = dateRange.value[0]; params.endDate = dateRange.value[1] }
-    const res = await request.get('/system/logs/export', { params, responseType: 'blob' })
-    const blob = new Blob([res as any], { type: 'application/octet-stream' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `操作日志_${new Date().toISOString().slice(0,10)}.${exportForm.format}`
-    a.click()
-    window.URL.revokeObjectURL(url)
+    // 按弹窗筛选条件过滤数据（如果后端支持全量查询，这里可以直接用全部数据）
+    let filteredData = [...tableData.value]
+    if (exportForm.module) {
+      filteredData = filteredData.filter((r: any) => r.module === exportForm.module)
+    }
+    if (exportForm.startDate || exportForm.endDate) {
+      filteredData = filteredData.filter((r: any) => {
+        if (!r.createTime) return false
+        const d = String(r.createTime).slice(0, 10)
+        if (exportForm.startDate && d < exportForm.startDate) return false
+        if (exportForm.endDate && d > exportForm.endDate) return false
+        return true
+      })
+    }
+    // 如果当前页数据不足，尝试加载全部数据用于导出
+    if (filteredData.length === 0 || filteredData.length < pagination.total) {
+      try {
+        const params: any = { current: 1, size: pagination.total || 1000 }
+        if (searchForm.username) params.username = searchForm.username
+        if (searchForm.module) params.module = searchForm.module
+        if (dateRange.value?.length) { params.startDate = dateRange.value[0]; params.endDate = dateRange.value[1] }
+        if (exportForm.startDate) params.startDate = exportForm.startDate
+        if (exportForm.endDate) params.endDate = exportForm.endDate
+        if (exportForm.module) params.module = exportForm.module
+        const res = await request.get('/system/logs', { params })
+        filteredData = res.data?.records || tableData.value
+      } catch { /* use existing data */ }
+    }
+
+    exportToExcel({
+      filename: '操作日志',
+      header: ['日志ID', '操作人', '模块', '操作类型', 'IP地址', '详情', '操作时间'],
+      data: filteredData.map((row: any) => [
+        row.id, row.username || '-', row.module || '-', row.description?.slice(0, 50) || '-',
+        row.ip || '-', row.param ? JSON.stringify(row.param).slice(0, 100) : '-',
+        (row.createTime || '').toString(),
+      ]),
+      infoRows: [
+        [`导出时间：${new Date().toLocaleString()}`],
+        [`筛选条件：${exportForm.module ? `模块=${exportForm模块}` : '全部'} ${exportForm.startDate ? `${exportForm.startDate} ~ ${exportForm.endDate || ''}` : ''}`.trim()],
+        [`共 ${filteredData.length} 条记录`],
+      ],
+    })
     ElMessage.success('导出成功！')
     showExportDialog.value = false
-  } catch { ElMessage.error('导出失败') }
+  } catch (e) { ElMessage.error('导出失败') }
   exporting.value = false
 }
 

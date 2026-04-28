@@ -297,6 +297,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { memberApi } from '@/api'
+import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
 const loading = ref(false)
@@ -418,7 +419,18 @@ async function submitRecharge() {
 }
 
 function handleSearch() { page.value = 1; load() }
-function exportData() { ElMessage.success('导出功能开发中') }
+function exportData() {
+  exportToExcel({
+    filename: '会员列表',
+    header: ['会员卡号', '姓名', '手机号', '等级', '积分', '余额', '注册时间'],
+    data: list.value.map(m => [
+      `M${String(m.id).padStart(6, '0')}`, m.memberName, m.phone || '-',
+      getLevelName(m.level), '-', `¥${formatMoney(m.balance)}`,
+      fmtDate(m.createTime),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${list.value.length} 条记录`]],
+  })
+}
 
 async function load() {
   loading.value = true

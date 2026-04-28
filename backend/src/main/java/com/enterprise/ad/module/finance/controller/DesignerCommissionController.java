@@ -19,9 +19,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 设计师提成管理
+ * 设计师提成管理（财务视角：查看订单提成记录）
  */
-@RestController
+@RestController("financeDesignerCommissionController")
 @RequestMapping("/finance/designer-commission")
 @RequiredArgsConstructor
 @Tag(name = "设计师提成")

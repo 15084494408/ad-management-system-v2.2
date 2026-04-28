@@ -131,6 +131,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Download, Plus } from '@element-plus/icons-vue'
 import request from '@/api/request'
 import { ElMessage } from 'element-plus'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -156,7 +157,26 @@ async function loadData() {
 }
 
 function resetSearch() { searchForm.value = { invoiceNo: '', customerName: '', type: '', status: '' }; loadData() }
-function exportData() { window.open('/api/finance/invoice/export', '_blank') }
+function exportData() {
+  const typeMap: Record<string, string> = { special:'增值税专票', normal:'增值税普票', receipt:'收据' }
+  const stMap: Record<string, string> = { completed:'已开具', pending:'待开具', cancelled:'已作废' }
+  const header = ['发票编号', '客户名称', '发票类型', '金额(¥)', '税率(%)', '税额(¥)', '状态', '开具日期']
+  const data = tableData.value.map(row => [
+    row.invoiceNo, row.customerName, typeMap[row.type] || row.type,
+    row.amount, row.taxRate, row.taxAmount,
+    stMap[row.status] || row.status, row.issueDate
+  ])
+  const totalAmt = data.reduce((sum, r) => sum + Number(r[3] || 0), 0)
+  const totalTax = data.reduce((sum, r) => sum + Number(r[5] || 0), 0)
+  exportToExcel({
+    filename: '发票列表',
+    header,
+    data,
+    title: '发票列表',
+    summaryRow: ['合计', '', '', totalAmt.toFixed(2), '', totalTax.toFixed(2), '', ''],
+    infoRows: [['导出时间：', new Date().toLocaleString()]],
+  })
+}
 function showDialog(row?: any) {
   isEdit.value = !!row
   if (row) Object.assign(formData, row)

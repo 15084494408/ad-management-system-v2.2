@@ -162,7 +162,7 @@
               <td class="action-btns">
                 <button class="action-btn view" @click="viewDetail(b)">查看</button>
                 <button class="action-btn edit" @click="reconcile(b)">对账</button>
-                <button class="action-btn view" @click="handleExport">导出</button>
+                <button class="action-btn view" @click="handleExport(b)">导出</button>
                 <!-- 只有超级管理员才能看到删除按钮 -->
                 <button
                   v-if="isSuperAdmin"
@@ -659,7 +659,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-default" @click="showExportReport = false">取消</button>
-          <button class="btn btn-primary" @click="showExportReport = false; ElMessage.info('报表导出中...')">⬇️ 导出报表</button>
+          <button class="btn btn-primary" @click="doExportReport">⬇️ 导出报表</button>
         </div>
       </div>
     </div>
@@ -755,6 +755,7 @@ import { ref, computed, onMounted, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import { factoryApi, customerApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { exportToExcel } from '@/utils/excelExport'
 
 const authStore = useAuthStore()
 
@@ -1415,8 +1416,109 @@ function confirmDeleteSalesman(s: any) {
     .finally(() => salesmanSaving.value = false)
 }
 
-function handleExport() {
-  ElMessage.info('导出功能开发中')
+/** 行级导出：导出单条账单的详细信息（含明细项） */
+function handleExport(bill?: any) {
+  // 如果从行按钮调用，bill 是 undefined（因为模板中 @click="handleExport" 没传参）
+  // 使用 detailData 作为当前查看的账单
+  const target = bill || detailData.value
+  if (!target) {
+    ElMessage.warning('请先选择要导出的账单')
+    return
+  }
+
+  const header = ['账单编号', '工厂名称', '账单月份', '账单金额', '已付金额', '未付金额', '状态', '创建时间']
+  const unpaid = getUnpaid(target)
+  const rows = [[
+    target.billNo || target.id,
+    target.factoryName || getFactoryName(target),
+    target.month || '-',
+    `¥${fmtMoney(target.totalAmount)}`,
+    `¥${fmtMoney(target.paidAmount)}`,
+    `¥${fmtMoney(unpaid)}`,
+    statusLabel(target.status),
+    formatDateTime(target.createTime),
+  ]]
+
+  // 追加明细数据
+  let detailRows: any[] = []
+  if (billDetails.value.length > 0) {
+    detailRows = [
+      ['', '', '', '', '', '', '', ''],
+      ['=== 每日登记明细 ==='],
+      ['日期', '项目名称', '规格说明', '计价方式', '数量/面积', '单位', '单价', '小计金额'],
+      ...billDetails.value.map((d: any) => [
+        d.recordDate || '',
+        d.itemName || '',
+        d.spec || '',
+        calcModeLabel(d.calcMode),
+        d.calcMode === 2 ? `${Number(d.areaSq || 0).toFixed(2)}㎡` : (d.calcMode === 3 ? '-' : String(d.quantity ?? 1)),
+        d.unit || '-',
+        `¥${fmtMoney(d.unitPrice)}`,
+        `¥${fmtMoney(d.amount)}`,
+      ]),
+      ['', '', '', '', '', '', `明细合计：`, `¥${fmtMoney(detailTotal.value)}`],
+    ]
+  }
+
+  exportToExcel({
+    filename: `工厂账单_${target.billNo || target.id}`,
+    title: `工厂账单 — ${target.billNo || target.id}`,
+    header,
+    data: [...rows, ...detailRows],
+    infoRows: [
+      [`导出时间：${new Date().toLocaleString()}`],
+      [`工厂客户：${target.factoryName || getFactoryName(target)}`],
+      [`账单月份：${target.month || '-'}`],
+    ],
+  })
+}
+
+/** 对账报表导出：导出筛选后的所有账单列表 */
+function doExportReport() {
+  if (bills.value.length === 0) {
+    ElMessage.warning('当前没有账单数据可导出')
+    showExportReport.value = false
+    return
+  }
+
+  const header = ['账单编号', '工厂客户', '业务员', '账单月份', '账单金额', '已付金额', '未付金额', '账单状态', '创建时间']
+  const rows = bills.value.map((b: any) => [
+    b.billNo || b.id,
+    b.factoryName || getFactoryName(b),
+    b.salesmanName || '-',
+    b.month || '-',
+    `¥${fmtMoney(b.totalAmount)}`,
+    `¥${fmtMoney(b.paidAmount)}`,
+    `¥${fmtMoney(getUnpaid(b))}`,
+    statusLabel(b.status),
+    b.createTime || b.date || '-',
+  ])
+
+  const totalAmt = bills.value.reduce((s: number, b: any) => s + Number(b.totalAmount || 0), 0)
+  const paidAmt = bills.value.reduce((s: number, b: any) => s + Number(b.paidAmount || 0), 0)
+
+  const factoryName = selectedFactory.value !== 'all'
+    ? getFactoryNameById(selectedFactory.value)
+    : '全部工厂'
+  const periodDesc = monthFilter.value
+    ? `（${monthFilter.value}）`
+    : ''
+
+  exportToExcel({
+    filename: '对账报表',
+    title: `对账报表 — ${factoryName}${periodDesc}`,
+    header,
+    data: rows,
+    summaryRow: ['合计', '', '', '', `¥${fmtMoney(totalAmt)}`, `¥${fmtMoney(paidAmt)}`, `¥${fmtMoney(totalAmt - paidAmt)}`, '', ''],
+    infoRows: [
+      [`导出时间：${new Date().toLocaleString()}`],
+      [`数据范围：${factoryName}${periodDesc}`],
+      [`共 ${bills.value.length} 条记录`],
+      [`状态筛选：${statusFilter.value || '全部'}`],
+    ],
+  })
+
+  showExportReport.value = false
 }
 
 onMounted(async () => {

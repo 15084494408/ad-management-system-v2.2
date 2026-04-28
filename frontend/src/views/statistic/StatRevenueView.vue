@@ -101,6 +101,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const trendType = ref('day')
@@ -198,7 +199,21 @@ const getWeekNumber = (date: Date) => {
 }
 
 const exportData = () => {
-  ElMessage.info('导出功能开发中')
+  if (tableData.value.length === 0) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '营收统计报表',
+    header: ['日期', '订单数', '营收金额', '成本', '利润', '利润率', '客户数'],
+    data: tableData.value.map(row => [
+      row.date, row.orderCount || 0,
+      `¥${(row.revenue || 0).toLocaleString()}`,
+      `¥${(row.cost || 0).toLocaleString()}`,
+      `¥${(row.profit || 0).toLocaleString()}`,
+      `${(row.profitRate || 0).toFixed(1)}%`,
+      row.customerCount || 0,
+    ]),
+    summaryRow: ['合计', orderCount.value, `¥${totalRevenue.value.toLocaleString()}`, '', `¥${tableData.value.reduce((s, r) => s + (r.profit || 0), 0).toLocaleString()}`, '', ''],
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`统计范围：${dateRange.value?.[0] || '-'} ~ ${dateRange.value?.[1] || '-'}`]],
+  })
 }
 
 onMounted(() => {

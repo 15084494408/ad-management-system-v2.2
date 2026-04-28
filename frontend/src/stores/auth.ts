@@ -6,10 +6,15 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const userInfo = ref<any>(null)
   const permissions = ref<string[]>([])
+  const currentCompanyId = ref<number>(Number(localStorage.getItem('currentCompanyId')) || 1)
+  const companyList = ref<any[]>([])
 
   const isLoggedIn = computed(() => !!token.value)
   const userRole = computed(() => userInfo.value?.roles?.[0])
   const isSuperAdmin = computed(() => (userInfo.value?.roles || []).includes('SUPER_ADMIN'))
+  const currentCompany = computed(() =>
+    companyList.value.find(c => c.id === currentCompanyId.value) || companyList.value[0] || null
+  )
 
   function setToken(t: string) {
     token.value = t
@@ -21,6 +26,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     userInfo.value = null
     permissions.value = []
+  }
+
+  function switchCompany(id: number) {
+    currentCompanyId.value = id
+    localStorage.setItem('currentCompanyId', String(id))
   }
 
   function hasPermission(code: string): boolean {
@@ -54,11 +64,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token, userInfo, permissions,
+    currentCompanyId, currentCompany, companyList,
     isLoggedIn, userRole, isSuperAdmin,
     login, logout, fetchUserInfo,
     hasPermission, hasAnyPermission,
-    setToken, clearToken,
+    setToken, clearToken, switchCompany,
   }
 }, {
-  persist: { paths: ['token'] },
+  persist: { paths: ['token', 'currentCompanyId'] },
 })

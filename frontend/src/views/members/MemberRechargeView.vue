@@ -141,6 +141,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { memberApi } from '@/api'
+import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
 const memberList = ref<any[]>([])
@@ -198,7 +199,19 @@ async function submitRecharge() {
 }
 
 function handleSearch() { page.value = 1; load() }
-function exportData() { ElMessage.success('导出功能开发中') }
+function exportData() {
+  const methodMap: Record<string, string> = { wechat: '微信支付', alipay: '支付宝', transfer: '银行转账', cash: '现金', other: '其他' }
+  exportToExcel({
+    filename: '会员充值记录',
+    header: ['充值单号', '会员姓名', '充值金额', '支付方式', '操作人', '充值时间'],
+    data: list.value.map(r => [
+      `#${r.transactionNo || r.id}`, r.memberName || `会员ID:${r.memberId}`,
+      `¥${formatMoney(r.amount)}`, methodMap[r.remark] || r.remark || '-',
+      '-', fmtDate(r.createTime),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${list.value.length} 条记录`]],
+  })
+}
 
 async function load() {
   loading.value = true

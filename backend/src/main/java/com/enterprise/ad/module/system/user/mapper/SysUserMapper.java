@@ -29,4 +29,18 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 
     @org.apache.ibatis.annotations.Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
     void insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId);
+
+    @Select("SELECT u.* FROM sys_user u " +
+            "INNER JOIN sys_user_role ur ON u.id = ur.user_id " +
+            "INNER JOIN sys_role r ON ur.role_id = r.id " +
+            "WHERE r.role_code = 'DESIGNER' AND u.deleted = 0 AND u.status = 1 " +
+            "ORDER BY u.id")
+    List<SysUser> selectDesignerUsers();
+
+    @Select("SELECT u.* FROM sys_user u " +
+            "INNER JOIN sys_user_role ur ON u.id = ur.user_id " +
+            "INNER JOIN sys_role r ON ur.role_id = r.id " +
+            "WHERE r.role_code = #{roleCode} AND u.deleted = 0 AND u.status = 1 " +
+            "ORDER BY u.id")
+    List<SysUser> selectUsersByRoleCode(@Param("roleCode") String roleCode);
 }

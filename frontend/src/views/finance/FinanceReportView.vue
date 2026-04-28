@@ -111,6 +111,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const searchForm = ref({ reportType: 'monthly', dateRange: [] })
 const totalIncome = ref(0)
@@ -148,7 +149,21 @@ async function loadData() {
   monthlyList.value = []
 }
 
-function exportReport() { window.open('/api/finance/report/export', '_blank') }
+function exportReport() {
+  exportToExcel({
+    filename: '财务报表',
+    title: '财务报表',
+    header: ['报表项', '金额(¥)', '备注'],
+    data: [
+      ['总收入', totalIncome.value, ''],
+      ['总支出', totalExpense.value, ''],
+      ['净利润', totalProfit.value, profitRate.value >= 0 ? `利润率 ${profitRate.value}%` : `亏损率 ${Math.abs(profitRate.value)}%`],
+      ...expenseCategories.value.map(c => [c.category, c.amount, `占比 ${((c.amount / Math.max(totalExpense.value, 1)) * 100).toFixed(1)}%`]),
+      ...monthlyList.value.map(m => [m.month, m.income, `收入 支出${m.expense}`]),
+    ],
+    summaryRow: ['', '', `导出时间：${new Date().toLocaleString()}`],
+  })
+}
 onMounted(loadData)
 </script>
 

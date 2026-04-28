@@ -120,4 +120,20 @@ public class SysUserController {
         }
         return Result.ok();
     }
+
+    @GetMapping("/designers")
+    @Operation(summary = "获取设计师列表")
+    public Result<List<SysUser>> getDesigners() {
+        // 获取角色ID为5的设计师（DESIGNER）
+        List<SysUser> designers = sysUserMapper.selectUsersByRoleCode("DESIGNER");
+        return Result.ok(designers);
+    }
+
+    @GetMapping("/designer-list")
+    @Operation(summary = "获取设计师列表（无需权限）")
+    @PreAuthorize("permitAll()")
+    public Result<List<SysUser>> getDesignerList() {
+        List<SysUser> designers = sysUserMapper.selectUsersByRoleCode("DESIGNER");
+        return Result.ok(designers);
+    }
 }

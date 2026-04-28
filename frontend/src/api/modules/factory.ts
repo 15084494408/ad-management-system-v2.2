@@ -1,10 +1,10 @@
 import request from '@/api/request'
-import type { ApiResponse, PageResult, FactoryBill, Factory } from '@/types'
+import type { ApiResponse, PageResult, FactoryBill } from '@/types'
 
 export const factoryApi = {
-  /** 工厂列表 — 对齐后端 GET /factory/list */
+  /** 工厂列表 — 后端 GET /factory/list（从 crm_customer 查 customer_type=2） */
   getFactories() {
-    return request.get<any, ApiResponse<Factory[]>>('/factory/list')
+    return request.get<any, ApiResponse<any[]>>('/factory/list')
   },
   /** 工厂账单列表 — 对齐后端 GET /factory/bills */
   getBills(params?: Record<string, any>) {

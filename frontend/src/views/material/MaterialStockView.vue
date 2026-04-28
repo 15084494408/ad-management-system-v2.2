@@ -121,6 +121,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const showAdd = ref(false)
@@ -231,5 +232,20 @@ async function saveMaterial() {
 async function loadCategories() {
   try { const res = await request.get('/material/category'); categories.value = res.data || [] } catch {}
 }
+
+function exportData() {
+  exportToExcel({
+    filename: '物料库存',
+    header: ['物料ID', '物料名称', '分类', '规格', '单位', '库存数量', '预警值', '单价', '成本价', '状态'],
+    data: tableData.value.map(row => [
+      row.id, row.name, row.categoryName, row.spec, row.unit,
+      row.stockQuantity, row.warningQuantity,
+      `¥${(row.price || 0).toFixed(2)}`, `¥${(row.costPrice || 0).toFixed(2)}`,
+      row.stockQuantity <= row.warningQuantity ? '预警' : '正常',
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+  })
+}
+
 onMounted(() => { loadData(); loadCategories() })
 </script>

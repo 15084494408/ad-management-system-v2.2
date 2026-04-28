@@ -102,6 +102,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -150,7 +151,38 @@ const loadData = async () => {
 }
 
 const exportData = () => {
-  ElMessage.info('导出功能开发中')
+  if (!tableData.value.length) {
+    ElMessage.warning('暂无数据可导出')
+    return
+  }
+
+  const headers = ['排名', '客户名称', '客户等级', '订单数', '累计消费(元)', '最近订单', '状态']
+  const rows = tableData.value.map((row, idx) => [
+    idx + 1,
+    row.name || '',
+    row.levelName || '',
+    row.orderCount || 0,
+    row.totalAmount || 0,
+    row.lastOrderDate || '',
+    row.status === 1 ? '活跃' : '沉默',
+  ])
+
+  exportToExcel({
+    filename: `客户消费排行_${new Date().toLocaleDateString()}`,
+    sheetName: '客户排行',
+    headers,
+    rows,
+    title: '客户消费排行 TOP20',
+    infoRows: [
+      [`客户总数: ${totalCustomers.value}   本月新增: ${newCustomers.value}   累计消费: ¥${totalConsumption.value?.toLocaleString()}`],
+      [`导出时间: ${new Date().toLocaleString()}`],
+    ],
+    summaryRow: {
+      label: '合计',
+      colIndex: 3,
+      values: { 3: tableData.value.reduce((s, r) => s + (r.orderCount || 0), 0), 4: totalConsumption.value },
+    },
+  })
 }
 
 onMounted(() => {

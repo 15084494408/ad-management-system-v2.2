@@ -68,6 +68,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { exportToExcel } from '@/utils/excelExport'
 
 const exporting = ref(false)
 const flowTypes = [
@@ -83,15 +84,57 @@ const historyData = ref<any[]>([])
 async function doExport() {
   exporting.value = true
   try {
-    const params = new URLSearchParams()
-    params.set('format', exportForm.format)
-    if (exportForm.dateRange?.length === 2) params.set('startDate', exportForm.dateRange[0]), params.set('endDate', exportForm.dateRange[1])
-    if (exportForm.flowType) params.set('flowType', exportForm.flowType)
-    params.set('fields', exportForm.fields.join(','))
-    window.open('/api/finance/flow/export?' + params.toString(), '_blank')
-    ElMessage.success('导出任务已提交')
+    // 构建筛选参数用于文件名
+    const rangeLabel = exportForm.range === 'all' ? '全部' : `${exportForm.dateRange?.[0] || ''} 至 ${exportForm.dateRange?.[1] || ''}`
+    const typeLabel = exportForm.flowType || '全部类型'
+
+    // 调用接口获取数据
+    const params: any = { current: 1, size: 10000 }
+    if (exportForm.dateRange?.length === 2) {
+      params.startDate = exportForm.dateRange[0]
+      params.endDate = exportForm.dateRange[1]
+    }
+    if (exportForm.direction) params.direction = exportForm.direction
+
+    const res: any = await request.get('/finance/all-flow', { params })
+    const list = res.data?.records || []
+
+    if (!list.length) { ElMessage.warning('没有可导出的数据'); exporting.value = false; return }
+
+    // 根据选择的字段动态构建表头和数据
+    const allFields = [
+      { key: 'record_no', label: '编号' },
+      { key: 'amount', label: '金额(¥)' },
+      { key: 'direction', label: '方向', fmt: (v: string) => v === 'income' ? '收入' : '支出' },
+      { key: 'source', label: '来源' },
+      { key: 'category', label: '分类' },
+      { key: 'related_name', label: '关联对象' },
+      { key: 'payment_method', label: '支付方式' },
+      { key: 'remark', label: '备注' },
+      { key: 'create_time', label: '时间' },
+    ]
+
+    // 如果用户选择了特定字段，则过滤
+    const fieldsToExport = exportForm.fields.length > 0
+      ? allFields.filter(f => exportForm.fields.includes(f.key) || exportForm.fields.includes(f.label))
+      : allFields
+
+    const header = fieldsToExport.map(f => f.label)
+    const data = list.map(row => fieldsToExport.map(f => f.fmt ? f.fmt(row[f.key]) : (row[f.key] ?? '-')))
+
+    exportToExcel({
+      filename: `流水导出_${typeLabel}`,
+      title: `流水导出报表（${rangeLabel}）`,
+      header,
+      data,
+      summaryRow: ['', '', '', `共 ${list.length} 笔记录`],
+    })
+
+    ElMessage.success(`成功导出 ${list.length} 条记录`)
     loadHistory()
-  } catch { ElMessage.error('导出失败') }
+  } catch {
+    ElMessage.error('导出失败，请重试')
+  }
   exporting.value = false
 }
 

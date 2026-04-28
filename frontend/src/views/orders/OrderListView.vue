@@ -538,6 +538,7 @@ import { useRouter } from 'vue-router'
 import { useOrderStore } from '@/stores/order'
 import { orderApi } from '@/api'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const router = useRouter()
 const orderStore = useOrderStore()
@@ -725,7 +726,70 @@ async function submitPayment() {
 // ===== 导出 =====
 const exportForm = reactive({ range: 'all', format: 'xlsx', startDate: '', endDate: '' })
 function doExport() {
-  alert('导出功能已触发（后端接口待集成 Apache POI）')
+  // 确定数据源
+  let data: any[] = []
+  if (exportForm.range === 'selected' && selectedIds.value.length > 0) {
+    data = orderStore.list.filter((o: any) => selectedIds.value.includes(o.id))
+  } else if (exportForm.range === 'all') {
+    // 全部：使用当前已加载的全部数据（orderStore.list 是当前页，如需全部可扩展）
+    data = [...orderStore.list]
+  } else {
+    // filtered / 默认：当前页数据
+    data = [...orderStore.list]
+  }
+
+  // 日期范围过滤
+  if (exportForm.startDate || exportForm.endDate) {
+    data = data.filter((o: any) => {
+      const ct = String(o.createTime || '')
+      if (!ct) return false
+      const d = ct.slice(0, 10)
+      if (exportForm.startDate && d < exportForm.startDate) return false
+      if (exportForm.endDate && d > exportForm.endDate) return false
+      return true
+    })
+  }
+
+  if (data.length === 0) {
+    alert('没有符合条件的数据可导出')
+    exportVisible.value = false
+    return
+  }
+
+  const header = ['订单编号', '客户名称', '订单名称', '订单金额', '已付金额', '状态', '交付日期', '设计师', '创建时间']
+  const rows = data.map((o: any) => [
+    o.orderNo || '',
+    o.customerName || '',
+    o.title || '',
+    `¥${formatMoney(o.totalAmount)}`,
+    `¥${formatMoney(o.paidAmount ?? 0)}`,
+    statusLabelMap[o.status] || '未知',
+    o.deliveryDate || '-',
+    o.designerName || '待分配',
+    formatTime(o.createTime),
+  ])
+
+  const totalAmt = data.reduce((s: number, o: any) => s + (Number(o.totalAmount) || 0), 0)
+  const paidAmt = data.reduce((s: number, o: any) => s + (Number(o.paidAmount) || 0), 0)
+
+  const rangeLabel: Record<string, string> = { all: '全部订单', selected: '已选订单', filtered: '当前筛选结果' }
+  const dateDesc = exportForm.startDate || exportForm.endDate
+    ? `（${exportForm.startDate || '不限'} ~ ${exportForm.endDate || '不限'}）`
+    : ''
+
+  exportToExcel({
+    filename: '订单列表',
+    title: '订单列表',
+    header,
+    data: rows,
+    summaryRow: ['合计', '', '', `¥${formatMoney(totalAmt)}`, `¥${formatMoney(paidAmt)}`, '', '', '', ''],
+    infoRows: [
+      [`导出时间：${new Date().toLocaleString()}`],
+      [`导出范围：${rangeLabel[exportForm.range] || '当前页'} ${dateDesc}`],
+      [`共 ${data.length} 条记录`],
+    ],
+  })
+
   exportVisible.value = false
 }
 

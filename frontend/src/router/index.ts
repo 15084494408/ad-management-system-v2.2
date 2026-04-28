@@ -30,6 +30,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '订单列表', icon: '📋' },
       },
       {
+        path: 'todo',
+        name: 'TodoWorkbench',
+        component: () => import('@/views/todo/TodoWorkbenchView.vue'),
+        meta: { title: '待办工作台', icon: '📋' },
+      },
+      {
         path: 'orders/create',
         name: 'OrderCreate',
         component: () => import('@/views/orders/OrderCreateView.vue'),
@@ -123,6 +129,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '报价管理' },
       },
       {
+        path: 'finance/quote/create',
+        name: 'QuoteCreate',
+        component: () => import('@/views/finance/QuoteCreateView.vue'),
+        meta: { title: '新建报价' },
+      },
+      {
         path: 'finance/report',
         name: 'FinanceReport',
         component: () => import('@/views/finance/FinanceReportView.vue'),
@@ -130,9 +142,9 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'finance/designer-commission',
-        name: 'DesignerCommission',
+        name: 'FinanceDesignerCommission',
         component: () => import('@/views/finance/DesignerCommissionView.vue'),
-        meta: { title: '设计提成' },
+        meta: { title: '设计师提成' },
       },
 
       // ── 系统管理 ──
@@ -177,6 +189,18 @@ const routes: RouteRecordRaw[] = [
         name: 'ButtonManage',
         component: () => import('@/views/system/ButtonManageView.vue'),
         meta: { title: '按钮管理' },
+      },
+      {
+        path: 'system/companies',
+        name: 'CompanyManage',
+        component: () => import('@/views/system/SystemCompanyView.vue'),
+        meta: { title: '公司管理' },
+      },
+      {
+        path: 'finance/commission-config',
+        name: 'CommissionConfig',
+        component: () => import('@/views/system/DesignerCommissionView.vue'),
+        meta: { title: '提成配置', icon: '👔' },
       },
       // ── 物料管理 ──
       {
@@ -367,20 +391,16 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // 有 token 但还没有用户信息 → 必须先验证
-  if (!authStore.userInfo) {
-    try {
-      await authStore.fetchUserInfo()
-      next()
-    } catch {
-      authStore.clearToken()
-      next({ path: '/login', query: { redirect: to.fullPath } })
-    }
-    return
+  // 关键修复：有 token 就必须验证有效性（即使 userInfo 已在缓存中）
+  // 每次路由切换都重新确认 token 是否仍然有效（后端重启后 token 会失效）
+  try {
+    await authStore.fetchUserInfo()
+    next()
+  } catch {
+    // 401/403 等认证失败 → 清除 token 并跳转登录
+    authStore.clearToken()
+    next({ path: '/login', query: { redirect: to.fullPath } })
   }
-
-  // token 有效且已加载用户信息 → 放行
-  next()
 })
 
 router.afterEach(() => NProgress.done())

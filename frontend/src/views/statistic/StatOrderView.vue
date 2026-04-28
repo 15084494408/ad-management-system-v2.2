@@ -59,6 +59,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const stats = ref([
   { label:'总订单数', value:'0', icon:'📋', bg:'linear-gradient(135deg,#409eff,#66b1ff)' },
@@ -94,6 +95,22 @@ async function loadData() {
   } catch {}
   orderList.value = []
 }
+
+function exportData() {
+  if (orderList.value.length === 0) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '订单统计报表',
+    header: ['订单编号', '客户', '订单金额', '状态', '创建时间'],
+    data: orderList.value.map(row => [
+      row.orderNo || `#${row.id}`, row.customerName || '-',
+      `¥${(row.totalAmount || 0).toLocaleString()}`,
+      statusTagMap[row.status]?.label || '-',
+      (row.createTime || '').toString().slice(0, 16),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${orderList.value.length} 条记录`]],
+  })
+}
+
 onMounted(loadData)
 </script>
 

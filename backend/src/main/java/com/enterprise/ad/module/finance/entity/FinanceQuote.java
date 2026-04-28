@@ -15,12 +15,17 @@ public class FinanceQuote {
     private Long id;
     private String quoteNo;         // 报价编号
     private String customerName;    // 客户名称
+    private Long customerId;        // 客户ID
     private String projectName;     // 项目名称
-    private BigDecimal totalAmount; // 报价金额
+    private BigDecimal totalAmount; // 报价金额（物料合计）
     private BigDecimal discount;    // 折扣百分比
-    private BigDecimal finalAmount; // 最终金额
+    private BigDecimal finalAmount; // 最终金额（折扣后）
+    private BigDecimal taxRate;     // 税率%
+    private BigDecimal taxAmount;   // 税额
     private String status;          // 状态：pending/accepted/rejected/expired
     private String validUntil;      // 有效期至
+    private String quoteDate;       // 报价日期
+    private Long companyId;         // 报价公司ID
     private String remark;          // 备注
     private Long creatorId;
     private LocalDateTime createTime;

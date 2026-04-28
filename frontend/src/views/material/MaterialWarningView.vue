@@ -3,6 +3,7 @@
     <div class="page-header">
       <span class="page-title">⚠️ 库存预警</span>
       <div class="page-actions">
+        <el-button @click="exportData"><el-icon><Download /></el-icon> 导出预警清单</el-button>
         <el-button @click="refreshData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
@@ -152,8 +153,9 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, ShoppingCart, WarningFilled } from '@element-plus/icons-vue'
+import { Refresh, ShoppingCart, WarningFilled, Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -249,6 +251,26 @@ const quickPurchase = (row: any) => {
 
 const stockIn = (row: any) => {
   ElMessage.info('请在物料库存页面进行入库操作')
+}
+
+function exportData() {
+  exportToExcel({
+    filename: '库存预警清单',
+    header: ['物料名称', '分类', '当前库存', '预警值', '危险值', '缺口', '建议采购量', '预警等级'],
+    data: tableData.value.map(row => {
+      const dangerVal = row.dangerQuantity || Math.floor(row.warningQuantity / 2)
+      const level = row.stockQuantity <= dangerVal ? '严重' : '预警'
+      return [
+        row.name, row.categoryName,
+        `${row.stockQuantity} ${row.unit}`, `${row.warningQuantity} ${row.unit}`,
+        `${dangerVal} ${row.unit}`,
+        Math.max(0, row.warningQuantity - row.stockQuantity),
+        Math.max(row.warningQuantity * 2 - row.stockQuantity, row.warningQuantity),
+        level,
+      ]
+    }),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条预警记录`]],
+  })
 }
 
 const submitPurchase = async () => {

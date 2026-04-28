@@ -4,7 +4,7 @@
       <span class="page-title">📝 报价管理</span>
       <div class="page-actions">
         <el-button @click="exportData"><el-icon><Download /></el-icon> 导出</el-button>
-        <el-button type="primary" @click="showDialog()"><el-icon><Plus /></el-icon> 新建报价</el-button>
+        <el-button type="primary" @click="router.push({ name: 'QuoteCreate' })"><el-icon><Plus /></el-icon> 新建报价</el-button>
       </div>
     </div>
 
@@ -111,10 +111,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Download, Plus } from '@element-plus/icons-vue'
 import request from '@/api/request'
 import { ElMessage } from 'element-plus'
+import { exportToExcel } from '@/utils/excelExport'
 
+const router = useRouter()
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -139,7 +142,24 @@ async function loadData() {
 }
 
 function resetSearch() { searchForm.value = { customerName: '', status: '', dateRange: [] }; loadData() }
-function exportData() { window.open('/api/finance/quote/export', '_blank') }
+function exportData() {
+  const header = ['报价编号', '客户名称', '项目名称', '报价金额(¥)', '折扣(%)', '最终金额(¥)', '状态', '有效期至']
+  const data = tableData.value.map(row => [
+    row.quoteNo, row.customerName, row.projectName,
+    row.totalAmount, (row.discount || 100), row.finalAmount,
+    { pending:'待确认', accepted:'已采纳', rejected:'已拒绝', expired:'已过期' }[row.status] || row.status,
+    row.validUntil
+  ])
+  const totalAmt = data.reduce((sum, r) => sum + Number(r[5] || 0), 0)
+  exportToExcel({
+    filename: '报价单列表',
+    header,
+    data,
+    title: '报价单列表',
+    summaryRow: ['合计', '', '', '', '', totalAmt.toFixed(2), '', ''],
+    infoRows: [['导出时间：', new Date().toLocaleString()]],
+  })
+}
 function showDialog(row?: any) {
   isEdit.value = !!row
   if (row) Object.assign(formData, row)

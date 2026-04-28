@@ -21,6 +21,8 @@ public class Order {
     private String description;       // 订单描述
     private Integer orderType;        // 订单类型：1印刷 2广告 3设计
     private BigDecimal totalAmount;  // 订单总额
+    private BigDecimal totalCost;    // 总成本（管理员填写）
+    private BigDecimal designerCommission; // 设计师提成（暂不启用，默认0）
     private BigDecimal paidAmount;   // 已付金额
     private BigDecimal discountAmount; // 优惠金额
     private BigDecimal roundingAmount; // 抹零金额（负数表示减免）

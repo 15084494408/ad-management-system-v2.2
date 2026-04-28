@@ -6,6 +6,7 @@
         <el-button @click="switchView">
           {{ viewMode === 'detail' ? '📊 汇总视图' : '📋 明细视图' }}
         </el-button>
+        <el-button @click="exportData"><el-icon><Download /></el-icon> 导出</el-button>
         <el-button type="primary" @click="showAddDialog">
           <el-icon><Plus /></el-icon> 新增提成
         </el-button>
@@ -201,7 +202,9 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Download, Plus } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
+import { exportToExcel } from '@/utils/excelExport'
 
 const viewMode = ref<'detail' | 'summary'>('summary')
 const loading = ref(false)
@@ -405,6 +408,34 @@ async function deleteRow(row: any) {
     loadOverview()
   } catch (e: any) {
     ElMessage.error(e.message || '删除失败')
+  }
+}
+
+function exportData() {
+  if (viewMode.value === 'summary') {
+    exportToExcel({
+      filename: '设计提成汇总',
+      header: ['设计师', '订单数', '计算基数', '总提成', '待结算', '已结算', '已打款'],
+      data: designerSummary.value.map(d => [
+        d.designerName, d.count,
+        `¥${(d.totalBase || 0).toFixed(2)}`, `¥${(d.totalCommission || 0).toFixed(2)}`,
+        d.pendingCount || '-', d.settledCount || '-', d.paidCount || '-',
+      ]),
+      infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${designerSummary.value.length} 位设计师`]],
+    })
+  } else {
+    exportToExcel({
+      filename: '设计提成明细',
+      header: ['设计师', '订单编号', '计算基数', '提成比例', '提成金额', '状态', '备注', '创建时间'],
+      data: tableData.value.map(r => [
+        r.designerName, r.orderNo || '-',
+        `¥${(r.baseAmount || 0).toFixed(2)}`, `${r.commissionRate}%`,
+        `¥${(r.commissionAmount || 0).toFixed(2)}`,
+        statusText(r.status), r.remark || '-',
+        (r.createTime || '').toString().slice(0, 16),
+      ]),
+      infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+    })
   }
 }
 

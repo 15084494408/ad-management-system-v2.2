@@ -21,6 +21,8 @@ public class SysUser {
     private String email;             // 邮箱
     private String avatar;            // 头像URL
     private Integer status;           // 状态：0禁用 1正常
+    private Long companyId;           // 所属公司ID（支持多公司）
+    private String department;        // 部门
     private Long createBy;            // 创建人ID
     private LocalDateTime createTime; // 创建时间
     private Long updateBy;            // 更新人ID

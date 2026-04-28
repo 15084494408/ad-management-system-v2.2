@@ -11,7 +11,7 @@
     <div class="page-header">
       <h1 class="page-title">💵 流水记录 <span class="v2-badge">V2.2</span></h1>
       <div class="page-actions">
-        <button class="btn btn-default">⬇️ 导出</button>
+        <button class="btn btn-default" @click="exportData">⬇️ 导出</button>
         <button class="btn btn-primary" @click="showQuickRecord">+ 新增流水</button>
       </div>
     </div>
@@ -133,6 +133,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { financeApi } from '@/api/modules/finance'
 import { ElMessage } from 'element-plus'
+import { exportToExcel } from '@/utils/excelExport'
 
 const router = useRouter()
 
@@ -233,6 +234,26 @@ async function loadData() {
 
 function showQuickRecord() {
   window.dispatchEvent(new CustomEvent('show-quick-account'))
+}
+
+// ── 导出流水记录 ──
+function exportData() {
+  if (!tableData.value.length) { ElMessage.warning('暂无数据可导出'); return }
+  exportToExcel({
+    filename: '流水记录',
+    header: ['编号', '金额(¥)', '方向', '来源', '分类', '关联对象', '支付方式', '备注', '时间'],
+    data: tableData.value.map(r => [
+      r.record_no || '-',
+      (r.direction === 'income' ? '+' : '-') + Number(r.amount || 0).toLocaleString(),
+      r.direction === 'income' ? '收入' : '支出',
+      getSourceLabel(r.source),
+      r.category || '-',
+      r.related_name || '-',
+      getPaymentLabel(r.payment_method),
+      r.remark || '-',
+      formatTime(r.create_time),
+    ]),
+  })
 }
 
 onMounted(() => {

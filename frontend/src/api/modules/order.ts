@@ -29,6 +29,10 @@ export const orderApi = {
   addMaterial(id: number, data: any) {
     return request.post(`/orders/${id}/materials`, data)
   },
+  /** 更新物料明细（管理员可修改成本）— 对齐后端 PUT /orders/{id}/materials/{materialId} */
+  updateMaterial(id: number, materialId: number, data: any) {
+    return request.put(`/orders/${id}/materials/${materialId}`, data)
+  },
   /** 删除物料明细 — 对齐后端 DELETE /orders/{id}/materials/{materialId} */
   removeMaterial(id: number, materialId: number) {
     return request.delete(`/orders/${id}/materials/${materialId}`)

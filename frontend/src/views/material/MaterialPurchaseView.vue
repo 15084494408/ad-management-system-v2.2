@@ -140,6 +140,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -271,7 +272,16 @@ const confirmReceive = async (row: any) => {
 }
 
 const exportData = () => {
-  ElMessage.info('导出功能开发中')
+  exportToExcel({
+    filename: '物料采购记录',
+    header: ['采购单号', '物料名称', '供应商', '采购数量', '单价', '总金额', '采购日期', '状态'],
+    data: tableData.value.map(row => [
+      row.orderNo, row.materialName, row.supplier, row.quantity,
+      `¥${(row.unitPrice || 0).toFixed(2)}`, `¥${(row.totalAmount || 0).toLocaleString()}`,
+      row.purchaseDate, getStatusText(row.status),
+    ]),
+    infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
+  })
 }
 
 onMounted(() => {
