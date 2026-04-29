@@ -1,6 +1,7 @@
 package com.enterprise.ad.module.system.user.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -15,6 +16,8 @@ public class SysUser {
     private Long id;
 
     private String username;          // 用户名（唯一）
+
+    @JsonIgnore  // ★ 修复 P2-12: 密码不序列化到 API 响应
     private String password;          // 密码（加密存储）
     private String realName;          // 真实姓名
     private String phone;             // 手机号

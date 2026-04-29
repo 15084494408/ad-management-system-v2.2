@@ -23,18 +23,18 @@
     </div>
 
     <!-- 搜索表单 -->
-    <div class="search-section">
+    <div class="search-card">
       <div class="search-form">
         <div class="form-group">
           <label class="form-label">客户名称</label>
-          <input v-model="searchForm.keyword" type="text" class="form-control" placeholder="请输入客户名称">
+          <input v-model="searchForm.keyword" type="text" class="form-input" placeholder="请输入客户名称">
         </div>
         <div class="form-group">
           <label class="form-label">客户类型</label>
-          <select v-model="searchForm.customerType" class="form-control">
+          <select v-model="searchForm.customerType" class="form-input">
             <option value="">全部</option>
-            <option :value="1">👤 普通客户（有订单）</option>
-            <option :value="2">🏭 工厂客户（有账单）</option>
+            <option :value="1">普通客户（有订单）</option>
+            <option :value="2">工厂客户（有账单）</option>
           </select>
         </div>
         <div class="form-group form-actions">
@@ -98,6 +98,9 @@
               <div class="action-group">
                 <button class="btn-icon btn-view" @click="viewCustomer(row)" title="查看">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <button class="btn-icon btn-bill" @click="goCustomerBill(row)" title="客户账单">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                 </button>
                 <button class="btn-icon btn-edit" @click="openEditModal(row)" title="编辑">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -279,6 +282,7 @@
           </div>
         </div>
         <div class="modal-footer">
+          <button class="btn btn-outline" @click="showView = false; goCustomerBill(viewData!)">查看账单</button>
           <button class="btn btn-primary" @click="showView = false; openEditModal(viewData!)">编辑</button>
           <button class="btn btn-ghost" @click="showView = false">关闭</button>
         </div>
@@ -290,11 +294,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
 import { exportToExcel } from '@/utils/excelExport'
 
+const router = useRouter()
 const authStore = useAuthStore()
 
 // 超级管理员判断
@@ -452,6 +458,10 @@ function handleExport() {
   })
 }
 
+function goCustomerBill(row: any) {
+  router.push({ name: 'CustomerBills', query: { customerId: row.id } })
+}
+
 async function confirmDeleteCustomer(row: any) {
   if (!confirm(`确定要删除客户「${row.name || row.customerName}」吗？\n\n⚠️ 关联数据可能受影响，此操作不可恢复！`)) return
   try {
@@ -468,11 +478,13 @@ onMounted(() => { loadData() })
 
 <style scoped>
 /* ========== 搜索区域 ========== */
-.search-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.search-card {
+  background: #fff;
   border-radius: 16px;
   padding: 20px 24px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  border: 1px solid #f0f2f5;
 }
 
 .search-form {
@@ -489,23 +501,25 @@ onMounted(() => { loadData() })
 }
 
 .search-form .form-label {
-  color: rgba(255,255,255,0.9);
+  color: #606266;
   font-size: 13px;
-  margin-bottom: 6px;
+  font-weight: 500;
+  margin-bottom: 8px;
 }
 
-.search-form .form-control {
-  background: rgba(255,255,255,0.95);
-  border: none;
+.search-form .form-input {
+  background: #f9fafb;
+  border: 1px solid #e4e8f0;
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 14px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
-.search-form .form-control:focus {
+.search-form .form-input:focus {
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-actions {
@@ -739,6 +753,17 @@ onMounted(() => { loadData() })
 
 .btn-edit:hover {
   background: #67c23a;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.btn-bill {
+  background: rgba(230, 162, 60, 0.1);
+  color: #e6a23c;
+}
+
+.btn-bill:hover {
+  background: #e6a23c;
   color: #fff;
   transform: scale(1.1);
 }

@@ -22,18 +22,19 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/dashboard/DashboardView.vue'),
         meta: { title: '工作台', icon: '📊' },
       },
+      // ── 待办工作台（放在工作台下） ──
+      {
+        path: 'todo',
+        name: 'TodoWorkbench',
+        component: () => import('@/views/todo/TodoWorkbenchView.vue'),
+        meta: { title: '待办工作台', icon: '📋' },
+      },
       // ── 订单管理 ──
       {
         path: 'orders',
         name: 'Orders',
         component: () => import('@/views/orders/OrderListView.vue'),
         meta: { title: '订单列表', icon: '📋' },
-      },
-      {
-        path: 'todo',
-        name: 'TodoWorkbench',
-        component: () => import('@/views/todo/TodoWorkbenchView.vue'),
-        meta: { title: '待办工作台', icon: '📋' },
       },
       {
         path: 'orders/create',
@@ -59,6 +60,12 @@ const routes: RouteRecordRaw[] = [
         name: 'CustomerLevels',
         component: () => import('@/views/customers/CustomerLevelView.vue'),
         meta: { title: '客户等级' },
+      },
+      {
+        path: 'customer-bills',
+        name: 'CustomerBills',
+        component: () => import('@/views/customers/CustomerBillView.vue'),
+        meta: { title: '客户账单', icon: '📋' },
       },
       {
         path: 'factory-bills',
@@ -358,6 +365,11 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// ★ 修复 P0-4: 用户信息缓存策略，避免每次路由切换都请求后端
+let userInfoLastFetch = 0
+const USER_INFO_CACHE_DURATION = 5 * 60 * 1000 // 5 分钟缓存
+let userInfoFetchPromise: Promise<any> | null = null
+
 // 全局路由守卫
 router.beforeEach(async (to, _from, next) => {
   NProgress.start()
@@ -391,14 +403,29 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // 关键修复：有 token 就必须验证有效性（即使 userInfo 已在缓存中）
-  // 每次路由切换都重新确认 token 是否仍然有效（后端重启后 token 会失效）
+  // ★ 修复 P0-4: 缓存 + 过期刷新策略
+  // 有 userInfo 缓存且在有效期内 → 直接放行（不请求后端）
+  const now = Date.now()
+  if (authStore.userInfo && (now - userInfoLastFetch < USER_INFO_CACHE_DURATION)) {
+    next()
+    return
+  }
+
+  // 缓存过期或首次加载 → 请求后端验证 token 有效性
+  // 使用 Promise 去重，防止并发路由切换导致多次请求
   try {
-    await authStore.fetchUserInfo()
+    if (!userInfoFetchPromise) {
+      userInfoFetchPromise = authStore.fetchUserInfo().finally(() => {
+        userInfoFetchPromise = null
+      })
+    }
+    await userInfoFetchPromise
+    userInfoLastFetch = Date.now()
     next()
   } catch {
     // 401/403 等认证失败 → 清除 token 并跳转登录
     authStore.clearToken()
+    userInfoLastFetch = 0
     next({ path: '/login', query: { redirect: to.fullPath } })
   }
 })

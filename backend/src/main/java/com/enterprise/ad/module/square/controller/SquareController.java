@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.util.WebUtil;
 import com.enterprise.ad.module.square.entity.*;
 import com.enterprise.ad.module.square.mapper.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,8 +67,8 @@ public class SquareController {
     @Operation(summary = "发布需求")
     public Result<Void> createRequirement(@RequestBody SquareRequirement req, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息
-        Long userId = (Long) request.getAttribute("userId");
-        String username = (String) request.getAttribute("username");
+        Long userId = WebUtil.getCurrentUserId(request);
+        String username = WebUtil.getCurrentUsername(request);
 
         req.setPublisherId(userId);
         req.setPublisherName(username != null ? username : "unknown");
@@ -133,8 +134,8 @@ public class SquareController {
     @Operation(summary = "申请接单")
     @Transactional
     public Result<Void> apply(@RequestBody SquareApplication app, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        String username = (String) request.getAttribute("username");
+        Long userId = WebUtil.getCurrentUserId(request);
+        String username = WebUtil.getCurrentUsername(request);
 
         // 检查是否已申请
         long count = applicationMapper.selectCount(

@@ -55,18 +55,22 @@ public class FactoryController {
     }
 
     // ========== 工厂账单 ==========
+    // 同时支持客户账单（billType=2），共用同一张表
 
     @GetMapping("/bills")
-    @Operation(summary = "工厂账单列表（支持按工厂/月份/状态筛选）")
+    @Operation(summary = "账单列表（支持按类型/客户/月份/状态筛选）")
     @PreAuthorize("hasAuthority('factory:list')")
     public Result<PageResult<FactoryBill>> listBills(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) Integer billType,
             @RequestParam(required = false) Long factoryId,
             @RequestParam(required = false) String month,
             @RequestParam(required = false) Integer status) {
         Page<FactoryBill> page = new Page<>(current, size);
         LambdaQueryWrapper<FactoryBill> qw = new LambdaQueryWrapper<FactoryBill>()
+            // 按账单类型筛选（1=工厂 2=客户），不传则查全部
+            .eq(billType != null, FactoryBill::getBillType, billType)
             // 使用 customer_id 筛选（而非 factory_id），因为 customer_id 存储的是 crm_customer 的正确 ID
             .eq(factoryId != null, FactoryBill::getCustomerId, factoryId)
             .eq(status != null, FactoryBill::getStatus, status)
@@ -74,23 +78,17 @@ public class FactoryController {
             .eq(FactoryBill::getDeleted, 0)
             .orderByDesc(FactoryBill::getCreateTime);
         Page<FactoryBill> result = factoryBillMapper.selectPage(page, qw);
-        
-        // 校正每条账单的工厂名称：根据 customerId 回查 crm_customer 表，确保名称一致
+
+        // ★ 修复：列表接口不应有写操作，客户名称校正值仅返回给前端，不再回写数据库
         for (FactoryBill bill : result.getRecords()) {
             if (bill.getCustomerId() != null) {
                 Customer customer = customerMapper.selectById(bill.getCustomerId());
                 if (customer != null && !customer.getCustomerName().equals(bill.getFactoryName())) {
                     bill.setFactoryName(customer.getCustomerName());
-                    // 同步修正数据库中的冗余字段，避免下次再查错
-                    FactoryBill updateName = new FactoryBill();
-                    updateName.setId(bill.getId());
-                    updateName.setFactoryName(customer.getCustomerName());
-                    updateName.setUpdateTime(LocalDateTime.now());
-                    factoryBillMapper.updateById(updateName);
                 }
             }
         }
-        
+
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
     }
 
@@ -106,11 +104,17 @@ public class FactoryController {
     }
 
     @PostMapping("/bills")
-    @Operation(summary = "新建账单（自动从工厂ID关联客户信息）")
+    @Operation(summary = "新建账单（自动从客户ID关联客户信息）")
     @PreAuthorize("hasAuthority('factory:create')")
     public Result<Long> createBill(@RequestBody FactoryBill bill) {
-        // 1. 生成账单编号
-        String billNo = "FB" + System.currentTimeMillis();
+        // 0. 默认账单类型：未指定时为工厂账单
+        if (bill.getBillType() == null) {
+            bill.setBillType(FactoryBill.BILL_TYPE_FACTORY);
+        }
+
+        // 1. 生成账单编号（客户账单用 CB 前缀，工厂账单用 FB 前缀）
+        String prefix = bill.isCustomerBill() ? "CB" : "FB";
+        String billNo = prefix + System.currentTimeMillis();
         bill.setBillNo(billNo);
         bill.setCreateTime(LocalDateTime.now());
         bill.setUpdateTime(LocalDateTime.now());
@@ -126,12 +130,11 @@ public class FactoryController {
             }
         }
 
-        // 3. 根据 factoryId（实际为 crm_customer.id）查询工厂客户信息
-        Long factoryId = bill.getFactoryId();
-        if (factoryId != null && (bill.getCustomerId() == null || bill.getFactoryName() == null)) {
-            Customer customer = customerMapper.selectById(factoryId);
+        // 3. 根据 customerId（crm_customer.id）查询工厂客户信息
+        Long customerId = bill.getCustomerId();
+        if (customerId != null && bill.getFactoryName() == null) {
+            Customer customer = customerMapper.selectById(customerId);
             if (customer != null) {
-                bill.setCustomerId(customer.getId());
                 bill.setFactoryName(customer.getCustomerName());
             }
         }
@@ -200,6 +203,14 @@ public class FactoryController {
         factoryBillDetailMapper.deleteDetailLogical(detailId);
         // 重新计算账单总金额
         recalcBillTotal(billId);
+        return Result.ok();
+    }
+
+    @DeleteMapping("/bills/{billId}/details/batch-cleanup")
+    @Operation(summary = "批量清理账单所有明细（编辑时先清空再重新添加）")
+    @PreAuthorize("hasAuthority('factory:edit')")
+    public Result<Void> cleanupBillDetails(@PathVariable Long billId) {
+        factoryBillDetailMapper.logicDeleteByBillId(billId);
         return Result.ok();
     }
 

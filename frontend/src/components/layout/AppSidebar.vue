@@ -61,6 +61,7 @@ const menuGroups = [
     title: '工作台',
     items: [
       { name: 'dashboard', path: '/dashboard', icon: '📊', label: '工作台', perm: 'dashboard:view' },
+      { path: '/todo', label: '📋 待办工作台', perm: 'order:list', badge: 'NEW' },
     ],
   },
   {
@@ -71,7 +72,8 @@ const menuGroups = [
         children: [
           { path: '/customers', label: '客户列表', perm: 'customer:list' },
           { path: '/customers/levels', label: '客户等级', perm: 'customer:list' },
-          { path: '/factory-bills', label: '🏭 工厂账单', perm: 'factory:list', badge: 'V2.1' },
+          { path: '/customer-bills', label: '客户账单', perm: 'factory:list' },
+          { path: '/factory-bills', label: '工厂账单', perm: 'factory:list', badge: 'V2.1' },
         ],
       },
       {
@@ -87,7 +89,6 @@ const menuGroups = [
         name: 'orders', icon: '📋', label: '订单管理', perm: 'order:list',
         children: [
           { path: '/orders', label: '订单列表', perm: 'order:list' },
-          { path: '/todo', label: '📋 待办工作台', perm: 'order:list', badge: 'NEW' },
           { path: '/orders/create', label: '创建订单', perm: 'order:create' },
           { path: '/orders/statistics', label: '订单统计', perm: 'order:list' },
         ],

@@ -2,7 +2,7 @@
 -- 企业广告管理系统 数据库初始化脚本（完整版）
 -- 数据库名: enterprise_ad
 -- 执行前请先创建数据库: CREATE DATABASE enterprise_ad DEFAULT CHARSET utf8mb4;
--- 版本: v2.4 (2026-04-28 逻辑删除表唯一索引改造)
+-- 版本: v3.0 (2026-04-29 客户账单+数据库修复)
 -- 变更:
 --   - [v2.2] 新增 fac_factory_bill_detail 表（工厂账单明细，支持3种计价模式）
 --   - [v2.2] crm_customer 增加 customer_type / factory_type 字段（合并客户+工厂）
@@ -18,6 +18,9 @@
 --           涉及 11 张表：sys_user/sys_role/sys_dict/mem_member/ord_order/
 --           fac_factory_bill/fin_record/fin_quote/fin_invoice/mat_material/
 --           sq_requirement/sys_notice_setting
+--   - [v3.0] fac_factory_bill 增加 bill_type 字段（1=工厂账单 2=客户账单）
+--           + idx_bill_type_customer 联合索引
+--   - [v3.0] sq_income.update_time 改为 DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 -- =========================================================
 
 USE enterprise_ad;
@@ -347,6 +350,7 @@ CREATE TABLE IF NOT EXISTS fac_factory_bill (
     -- 业务员信息
     salesman_id BIGINT COMMENT '业务员ID（关联fac_factory_salesman）',
     salesman_name VARCHAR(100) COMMENT '业务员姓名（冗余）',
+    bill_type TINYINT NOT NULL DEFAULT 1 COMMENT '账单类型：1=工厂账单 2=客户账单',
     month VARCHAR(20) NOT NULL COMMENT '账单月份（如 2026年04月）',
     total_amount DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '账单总额',
     paid_amount DECIMAL(15,2) DEFAULT 0 COMMENT '已付金额',
@@ -361,7 +365,8 @@ CREATE TABLE IF NOT EXISTS fac_factory_bill (
     INDEX idx_factory_id (factory_id),
     INDEX idx_customer_id (customer_id),
     INDEX idx_month (month),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_bill_type_customer (bill_type, customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工厂账单表';
 
 -- 5.2 工厂账单明细表（每日登记记录，支持3种计价模式）
@@ -631,7 +636,7 @@ CREATE TABLE IF NOT EXISTS sq_income (
     status          TINYINT DEFAULT 1 COMMENT '状态：1待打款 2已打款',
     remark          VARCHAR(500),
     create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time     DATETIME,
+    update_time     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted         TINYINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设计师收入记录';
 

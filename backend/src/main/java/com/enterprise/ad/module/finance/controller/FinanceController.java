@@ -4,6 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.util.CsvExportUtil;
+import com.enterprise.ad.common.util.DateUtil;
+import com.enterprise.ad.common.dto.QuoteStatusRequest;
+import com.enterprise.ad.module.finance.dto.CreateQuoteRequest;
 import com.enterprise.ad.module.finance.entity.FinanceRecord;
 import com.enterprise.ad.module.finance.entity.FinanceQuote;
 import com.enterprise.ad.module.finance.entity.FinanceInvoice;
@@ -18,12 +22,15 @@ import com.enterprise.ad.module.factory.entity.FactoryBill;
 import com.enterprise.ad.module.factory.mapper.FactoryBillMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -31,6 +38,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/finance")
 @RequiredArgsConstructor
@@ -55,8 +63,9 @@ public class FinanceController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         Page<FinanceRecord> page = new Page<>(current, size);
-        LocalDateTime startDateTime = startDate != null ? startDate.atStartOfDay() : null;
-        LocalDateTime endDateTime = endDate != null ? endDate.atTime(23, 59, 59) : null;
+        // ★ 使用 DateUtil 统一日期转换
+        LocalDateTime startDateTime = DateUtil.startOfDay(startDate);
+        LocalDateTime endDateTime = DateUtil.endOfDay(endDate);
         LambdaQueryWrapper<FinanceRecord> qw = new LambdaQueryWrapper<FinanceRecord>()
             .eq(type != null, FinanceRecord::getType, type)
             .eq(category != null, FinanceRecord::getCategory, category)
@@ -72,7 +81,6 @@ public class FinanceController {
     @Operation(summary = "新增财务记录（快速记账）")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Long> createRecord(@RequestBody FinanceRecord record) {
-        // ★ 修复：金额校验
         if (record.getAmount() == null || record.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             return Result.fail(400, "金额必须大于0");
         }
@@ -103,26 +111,18 @@ public class FinanceController {
     @Operation(summary = "删除财务记录")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Void> deleteRecord(@PathVariable Long id) {
-        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         financeRecordMapper.deleteById(id);
         return Result.ok();
     }
 
-    /**
-     * ★ 新增：财务概览（前端 financeApi.getOverview 需要的接口）
-     * 与 /summary 合并，统一返回概览数据
-     */
     @GetMapping("/overview")
     @Operation(summary = "财务概览（前端首页使用）")
     @PreAuthorize("hasAuthority('finance:view')")
     public Result<Map<String, Object>> getOverview(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
-        // 默认查本月
-        if (startDate == null) startDate = LocalDate.now().withDayOfMonth(1);
-        if (endDate == null) endDate = LocalDate.now();
-
-        Map<String, Object> data = buildSummaryData(startDate, endDate);
+        LocalDate[] range = DateUtil.fillMonthRange(startDate, endDate);
+        Map<String, Object> data = buildSummaryData(range[0], range[1]);
         return Result.ok(data);
     }
 
@@ -132,8 +132,7 @@ public class FinanceController {
     public Result<Map<String, Object>> getSummary(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
-        if (startDate == null) startDate = LocalDate.now().withDayOfMonth(1);
-        if (endDate == null) endDate = LocalDate.now();
+        LocalDate[] range = DateUtil.fillMonthRange(startDate, endDate);
 
         Map<String, Object> data = buildSummaryData(startDate, endDate);
         return Result.ok(data);
@@ -153,26 +152,15 @@ public class FinanceController {
     }
 
     /**
-     * 构建收支统计数据
+     * ★ 修复: 构建收支统计数据 — 改用 SQL 聚合查询，不再全量加载到 Java 内存
      */
     private Map<String, Object> buildSummaryData(LocalDate startDate, LocalDate endDate) {
-        // 收入合计
-        BigDecimal income = financeRecordMapper.selectList(
-            new LambdaQueryWrapper<FinanceRecord>()
-                .eq(FinanceRecord::getType, "income")
-                .ge(FinanceRecord::getCreateTime, startDate.atStartOfDay())
-                .le(FinanceRecord::getCreateTime, endDate.atTime(23, 59, 59))
-                .eq(FinanceRecord::getDeleted, 0)
-        ).stream().map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.atTime(23, 59, 59);
 
-        // 支出合计
-        BigDecimal expense = financeRecordMapper.selectList(
-            new LambdaQueryWrapper<FinanceRecord>()
-                .eq(FinanceRecord::getType, "expense")
-                .ge(FinanceRecord::getCreateTime, startDate.atStartOfDay())
-                .le(FinanceRecord::getCreateTime, endDate.atTime(23, 59, 59))
-                .eq(FinanceRecord::getDeleted, 0)
-        ).stream().map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // ★ SQL 聚合，不再全量加载
+        BigDecimal income = financeRecordMapper.sumIncomeByRange(start, end);
+        BigDecimal expense = financeRecordMapper.sumExpenseByRange(start, end);
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("income", income);
@@ -185,20 +173,18 @@ public class FinanceController {
 
     // ========== 应收应付 ==========
 
+    /**
+     * ★ 修复 P1-11: 应收应付汇总 — 改用 SQL 聚合查询
+     */
     @GetMapping("/arap/summary")
     @Operation(summary = "应收应付汇总")
     @PreAuthorize("hasAuthority('finance:view')")
     public Result<Map<String, Object>> arapSummary() {
-        // 应收：订单总额 - 已付金额
-        List<Order> allOrders = orderMapper.selectList(
-            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0));
-        BigDecimal receivableTotal = allOrders.stream().map(Order::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal receivedTotal = allOrders.stream().map(Order::getPaidAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        // 应付：工厂账单
-        List<FactoryBill> bills = factoryBillMapper.selectList(
-            new LambdaQueryWrapper<FactoryBill>().eq(FactoryBill::getDeleted, 0));
-        BigDecimal payableTotal = bills.stream().map(FactoryBill::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal paidTotal = bills.stream().map(b -> b.getPaidAmount() != null ? b.getPaidAmount() : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // ★ 使用 SQL 聚合查询，不再全表加载到内存
+        BigDecimal receivableTotal = orderMapper.sumAllTotalAmount();
+        BigDecimal receivedTotal = orderMapper.sumAllPaidAmount();
+        BigDecimal payableTotal = factoryBillMapper.sumAllTotalAmount();
+        BigDecimal paidTotal = factoryBillMapper.sumAllPaidAmount();
 
         return Result.ok(Map.of(
             "receivableTotal", receivableTotal,
@@ -282,30 +268,31 @@ public class FinanceController {
         return Result.ok(data);
     }
 
+    /**
+     * ★ 修复 P1-10: 新建报价 — 改用类型安全的 DTO 替代 Map<String, Object>
+     */
     @PostMapping("/quote/create")
     @Operation(summary = "新建报价（主表+明细同时提交）")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Long> createQuote(@RequestBody Map<String, Object> body) {
-        // 解析主表数据
+    public Result<Long> createQuote(@Valid @RequestBody CreateQuoteRequest request) {
         FinanceQuote quote = new FinanceQuote();
         // 生成编号：QT + 日期 + 3位序列
-        String dateStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        String dateStr = LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
         long seq = System.currentTimeMillis() % 1000;
         quote.setQuoteNo("QT" + dateStr + String.format("%03d", seq));
-        
-        if (body.containsKey("customerName")) quote.setCustomerName((String) body.get("customerName"));
-        if (body.containsKey("customerId")) quote.setCustomerId(((Number) body.get("customerId")).longValue());
-        if (body.containsKey("projectName")) quote.setProjectName((String) body.get("projectName"));
-        if (body.containsKey("companyId")) quote.setCompanyId(((Number) body.get("companyId")).longValue());
-        if (body.containsKey("discount")) quote.setDiscount(new BigDecimal(body.get("discount").toString()));
-        else quote.setDiscount(BigDecimal.valueOf(100));
-        if (body.containsKey("taxRate")) quote.setTaxRate(new BigDecimal(body.get("taxRate").toString()));
-        if (body.containsKey("validUntil")) quote.setValidUntil((String) body.get("validUntil"));
-        if (body.containsKey("quoteDate")) quote.setQuoteDate((String) body.get("quoteDate"));
-        if (body.containsKey("remark")) quote.setRemark((String) body.get("remark"));
-        if (body.containsKey("totalAmount")) quote.setTotalAmount(new BigDecimal(body.get("totalAmount").toString()));
-        if (body.containsKey("finalAmount")) quote.setFinalAmount(new BigDecimal(body.get("finalAmount").toString()));
-        if (body.containsKey("taxAmount")) quote.setTaxAmount(new BigDecimal(body.get("taxAmount").toString()));
+
+        quote.setCustomerName(request.getCustomerName());
+        quote.setCustomerId(request.getCustomerId());
+        quote.setProjectName(request.getProjectName());
+        quote.setCompanyId(request.getCompanyId());
+        quote.setDiscount(request.getDiscount() != null ? request.getDiscount() : BigDecimal.valueOf(100));
+        quote.setTaxRate(request.getTaxRate());
+        quote.setValidUntil(request.getValidUntil());
+        quote.setQuoteDate(request.getQuoteDate());
+        quote.setRemark(request.getRemark());
+        quote.setTotalAmount(request.getTotalAmount());
+        quote.setFinalAmount(request.getFinalAmount());
+        quote.setTaxAmount(request.getTaxAmount());
 
         quote.setStatus("pending");
         quote.setCreateTime(LocalDateTime.now());
@@ -313,21 +300,18 @@ public class FinanceController {
         quoteMapper.insert(quote);
 
         // 插入明细
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> detailList = (List<Map<String, Object>>) body.get("details");
-        if (detailList != null && !detailList.isEmpty()) {
-            for (Map<String, Object> d : detailList) {
+        if (request.getDetails() != null && !request.getDetails().isEmpty()) {
+            for (CreateQuoteRequest.QuoteDetailRequest d : request.getDetails()) {
                 FinQuoteDetail detail = new FinQuoteDetail();
                 detail.setQuoteId(quote.getId());
-                detail.setMaterialName((String) d.get("materialName"));
-                if (d.containsKey("spec")) detail.setSpec((String) d.get("spec"));
-                if (d.containsKey("unit")) detail.setUnit((String) d.get("unit"));
-                if (d.containsKey("quantity")) detail.setQuantity(new BigDecimal(d.get("quantity").toString()));
-                if (d.containsKey("unitPrice")) detail.setUnitPrice(new BigDecimal(d.get("unitPrice").toString()));
-                if (d.containsKey("amount")) detail.setAmount(new BigDecimal(d.get("amount").toString()));
-                if (d.containsKey("remark")) detail.setRemark((String) d.get("remark"));
-                if (d.containsKey("isCustom")) detail.setIsCustom(((Number) d.get("isCustom")).intValue());
-                else detail.setIsCustom(0);
+                detail.setMaterialName(d.getMaterialName());
+                detail.setSpec(d.getSpec());
+                detail.setUnit(d.getUnit());
+                detail.setQuantity(d.getQuantity());
+                detail.setUnitPrice(d.getUnitPrice());
+                detail.setAmount(d.getAmount());
+                detail.setRemark(d.getRemark());
+                detail.setIsCustom(d.getIsCustom() != null ? d.getIsCustom() : 0);
                 detail.setCreateTime(LocalDateTime.now());
                 detail.setDeleted(0);
                 quoteDetailMapper.insert(detail);
@@ -337,17 +321,21 @@ public class FinanceController {
         return Result.ok(quote.getId());
     }
 
+    /**
+     * ★ 修复 P2-15: 删除报价 — 使用批量删除替代循环 N+1 删除
+     */
     @DeleteMapping("/quote/{id}")
     @Operation(summary = "删除报价（含明细）")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Void> deleteQuote(@PathVariable Long id) {
         quoteMapper.deleteById(id);
-        // 同时逻辑删除明细
+        // ★ 批量删除明细，不再循环逐条删除
         List<FinQuoteDetail> details = quoteDetailMapper.selectList(
             new LambdaQueryWrapper<FinQuoteDetail>().eq(FinQuoteDetail::getQuoteId, id)
         );
-        for (FinQuoteDetail d : details) {
-            quoteDetailMapper.deleteById(d.getId());
+        if (!details.isEmpty()) {
+            List<Long> detailIds = details.stream().map(FinQuoteDetail::getId).collect(Collectors.toList());
+            quoteDetailMapper.deleteBatchIds(detailIds);
         }
         return Result.ok();
     }
@@ -355,11 +343,8 @@ public class FinanceController {
     @PutMapping("/quote/{id}/status")
     @Operation(summary = "变更报价状态")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Void> updateQuoteStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String status = body.get("status");
-        if (status == null || (!List.of("pending", "accepted", "rejected", "expired").contains(status))) {
-            return Result.fail(400, "无效的状态值");
-        }
+    public Result<Void> updateQuoteStatus(@PathVariable Long id, @Valid @RequestBody QuoteStatusRequest body) {
+        String status = body.getStatus();
         FinanceQuote update = new FinanceQuote();
         update.setId(id);
         update.setStatus(status);
@@ -465,10 +450,9 @@ public class FinanceController {
             @RequestParam(required = false) String reportType,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
-        if (startDate == null) startDate = LocalDate.now().withDayOfMonth(1);
-        if (endDate == null) endDate = LocalDate.now();
+        LocalDate[] reportRange = DateUtil.fillMonthRange(startDate, endDate);
 
-        Map<String, Object> summary = buildSummaryData(startDate, endDate);
+        Map<String, Object> summary = buildSummaryData(reportRange[0], reportRange[1]);
         BigDecimal income = (BigDecimal) summary.get("income");
         BigDecimal expense = (BigDecimal) summary.get("expense");
         BigDecimal profit = income.subtract(expense);
@@ -494,23 +478,26 @@ public class FinanceController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             @RequestParam(required = false) String flowType) {
-        if (startDate == null) startDate = LocalDate.now().minusDays(7);
-        if (endDate == null) endDate = LocalDate.now();
+        LocalDate[] flowRange = DateUtil.fillWeekRange(startDate, endDate);
 
-        LambdaQueryWrapper<FinanceRecord> qw = new LambdaQueryWrapper<FinanceRecord>()
+        LocalDateTime start = flowRange[0].atStartOfDay();
+        LocalDateTime end = flowRange[1].atTime(23, 59, 59);
+
+        // ★ SQL 聚合
+        LambdaQueryWrapper<FinanceRecord> countQw = new LambdaQueryWrapper<FinanceRecord>()
             .eq(FinanceRecord::getDeleted, 0)
-            .ge(FinanceRecord::getCreateTime, startDate.atStartOfDay())
-            .le(FinanceRecord::getCreateTime, endDate.atTime(23, 59, 59));
+            .ge(FinanceRecord::getCreateTime, start)
+            .le(FinanceRecord::getCreateTime, end);
 
-        List<FinanceRecord> records = financeRecordMapper.selectList(qw);
-        BigDecimal income = records.stream().filter(r -> "income".equals(r.getType())).map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal expense = records.stream().filter(r -> "expense".equals(r.getType())).map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        long recordCount = financeRecordMapper.selectCount(countQw);
+        BigDecimal income = financeRecordMapper.sumIncomeByRange(start, end);
+        BigDecimal expense = financeRecordMapper.sumExpenseByRange(start, end);
 
         return Result.ok(Map.of(
             "totalIncome", income,
             "totalExpense", expense,
             "netAmount", income.subtract(expense),
-            "recordCount", records.size()
+            "recordCount", recordCount
         ));
     }
 
@@ -540,42 +527,154 @@ public class FinanceController {
         return Result.ok(result);
     }
 
-    // ========== 导出接口（简化版，返回提示） ==========
+    // ========== ★ 修复 P2-16: 导出接口实现 ==========
 
     @GetMapping("/arap/export")
-    @Operation(summary = "导出应收应付")
-    public void exportArap(HttpServletResponse response) {
-        // 简化：前端直接 window.open 调用，实际生产环境应生成 Excel 文件
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出应收应付（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportArap(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "应收应付数据");
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("类型,编号,客户/供应商,金额,已付金额,未付金额,创建时间\n");
+
+        // 应收订单
+        List<Order> orders = orderMapper.selectList(
+            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0).orderByDesc(Order::getCreateTime));
+        for (Order o : orders) {
+            BigDecimal total = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
+            BigDecimal paid = o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO;
+            csv.append(String.format("应收,%s,%s,%s,%s,%s,%s\n",
+                CsvExportUtil.escapeCsv(o.getOrderNo()), CsvExportUtil.escapeCsv(o.getCustomerName()),
+                total, paid, total.subtract(paid),
+                o.getCreateTime() != null ? o.getCreateTime().toString() : ""));
+        }
+
+        // 应付工厂账单
+        List<FactoryBill> bills = factoryBillMapper.selectList(
+            new LambdaQueryWrapper<FactoryBill>().eq(FactoryBill::getDeleted, 0).orderByDesc(FactoryBill::getCreateTime));
+        for (FactoryBill b : bills) {
+            BigDecimal total = b.getTotalAmount() != null ? b.getTotalAmount() : BigDecimal.ZERO;
+            BigDecimal paid = b.getPaidAmount() != null ? b.getPaidAmount() : BigDecimal.ZERO;
+            csv.append(String.format("应付,%s,%s,%s,%s,%s,%s\n",
+                CsvExportUtil.escapeCsv(b.getBillNo()), CsvExportUtil.escapeCsv(b.getFactoryName()),
+                total, paid, total.subtract(paid),
+                b.getCreateTime() != null ? b.getCreateTime().toString() : ""));
+        }
+
+        response.getWriter().write(csv.toString());
     }
 
     @GetMapping("/quote/export")
-    @Operation(summary = "导出报价")
-    public void exportQuote(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出报价（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportQuote(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "报价数据");
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("报价编号,客户名称,项目名称,合计金额,折扣率,最终金额,税额,状态,报价日期,有效期至\n");
+
+        List<FinanceQuote> quotes = quoteMapper.selectList(
+            new LambdaQueryWrapper<FinanceQuote>().eq(FinanceQuote::getDeleted, 0).orderByDesc(FinanceQuote::getCreateTime));
+        for (FinanceQuote q : quotes) {
+            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+                CsvExportUtil.escapeCsv(q.getQuoteNo()), CsvExportUtil.escapeCsv(q.getCustomerName()), CsvExportUtil.escapeCsv(q.getProjectName()),
+                q.getTotalAmount(), q.getDiscount(), q.getFinalAmount(), q.getTaxAmount(),
+                CsvExportUtil.escapeCsv(q.getStatus()), CsvExportUtil.escapeCsv(q.getQuoteDate()), CsvExportUtil.escapeCsv(q.getValidUntil())));
+        }
+
+        response.getWriter().write(csv.toString());
     }
 
     @GetMapping("/invoice/export")
-    @Operation(summary = "导出发票")
-    public void exportInvoice(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出发票（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportInvoice(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "发票数据");
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("发票编号,类型,客户名称,金额,税率,税额,状态,开票日期\n");
+
+        List<FinanceInvoice> invoices = invoiceMapper.selectList(
+            new LambdaQueryWrapper<FinanceInvoice>().eq(FinanceInvoice::getDeleted, 0).orderByDesc(FinanceInvoice::getCreateTime));
+        for (FinanceInvoice inv : invoices) {
+            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
+                CsvExportUtil.escapeCsv(inv.getInvoiceNo()), CsvExportUtil.escapeCsv(inv.getType()), CsvExportUtil.escapeCsv(inv.getCustomerName()),
+                inv.getAmount(), inv.getTaxRate(), inv.getTaxAmount(),
+                CsvExportUtil.escapeCsv(inv.getStatus()), CsvExportUtil.escapeCsv(inv.getIssueDate())));
+        }
+
+        response.getWriter().write(csv.toString());
     }
 
     @GetMapping("/report/export")
-    @Operation(summary = "导出财务报表")
-    public void exportReport(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出财务报表（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportReport(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "财务报表");
+
+        LocalDate today = LocalDate.now();
+        LocalDate startOfMonth = today.withDayOfMonth(1);
+
+        Map<String, Object> summary = buildSummaryData(startOfMonth, today);
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("项目,金额\n");
+        csv.append(String.format("总收入,%s\n", summary.get("income")));
+        csv.append(String.format("总支出,%s\n", summary.get("expense")));
+        csv.append(String.format("净利润,%s\n", summary.get("profit")));
+        csv.append(String.format("统计周期,%s 至 %s\n", summary.get("startDate"), summary.get("endDate")));
+
+        response.getWriter().write(csv.toString());
     }
 
     @GetMapping("/flow/export")
-    @Operation(summary = "导出流水")
-    public void exportFlow(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出流水（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportFlow(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "流水数据");
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("来源,编号,方向,金额,分类,相关方,备注,创建时间\n");
+
+        LocalDate today = LocalDate.now();
+        String startStr = today.minusDays(30).atStartOfDay().toString();
+        String endStr = today.atTime(23, 59, 59).toString();
+
+        List<Map<String, Object>> records = financeRecordMapper.selectAllFlow(startStr, endStr, null, 10000, 0);
+        for (Map<String, Object> r : records) {
+            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
+                CsvExportUtil.escapeCsv(String.valueOf(r.get("source"))), CsvExportUtil.escapeCsv(String.valueOf(r.get("record_no"))),
+                CsvExportUtil.escapeCsv(String.valueOf(r.get("direction"))), r.get("amount"),
+                CsvExportUtil.escapeCsv(String.valueOf(r.get("category"))), CsvExportUtil.escapeCsv(String.valueOf(r.get("related_name"))),
+                CsvExportUtil.escapeCsv(String.valueOf(r.get("remark"))), CsvExportUtil.escapeCsv(String.valueOf(r.get("create_time")))));
+        }
+
+        response.getWriter().write(csv.toString());
     }
 
     @GetMapping("/flow/statistics/export")
-    @Operation(summary = "导出流水统计")
-    public void exportFlowStatistics(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_OK);
+    @Operation(summary = "导出流水统计（CSV）")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public void exportFlowStatistics(HttpServletResponse response) throws IOException {
+        CsvExportUtil.setExportHeaders(response, "流水统计");
+
+        LocalDate today = LocalDate.now();
+        LocalDate start = today.minusDays(30);
+        LocalDateTime lStart = start.atStartOfDay();
+        LocalDateTime lEnd = today.atTime(23, 59, 59);
+
+        BigDecimal income = financeRecordMapper.sumIncomeByRange(lStart, lEnd);
+        BigDecimal expense = financeRecordMapper.sumExpenseByRange(lStart, lEnd);
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("项目,金额\n");
+        csv.append(String.format("总收入,%s\n", income));
+        csv.append(String.format("总支出,%s\n", expense));
+        csv.append(String.format("净流水,%s\n", income.subtract(expense)));
+        csv.append(String.format("统计周期,%s 至 %s\n", start, today));
+
+        response.getWriter().write(csv.toString());
     }
+
 }

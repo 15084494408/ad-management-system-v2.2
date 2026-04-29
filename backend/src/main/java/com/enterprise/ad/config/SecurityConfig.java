@@ -2,6 +2,7 @@ package com.enterprise.ad.config;
 
 import com.enterprise.ad.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,6 +29,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimiterFilter rateLimiterFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -51,6 +53,8 @@ public class SecurityConfig {
                     "/system/users/designer-list"
                 ).permitAll()
                 .anyRequest().authenticated())
+            // ★ 注册登录速率限制过滤器（在 JWT 过滤器之前）
+            .addFilterBefore(rateLimiterFilter, UsernamePasswordAuthenticationFilter.class)
             // 把 JWT 过滤器放在 UsernamePasswordAuthenticationFilter 之前
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

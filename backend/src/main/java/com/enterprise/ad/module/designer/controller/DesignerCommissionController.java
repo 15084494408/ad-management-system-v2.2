@@ -2,6 +2,7 @@ package com.enterprise.ad.module.designer.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.dto.CommissionConfigRequest;
 import com.enterprise.ad.module.designer.entity.DesignerCommissionConfig;
 import com.enterprise.ad.module.designer.mapper.DesignerCommissionConfigMapper;
 import com.enterprise.ad.module.system.user.entity.SysUser;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -66,15 +69,10 @@ public class DesignerCommissionController {
     @Operation(summary = "设置/更新设计师提成比例")
     @PreAuthorize("hasAuthority('system:user')")
     @Transactional
-    public Result<Void> config(@RequestBody Map<String, Object> body) {
-        Long designerId = Long.valueOf(body.get("designerId").toString());
-        BigDecimal rate = new BigDecimal(body.get("commissionRate").toString());
-        Boolean enabled = body.get("enabled") != null ? Boolean.valueOf(body.get("enabled").toString()) : true;
-
-        // 限制范围 0-100
-        if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(new BigDecimal("100")) > 0) {
-            return Result.fail(400, "提成比例必须在 0~100% 之间");
-        }
+    public Result<Void> config(@Valid @RequestBody CommissionConfigRequest req) {
+        Long designerId = req.getDesignerId();
+        BigDecimal rate = req.getCommissionRate();
+        Boolean enabled = req.getEnabled();
 
         // 获取设计师姓名
         SysUser designer = userMapper.selectById(designerId);

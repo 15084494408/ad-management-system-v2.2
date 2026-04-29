@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.dto.MemberLevelRequest;
 import com.enterprise.ad.common.exception.BusinessException;
 import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
@@ -142,10 +143,10 @@ public class MemberController {
     @PutMapping("/{id}/level")
     @Operation(summary = "更新会员等级")
     @PreAuthorize("hasAuthority('member:edit')")
-    public Result<Void> updateLevel(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public Result<Void> updateLevel(@PathVariable Long id, @RequestBody MemberLevelRequest body) {
         Member member = new Member();
         member.setId(id);
-        member.setLevel((String) body.get("level"));
+        member.setLevel(body.getLevel());
         member.setUpdateTime(LocalDateTime.now());
         memberMapper.updateById(member);
         return Result.ok();

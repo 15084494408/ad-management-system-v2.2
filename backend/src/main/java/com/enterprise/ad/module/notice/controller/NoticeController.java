@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.util.WebUtil;
 import com.enterprise.ad.module.notice.entity.Notice;
 import com.enterprise.ad.module.notice.entity.NoticeSetting;
 import com.enterprise.ad.module.notice.mapper.NoticeMapper;
@@ -38,7 +39,7 @@ public class NoticeController {
             HttpServletRequest request) {
 
         // ★ 修复：从 request attribute 获取用户信息
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = WebUtil.getCurrentUserId(request);
 
         Page<Notice> page = new Page<>(current, size);
         LambdaQueryWrapper<Notice> qw = new LambdaQueryWrapper<Notice>()

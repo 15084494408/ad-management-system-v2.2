@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.dto.StockOperationRequest;
 import com.enterprise.ad.common.exception.BusinessException;
+import com.enterprise.ad.common.util.WebUtil;
 import com.enterprise.ad.module.material.entity.Material;
 import com.enterprise.ad.module.material.entity.MaterialCategory;
 import com.enterprise.ad.module.material.entity.StockLog;
@@ -18,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -170,16 +174,12 @@ public class MaterialController {
     @PostMapping("/stock-in")
     @Operation(summary = "入库")
     @Transactional
-    public Result<Void> stockIn(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+    public Result<Void> stockIn(@Valid @RequestBody StockOperationRequest params, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息（由 JwtAuthenticationFilter 设置）
-        Long userId = (Long) request.getAttribute("userId");
-        String username = (String) request.getAttribute("username");
+        String username = WebUtil.getCurrentUsername(request);
 
-        Long materialId = Long.valueOf(params.get("materialId").toString());
-        Integer quantity = Integer.valueOf(params.get("quantity").toString());
-        if (quantity <= 0) {
-            return Result.fail(400, "入库数量必须大于0");
-        }
+        Long materialId = params.getMaterialId();
+        Integer quantity = params.getQuantity();
 
         Material material = materialMapper.selectById(materialId);
         if (material == null || material.getDeleted() == 1) {
@@ -195,7 +195,7 @@ public class MaterialController {
         log.setAfterStock(material.getStockQuantity() + quantity);
         log.setUnitPrice(material.getPrice());
         log.setTotalPrice(material.getPrice().multiply(new BigDecimal(quantity)));
-        log.setRemark((String) params.get("remark"));
+        log.setRemark(params.getRemark());
         log.setOperatorName(username != null ? username : "system");
         log.setCreateTime(LocalDateTime.now());
         stockLogMapper.insert(log);
@@ -213,15 +213,12 @@ public class MaterialController {
     @PostMapping("/stock-out")
     @Operation(summary = "出库")
     @Transactional
-    public Result<Void> stockOut(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+    public Result<Void> stockOut(@Valid @RequestBody StockOperationRequest params, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息
-        String username = (String) request.getAttribute("username");
+        String username = WebUtil.getCurrentUsername(request);
 
-        Long materialId = Long.valueOf(params.get("materialId").toString());
-        Integer quantity = Integer.valueOf(params.get("quantity").toString());
-        if (quantity <= 0) {
-            return Result.fail(400, "出库数量必须大于0");
-        }
+        Long materialId = params.getMaterialId();
+        Integer quantity = params.getQuantity();
 
         Material material = materialMapper.selectById(materialId);
         if (material == null || material.getDeleted() == 1) {
@@ -240,8 +237,7 @@ public class MaterialController {
         log.setBeforeStock(material.getStockQuantity());
         log.setAfterStock(material.getStockQuantity() - quantity);
         log.setUnitPrice(material.getPrice());
-        log.setRemark((String) params.get("remark"));
-        log.setOperatorName(username != null ? username : "system");
+        log.setRemark(params.getRemark());        log.setOperatorName(username != null ? username : "system");
         log.setCreateTime(LocalDateTime.now());
         stockLogMapper.insert(log);
 

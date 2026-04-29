@@ -14,6 +14,11 @@ import java.lang.reflect.Field;
  * MyBatis 全局拦截器
  * INSERT 操作前强制清空实体的 id 字段，防止前端传入已有 id 导致主键冲突（DuplicateKeyException）
  * 配合全局 id-type: auto 使用，让数据库自增生成主键
+ *
+ * ★ P2-18 改进说明:
+ * 这是一个过渡性的安全网。根本解决方案是所有 Controller 接收 DTO 而非 Entity，
+ * 在 Service 层完成 DTO → Entity 的转换，这样就不需要这个拦截器。
+ * 建议：后续迭代逐步将 Controller 的 @RequestBody 从 Entity 改为 DTO。
  */
 @Slf4j
 @Intercepts({

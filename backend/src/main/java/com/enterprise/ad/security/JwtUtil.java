@@ -15,6 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * JWT 工具类
+ * ★ 修复 P1-8: 新增 parseClaims() 一次性解析方法，避免重复解析
+ * ★ 修复 P1-9: 密钥不足 256bit 时拒绝启动，不再用 0 填充
  */
 @Slf4j
 @Component
@@ -42,14 +44,17 @@ public class JwtUtil {
 
     @PostConstruct
     public void init() {
-        // 保证密钥长度 >= 256bit（jjwt 0.12 要求）
+        // ★ 修复 P1-9: 密钥不足 32 字节直接拒绝启动，不再用 0 填充
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(keyBytes, 0, padded, 0, keyBytes.length);
-            keyBytes = padded;
+            throw new IllegalStateException(
+                "JWT secret must be at least 256 bits (32 bytes) for HMAC-SHA256. " +
+                "Current length: " + keyBytes.length + " bytes. " +
+                "Set a longer secret via the JWT_SECRET environment variable."
+            );
         }
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
+        log.info("JWT 密钥初始化完成，密钥长度: {} bytes", keyBytes.length);
     }
 
     /**
@@ -75,18 +80,26 @@ public class JwtUtil {
     }
 
     /**
-     * 解析 Token，获取用户ID
+     * ★ 修复 P1-8: 一次性解析 Token，返回 Claims
+     * 避免每个请求调用两次 parseSignedClaims
+     */
+    public Claims parseClaims(String token) {
+        if (token != null && token.startsWith(prefix)) {
+            token = token.substring(prefix.length());
+        }
+        return Jwts.parser()
+            .verifyWith(secretKey)
+            .build()
+            .parseSignedClaims(token)
+            .getPayload();
+    }
+
+    /**
+     * 解析 Token，获取用户ID（保留向后兼容）
      */
     public Long parseUserId(String token) {
         try {
-            if (token.startsWith(prefix)) {
-                token = token.substring(prefix.length());
-            }
-            Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+            Claims claims = parseClaims(token);
             return Long.parseLong(claims.getSubject());
         } catch (ExpiredJwtException e) {
             log.warn("Token 已过期: {}", e.getMessage());
@@ -98,18 +111,11 @@ public class JwtUtil {
     }
 
     /**
-     * 解析 Token，获取用户名
+     * 解析 Token，获取用户名（保留向后兼容）
      */
     public String parseUsername(String token) {
         try {
-            if (token.startsWith(prefix)) {
-                token = token.substring(prefix.length());
-            }
-            Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+            Claims claims = parseClaims(token);
             return claims.get("username", String.class);
         } catch (JwtException e) {
             log.warn("Token 无效: {}", e.getMessage());
@@ -153,14 +159,7 @@ public class JwtUtil {
      */
     public long getRemainingTime(String token) {
         try {
-            if (token.startsWith(prefix)) {
-                token = token.substring(prefix.length());
-            }
-            Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+            Claims claims = parseClaims(token);
             Date expiration = claims.getExpiration();
             long remaining = (expiration.getTime() - System.currentTimeMillis()) / 1000;
             return Math.max(remaining, 0);
@@ -171,5 +170,9 @@ public class JwtUtil {
 
     public String getHeader() {
         return header;
+    }
+
+    public String getPrefix() {
+        return prefix;
     }
 }

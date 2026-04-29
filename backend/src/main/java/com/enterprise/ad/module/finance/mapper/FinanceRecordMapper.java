@@ -6,11 +6,20 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Mapper
 public interface FinanceRecordMapper extends BaseMapper<FinanceRecord> {
+
+    // ★ 修复: SQL 聚合查询，替代全量加载到 Java 内存
+    @Select("SELECT COALESCE(SUM(amount), 0) FROM fin_record WHERE deleted = 0 AND type = 'income' AND create_time >= #{start} AND create_time <= #{end}")
+    BigDecimal sumIncomeByRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COALESCE(SUM(amount), 0) FROM fin_record WHERE deleted = 0 AND type = 'expense' AND create_time >= #{start} AND create_time <= #{end}")
+    BigDecimal sumExpenseByRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
      * 统一流水查询：聚合 fin_record(快速记账) + mem_member_transaction(会员充值/消费)

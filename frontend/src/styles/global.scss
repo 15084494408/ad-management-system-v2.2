@@ -108,3 +108,305 @@ img { max-width: 100%; display: block; }
 .slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
 .slide-enter-from { transform: translateX(-20px); opacity: 0; }
 .slide-leave-to { transform: translateX(20px); opacity: 0; }
+
+/* =====================================================
+   全局日期选择器 · 极简纯净风格
+   ===================================================== */
+
+// ── 输入框 ──
+.el-date-editor {
+  --el-date-editor-width: 220px;
+
+  .el-input__wrapper {
+    border-radius: 6px !important;
+    box-shadow: 0 0 0 1px var(--el-border-color) inset !important;
+    background: #fff !important;
+    transition: box-shadow 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset !important;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1.5px var(--el-color-primary) inset !important;
+    }
+  }
+
+  .el-range-input {
+    font-size: 13px;
+  }
+
+  .el-range-separator {
+    color: var(--el-text-color-placeholder);
+    font-size: 12px;
+  }
+
+  .el-input__prefix,
+  .el-input__suffix {
+    color: var(--el-text-color-placeholder);
+  }
+}
+
+// ── 范围选择器输入框 ──
+.el-date-editor--daterange,
+.el-date-editor--datetimerange {
+  --el-date-editor-width: 350px;
+
+  .el-range-editor {
+    border-radius: 6px !important;
+    padding: 4px 14px !important;
+  }
+}
+
+// ── 面板容器 ──
+.el-picker-panel {
+  border-radius: 10px !important;
+  border: none !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08),
+              0 0 1px rgba(0, 0, 0, 0.1) !important;
+  overflow: hidden;
+  background: #fff;
+
+  // 面板整体内边距
+  .el-picker-panel__body-wrapper {
+    padding: 6px;
+  }
+
+  // ── 头部导航 ──
+  .el-picker-panel__header,
+  .el-date-picker__header,
+  .el-date-range-picker__header {
+    padding: 10px 6px 6px;
+    margin: 0;
+    border-bottom: none;
+
+    .el-picker-panel__icon-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      transition: background 0.15s ease, color 0.15s ease;
+
+      &:hover {
+        background: var(--el-fill-color-light);
+        color: var(--el-color-primary);
+      }
+    }
+
+    .el-picker-panel__header-label,
+    .el-date-picker__header-label,
+    .el-date-range-picker__header-label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--el-text-color-primary);
+      letter-spacing: 0.01em;
+      transition: color 0.15s ease;
+
+      &:hover {
+        color: var(--el-color-primary);
+      }
+    }
+  }
+
+  // ── 星期表头 ──
+  .el-date-table th,
+  .el-date-range-picker__content th {
+    color: var(--el-text-color-disabled);
+    font-weight: 500;
+    font-size: 12px;
+    border-bottom: none;
+    padding: 6px 0;
+  }
+
+  // ── 日期单元格 ──
+  .el-date-table td {
+    .el-date-table-cell {
+      border-radius: 6px;
+      width: 28px;
+      height: 28px;
+      transition: all 0.15s ease;
+      font-size: 13px;
+    }
+
+    // 悬停
+    &:not(.disabled):not(.is-selected) .el-date-table-cell:hover {
+      background: var(--el-fill-color-light);
+    }
+
+    // 今天 — 仅描边标识
+    &.today .el-date-table-cell__text {
+      color: var(--el-color-primary);
+      font-weight: 600;
+    }
+
+    // 选中 — 描边风格，不填充
+    &.current:not(.is-selected) .el-date-table-cell__text,
+    &.start-date .el-date-table-cell,
+    &.end-date .el-date-table-cell {
+      background: var(--el-color-primary) !important;
+      color: #fff !important;
+      border-radius: 6px !important;
+      font-weight: 500;
+    }
+
+    // 范围中间区域 — 超淡底色
+    &.in-range .el-date-table-cell {
+      background: var(--el-color-primary-light-9) !important;
+      border-radius: 0 !important;
+      color: inherit;
+    }
+
+    // 范围起始/结束圆角修正
+    &.start-date.in-range .el-date-table-cell {
+      border-radius: 6px 0 0 6px !important;
+    }
+    &.end-date.in-range .el-date-table-cell {
+      border-radius: 0 6px 6px 0 !important;
+    }
+
+    // 禁用
+    &.disabled .el-date-table-cell {
+      color: var(--el-text-color-disabled);
+      cursor: not-allowed;
+      background: transparent !important;
+    }
+
+    // 其他月份
+    &.next-month,
+    &.prev-month {
+      .el-date-table-cell__text {
+        color: var(--el-text-color-disabled);
+      }
+    }
+
+    // 月份/年份选择器单元格
+    .el-month-table-cell,
+    .el-year-table-cell {
+      .cell {
+        border-radius: 6px;
+        transition: all 0.15s ease;
+      }
+
+      &:hover .cell {
+        background: var(--el-fill-color-light);
+      }
+    }
+  }
+
+  // ── 底部快捷操作栏 ──
+  .el-picker-panel__footer {
+    border-top: 1px solid var(--el-border-color-lighter);
+    padding: 8px 12px;
+    background: transparent;
+
+    .el-picker-panel__link-btn {
+      font-weight: 500;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+
+    .el-button--primary {
+      border-radius: 6px !important;
+      font-weight: 500;
+    }
+  }
+
+  // ── 快捷面板 ──
+  .el-picker-panel__sidebar {
+    border-right: 1px solid var(--el-border-color-lighter);
+    padding: 6px 0;
+
+    .el-picker-panel__shortcut {
+      border-radius: 0;
+      padding: 6px 16px;
+      font-size: 13px;
+      color: var(--el-text-color-regular);
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: var(--el-fill-color-light);
+        color: var(--el-color-primary);
+      }
+    }
+  }
+}
+
+// ── 月份/年份选择器 ──
+.el-month-table,
+.el-year-table {
+  td {
+    .cell {
+      border-radius: 6px !important;
+      transition: all 0.15s ease;
+      font-size: 13px;
+    }
+
+    &.today .cell {
+      color: var(--el-color-primary);
+      font-weight: 600;
+    }
+
+    &.current:not(.disabled) .cell {
+      background: var(--el-color-primary) !important;
+      color: #fff !important;
+      font-weight: 500;
+    }
+
+    &:not(.disabled):not(.current) .cell:hover {
+      background: var(--el-fill-color-light);
+    }
+  }
+}
+
+// ── 时间选择面板 ──
+.el-time-panel {
+  border-radius: 10px !important;
+  border: none !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08),
+              0 0 1px rgba(0, 0, 0, 0.1) !important;
+
+  .el-time-panel__footer {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .el-time-spinner__item {
+    border-radius: 4px;
+    transition: all 0.15s ease;
+
+    &.is-active:not(.is-disabled) {
+      color: var(--el-color-primary) !important;
+      font-weight: 600;
+    }
+
+    &:not(.is-active):not(.is-disabled):hover {
+      background: var(--el-fill-color-light);
+    }
+  }
+
+  .el-time-spinner__wrapper {
+    .el-scrollbar__bar.is-vertical {
+      width: 3px;
+      right: 1px;
+
+      .el-scrollbar__thumb {
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 2px;
+      }
+    }
+  }
+}
+
+// ── Popper 箭头 ──
+.el-popper.is-light {
+  &.el-popper {
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08),
+                0 0 1px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .el-popper__arrow::before {
+    border: none !important;
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  }
+}

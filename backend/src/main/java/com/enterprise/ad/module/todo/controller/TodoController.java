@@ -2,6 +2,7 @@ package com.enterprise.ad.module.todo.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.dto.StatusRequest;
 import com.enterprise.ad.module.todo.entity.TodoItem;
 import com.enterprise.ad.module.todo.mapper.TodoItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,11 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 @RestController
 @RequestMapping("/todo")
 @RequiredArgsConstructor
@@ -102,10 +104,10 @@ public class TodoController {
     @PatchMapping("/{id}/status")
     @Operation(summary = "更新状态")
     @PreAuthorize("hasAuthority('order:edit')")
-    public Result<Void> changeStatus(@PathVariable Long id, @RequestBody Map<String, Integer> body) {
+    public Result<Void> changeStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest body) {
         TodoItem item = new TodoItem();
         item.setId(id);
-        item.setStatus(body.get("status"));
+        item.setStatus(body.getStatus());
         item.setUpdateTime(LocalDateTime.now());
         todoMapper.updateById(item);
         return Result.ok();
