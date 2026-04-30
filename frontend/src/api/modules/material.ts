@@ -13,4 +13,8 @@ export const materialApi = {
   getList(params?: Record<string, any>) {
     return request.get('/material', { params })
   },
+  /** 物料库存预警列表 — 对齐后端 GET /material/warning */
+  getWarning() {
+    return request.get<any, any[]>('/material/warning')
+  },
 }

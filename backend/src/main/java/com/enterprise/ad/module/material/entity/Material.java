@@ -23,6 +23,7 @@ public class Material {
     private BigDecimal price;        // 零售价
     private BigDecimal costPrice;    // 成本价
     private BigDecimal factoryPrice;  // 工厂价
+    private Integer pricingType;      // 计价方式：0按数量 1按面积
     private Integer stockQuantity;    // 库存数量
     private Integer warningQuantity;  // 预警数量
     private Integer minQuantity;     // 最小库存

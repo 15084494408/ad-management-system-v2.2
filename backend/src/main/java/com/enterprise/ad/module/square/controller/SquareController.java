@@ -7,6 +7,8 @@ import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.util.WebUtil;
 import com.enterprise.ad.module.square.entity.*;
 import com.enterprise.ad.module.square.mapper.*;
+import com.enterprise.ad.module.finance.entity.FinanceRecord;
+import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +30,7 @@ public class SquareController {
     private final SquareRequirementMapper requirementMapper;
     private final SquareApplicationMapper applicationMapper;
     private final SquareIncomeMapper incomeMapper;
+    private final FinanceRecordMapper financeRecordMapper;
 
     // ========== 需求广场 ==========
 
@@ -241,6 +244,44 @@ public class SquareController {
             "completedCount", completed,
             "pendingCount", list.size() - completed
         ));
+    }
+
+    @PostMapping("/income/settle/{id}")
+    @Operation(summary = "结算收入（标记为已打款，同步生成财务流水）")
+    @PreAuthorize("hasAuthority('square:manage')")
+    @Transactional
+    public Result<Void> settleIncome(@PathVariable Long id) {
+        SquareIncome income = incomeMapper.selectById(id);
+        if (income == null || income.getDeleted() == 1) {
+            return Result.fail("收入记录不存在");
+        }
+        if (income.getStatus() >= 2) {
+            return Result.fail("该记录已结算，不可重复操作");
+        }
+
+        // 更新状态为已打款
+        income.setStatus(2);
+        income.setUpdateTime(LocalDateTime.now());
+        incomeMapper.updateById(income);
+
+        // 生成财务流水：平台收入 = 承接价格 - 实际收入（设计师部分）
+        BigDecimal platformIncome = income.getQuotedPrice()
+            .subtract(income.getActualIncome() != null ? income.getActualIncome() : BigDecimal.ZERO);
+        if (platformIncome.compareTo(BigDecimal.ZERO) > 0) {
+            FinanceRecord finRecord = new FinanceRecord();
+            finRecord.setRecordNo("SQ" + System.currentTimeMillis());
+            finRecord.setType("income");
+            finRecord.setCategory("设计广场收入");
+            finRecord.setAmount(platformIncome);
+            finRecord.setRelatedId(income.getDesignerId());
+            finRecord.setRelatedName(income.getDesignerName());
+            finRecord.setRemark("需求: " + income.getTitle() + " | 手续费: " + platformIncome);
+            finRecord.setCreateTime(LocalDateTime.now());
+            finRecord.setDeleted(0);
+            financeRecordMapper.insert(finRecord);
+        }
+
+        return Result.ok();
     }
 
     @GetMapping("/income/export")

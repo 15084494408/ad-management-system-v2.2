@@ -67,40 +67,29 @@
     <div class="card">
       <el-table :data="tableData" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="orderNo" label="订单编号" width="160">
+        <el-table-column prop="recordNo" label="流水编号" width="180" />
+        <el-table-column prop="relatedName" label="关联单号" min-width="150">
           <template #default="{ row }">
-            <el-link type="primary" @click="viewOrder(row)">{{ row.orderNo }}</el-link>
+            <el-link type="primary">{{ row.relatedName || '-' }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="customerName" label="客户名称" min-width="150" />
-        <el-table-column prop="orderAmount" label="订单金额" width="120">
-          <template #default="{ row }">¥{{ row.orderAmount?.toLocaleString() }}</template>
-        </el-table-column>
-        <el-table-column prop="receiveAmount" label="已收金额" width="120">
+        <el-table-column label="金额" width="120">
           <template #default="{ row }">
-            <span class="received-amount">¥{{ row.receiveAmount?.toLocaleString() }}</span>
+            <span class="received-amount">¥{{ row.amount?.toLocaleString() }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="pendingAmount" label="待收金额" width="120">
+        <el-table-column prop="category" label="类别" width="120">
           <template #default="{ row }">
-            <span class="pending-amount" v-if="row.pendingAmount > 0">¥{{ row.pendingAmount?.toLocaleString() }}</span>
-            <span v-else>-</span>
+            <el-tag size="small" :type="row.type === 'income' ? 'success' : 'danger'">{{ row.category || row.type }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'received' ? 'success' : 'warning'" size="small">
-              {{ row.status === 'received' ? '已收款' : '待收款' }}
-            </el-tag>
-          </template>
+        <el-table-column prop="paymentMethod" label="支付方式" width="110" />
+        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="createTime" label="创建时间" width="170">
+          <template #default="{ row }">{{ String(row.createTime || '').replace('T', ' ').slice(0, 16) }}</template>
         </el-table-column>
-        <el-table-column prop="receiveDate" label="收款日期" width="120" />
-        <el-table-column prop="paymentMethod" label="支付方式" width="100">
-          <template #default="{ row }">{{ getPayMethodText(row.paymentMethod) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="80" fixed="right">
           <template #default="{ row }">
-            <el-button link type="success" size="small" @click="confirmReceive(row)" v-if="row.status === 'pending'">收款</el-button>
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
           </template>
         </el-table-column>
@@ -123,7 +112,7 @@
           <el-select v-model="editForm.orderId" placeholder="请选择订单" filterable style="width: 100%;" @change="onOrderChange">
             <el-option v-for="o in orders" :key="o.id" :label="`${o.orderNo} - ${o.customerName}`" :value="o.id">
               <span>{{ o.orderNo }}</span>
-              <span style="float: right; color: #8492a6; font-size: 12px;">¥{{ o.pendingAmount }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px;">待收 ¥{{ ((o.totalAmount || 0) + (o.roundingAmount || 0) - (o.paidAmount || 0)).toFixed(2) }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -163,22 +152,18 @@
 
     <el-dialog v-model="detailVisible" title="收款详情" width="550px">
       <el-descriptions :column="2" border v-if="detailData">
-        <el-descriptions-item label="收款记录ID">{{ detailData.id }}</el-descriptions-item>
-        <el-descriptions-item label="订单编号">{{ detailData.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ detailData.customerName }}</el-descriptions-item>
-        <el-descriptions-item label="收款日期">{{ detailData.receiveDate }}</el-descriptions-item>
-        <el-descriptions-item label="订单金额">
-          <span class="amount">¥{{ detailData.orderAmount?.toLocaleString() }}</span>
+        <el-descriptions-item label="流水编号">{{ detailData.recordNo }}</el-descriptions-item>
+        <el-descriptions-item label="关联单号">{{ detailData.relatedName }}</el-descriptions-item>
+        <el-descriptions-item label="类别">
+          <el-tag size="small" :type="detailData.type === 'income' ? 'success' : 'danger'">{{ detailData.category || detailData.type }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="本次收款">
-          <span class="amount">¥{{ detailData.receiveAmount?.toLocaleString() }}</span>
+        <el-descriptions-item label="创建时间">
+          {{ String(detailData.createTime || '').replace('T', ' ').slice(0, 16) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="收款金额">
+          <span class="amount">¥{{ detailData.amount?.toLocaleString() }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="支付方式">{{ getPayMethodText(detailData.paymentMethod) }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="detailData.status === 'received' ? 'success' : 'warning'">
-            {{ detailData.status === 'received' ? '已收款' : '待收款' }}
-          </el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
@@ -228,10 +213,16 @@ const defaultForm = {
 
 const editForm = reactive<any>({ ...defaultForm })
 
-const todayReceive = computed(() => tableData.value.filter(t => t.receiveDate === new Date().toISOString().split('T')[0]).reduce((sum, t) => sum + (t.receiveAmount || 0), 0))
-const monthReceive = computed(() => tableData.value.reduce((sum, t) => sum + (t.receiveAmount || 0), 0))
-const pendingReceive = computed(() => tableData.value.filter(t => t.status === 'pending').reduce((sum, t) => sum + (t.pendingAmount || 0), 0))
-const pendingCount = computed(() => tableData.value.filter(t => t.status === 'pending').length)
+const todayReceive = computed(() => {
+  const today = new Date().toISOString().split('T')[0]
+  return tableData.value.filter(t => String(t.createTime || '').startsWith(today)).reduce((sum, t) => sum + (t.amount || 0), 0)
+})
+const monthReceive = computed(() => tableData.value.reduce((sum, t) => sum + (t.amount || 0), 0))
+const pendingReceive = computed(() => {
+  // 待收款需要从订单维度计算，这里显示当前页 total
+  return 0
+})
+const pendingCount = computed(() => 0)
 
 const getPayMethodText = (method: string) => {
   const map: Record<string, string> = {
@@ -246,8 +237,16 @@ const getPayMethodText = (method: string) => {
 
 const loadOrders = async () => {
   try {
-    const res = await request.get('/orders', { params: { status: 1, paymentStatus: 1, current: 1, size: 100 } })
-    orders.value = res.data || []
+    // ★ 修复：不限制 paymentStatus，让已部分付款的订单也能出现在下拉框中
+    const res = await request.get('/orders', { params: { status: 1, current: 1, size: 200 } })
+    const list = res.data?.records || res.data || []
+    // 过滤出有未付余额的订单（已付清的不需要再登记收款）
+    orders.value = list.filter((o: any) => {
+      const paid = o.paidAmount || 0
+      const total = o.totalAmount || 0
+      const rounding = o.roundingAmount || 0
+      return total + rounding > paid
+    })
   } catch (e) {
     orders.value = []
   }
@@ -256,9 +255,18 @@ const loadOrders = async () => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await request.get('/finance/records', { params: { type: 'income', ...searchForm, ...pagination } })
+    const params: any = { current: pagination.page, size: pagination.size, type: 'income' }
+    if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+      params.startDate = searchForm.dateRange[0]
+      params.endDate = searchForm.dateRange[1]
+    }
+    const res = await request.get('/finance/records', { params })
     const data = res.data
-    if (data.list) {
+    // 后端返回 PageResult 结构 {total, records, current, size}
+    if (data.records) {
+      tableData.value = data.records
+      pagination.total = data.total
+    } else if (data.list) {
       tableData.value = data.list
       pagination.total = data.total
     } else if (Array.isArray(data)) {
@@ -289,10 +297,14 @@ const showAddDialog = () => {
 const onOrderChange = (orderId: number) => {
   const order = orders.value.find(o => o.id === orderId)
   if (order) {
+    const total = order.totalAmount || 0
+    const paid = order.paidAmount || 0
+    const rounding = order.roundingAmount || 0
+    const remaining = Math.max(total + rounding - paid, 0)
     editForm.customerName = order.customerName
-    editForm.orderAmount = order.orderAmount || order.pendingAmount
-    editForm.pendingAmount = order.pendingAmount
-    editForm.receiveAmount = order.pendingAmount
+    editForm.orderAmount = total
+    editForm.pendingAmount = remaining
+    editForm.receiveAmount = remaining
   }
 }
 
@@ -302,30 +314,19 @@ const saveReceive = async () => {
     return
   }
   try {
-    await request.post('/finance/records', editForm)
+    // ★ 修复：调用订单收款接口（会自动同步写 fin_record）
+    await request.post(`/orders/${editForm.orderId}/payment`, {
+      amount: editForm.receiveAmount,
+      method: editForm.paymentMethod,
+      remark: editForm.remark
+    })
     ElMessage.success('收款登记成功')
     dialogVisible.value = false
+    loadOrders()
     loadData()
   } catch (e) {
     ElMessage.error('收款登记失败')
   }
-}
-
-const confirmReceive = (row: any) => {
-  Object.assign(editForm, defaultForm, {
-    orderId: row.orderId,
-    customerName: row.customerName,
-    orderAmount: row.orderAmount,
-    pendingAmount: row.pendingAmount,
-    receiveAmount: row.pendingAmount,
-    paymentMethod: 'wechat',
-    receiveDate: new Date().toISOString().split('T')[0]
-  })
-  dialogVisible.value = true
-}
-
-const viewOrder = (row: any) => {
-  ElMessage.info('查看订单详情')
 }
 
 const viewDetail = (row: any) => {
@@ -337,8 +338,16 @@ const exportData = () => {
   if (!tableData.value.length) { ElMessage.warning('暂无数据可导出'); return }
   exportToExcel({
     filename: '收款记录',
-    header: ['收款编号', '关联订单', '客户名', '收款方式', '收款金额(¥)', '收款人', '备注', '收款时间'],
-    data: tableData.value.map(r => [r.receiveNo || r.no || '-', r.orderNo || '-', r.customerName || '-', r.payMethod || r.method || '-', r.amount, r.operator || '-', r.remark || '-', r.createTime || r.createdAt || '-']),
+    header: ['流水编号', '关联单号', '类别', '金额(¥)', '支付方式', '备注', '创建时间'],
+    data: tableData.value.map(r => [
+      r.recordNo || '-',
+      r.relatedName || '-',
+      r.category || r.type || '-',
+      r.amount,
+      r.paymentMethod || '-',
+      r.remark || '-',
+      String(r.createTime || '').replace('T', ' ').slice(0, 16)
+    ]),
   })
 }
 

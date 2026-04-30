@@ -113,8 +113,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/api/request'
-import { ElMessage } from 'element-plus'
 import { exportToExcel } from '@/utils/excelExport'
 
 const router = useRouter()
@@ -166,8 +166,62 @@ function showDialog(row?: any) {
   else Object.assign(formData, { customerName: '', projectName: '', totalAmount: 0, discount: 100, validUntil: '', remark: '' })
   dialogVisible.value = true
 }
-function viewDetail(row: any) { ElMessage.info('查看报价: ' + row.quoteNo) }
-function convertToOrder(row: any) { ElMessage.success('已转为订单: ' + row.quoteNo) }
+function viewDetail(row: any) {
+  router.push({ path: `/finance/quote/${row.id}` })
+}
+
+async function convertToOrder(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将报价单「${row.projectName || row.quoteNo}」转为正式订单？\n` +
+      `客户：${row.customerName}\n` +
+      `报价金额：¥${row.finalAmount || row.totalAmount}\n\n` +
+      `转单后报价状态将变为"已采纳"，不可撤销。`,
+      '确认转订单',
+      { confirmButtonText: '确认转单', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch { return }
+
+  try {
+    // 1. 查询报价单详情（含物料明细）
+    const detailRes = await request.get(`/finance/quote/${row.id}`)
+    const quote = detailRes.data?.quote || detailRes.data
+    const details = detailRes.data?.details || []
+
+    if (!details || details.length === 0) {
+      ElMessage.warning('该报价单没有物料明细，无法转单')
+      return
+    }
+
+    // 2. 创建订单
+    const orderPayload = {
+      title: quote.projectName || row.projectName,
+      orderType: '2',
+      customerId: quote.customerId || row.customerId,
+      customerName: quote.customerName || row.customerName,
+      remark: (quote.remark || '') ? `[报价转单 ${quote.quoteNo || row.quoteNo}] ${quote.remark}` : `[报价转单 ${quote.quoteNo || row.quoteNo}]`,
+      totalAmount: quote.finalAmount || quote.totalAmount || 0,
+      source: 2,  // 来源：报价转单
+      materials: details.map((d: any) => ({
+        materialName: d.materialName,
+        spec: d.spec || '',
+        unit: d.unit || '个',
+        quantity: d.quantity,
+        unitPrice: d.unitPrice,
+        amount: d.amount,
+      })),
+    }
+    await request.post('/orders', orderPayload)
+
+    // 3. 更新报价单状态为"已采纳"
+    await request.put(`/finance/quote/${row.id}/status`, { status: 'accepted' })
+
+    ElMessage.success(`✅ 报价单「${row.quoteNo}」已转为订单！`)
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '转单失败，请重试')
+  }
+}
 async function submitForm() {
   try { await request.post('/finance/quote/save', formData); ElMessage.success('保存成功'); dialogVisible.value = false; loadData() } catch { ElMessage.error('保存失败') }
 }

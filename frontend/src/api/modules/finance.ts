@@ -26,6 +26,10 @@ export const financeApi = {
   createQuickRecord(data: Record<string, any>) {
     return request.post<any, ApiResponse<number>>('/finance/records', data)
   },
+  /** 获取流水物料明细 */
+  getRecordItems(recordId: number) {
+    return request.get<any, ApiResponse>(`/finance/records/${recordId}/items`)
+  },
   /** 统一流水列表（聚合所有收支来源） — 对齐后端 GET /finance/all-flow */
   getAllFlow(params?: Record<string, any>) {
     return request.get<any, ApiResponse>('/finance/all-flow', { params })

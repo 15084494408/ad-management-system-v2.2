@@ -45,4 +45,12 @@ export const memberApi = {
   updateLevel(id: number, data: any) {
     return request.put<any, any>(`/members/${id}/level`, data)
   },
+  /** 根据手机号匹配会员 — GET /members/match?phone=xxx */
+  matchByPhone(phone: string) {
+    return request.get<any, any>('/members/match', { params: { phone } })
+  },
+  /** 会员关联订单列表 — GET /members/{id}/orders */
+  getMemberOrders(id: number, params?: Record<string, any>) {
+    return request.get<any, any>(`/members/${id}/orders`, { params })
+  },
 }

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 系统用户实体
@@ -33,4 +34,7 @@ public class SysUser {
 
     @TableLogic
     private Integer deleted;          // 逻辑删除：0未删 1已删
+
+    @TableField(exist = false)
+    private List<Long> roleIds;       // 角色ID列表（查询时填充）
 }

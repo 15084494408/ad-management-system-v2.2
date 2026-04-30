@@ -18,4 +18,14 @@ public interface MemberMapper extends BaseMapper<Member> {
             "update_time = NOW() " +
             "WHERE id = #{memberId} AND balance >= #{amount} AND deleted = 0")
     int deductBalance(@Param("memberId") Long memberId, @Param("amount") java.math.BigDecimal amount);
+
+    /**
+     * 原子增加会员余额（退款/手动调整时调用）
+     * 用于旧数据兼容回退路径
+     */
+    @Update("UPDATE mem_member SET balance = balance + #{amount}, " +
+            "total_recharge = IFNULL(total_recharge, 0) + #{amount}, " +
+            "update_time = NOW() " +
+            "WHERE id = #{memberId} AND deleted = 0")
+    int addBalance(@Param("memberId") Long memberId, @Param("amount") java.math.BigDecimal amount);
 }

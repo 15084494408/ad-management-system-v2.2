@@ -62,63 +62,148 @@
     </div>
   </header>
 
-  <!-- 快速记账弹窗（样式由 prototype-ui.scss 全局提供） -->
+  <!-- 快速记账弹窗（Element Plus 版，含物料明细） -->
   <Teleport to="body">
-    <div class="modal-overlay" :class="{ show: showQuickAccount }" @click.self="showQuickAccount = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 class="modal-title">⚡ 快速记账</h3>
-          <button class="modal-close" @click="showQuickAccount = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="quick-account-form">
-            <input
-              v-model="quickForm.amount"
-              type="number"
-              class="quick-amount"
-              placeholder="¥ 0.00"
-              step="0.01"
-              @keyup.enter="submitQuickAccount"
-              ref="quickAmountRef"
-            >
-            <div class="company-selector-wrapper">
-              <select class="quick-select" v-model="quickForm.company" @change="onCompanyChange">
-                <option value="" disabled>选择公司/客户...</option>
-                <option v-for="c in companyList" :key="c.id" :value="c.name">
-                  {{ c.customerType === 2 ? '🏭' : '🏢' }} {{ c.name }}
-                </option>
-                <option value="new">➕ 新建公司...</option>
-              </select>
-              <input
-                v-if="showNewCompany"
-                v-model="quickForm.newCompany"
-                type="text"
-                class="form-input"
-                placeholder="请输入新公司名称"
-              >
+    <el-dialog v-model="showQuickAccount" title="快速记账" width="720px"
+      @closed="resetQuickForm" :close-on-click-modal="false" append-to-body>
+      <el-form :model="quickForm" label-width="90px" :rules="quickRules" ref="quickFormRef">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="类型" prop="type">
+              <el-radio-group v-model="quickForm.type">
+                <el-radio value="income">收入</el-radio>
+                <el-radio value="expense">支出</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="分类" prop="category">
+              <el-select v-model="quickForm.category" style="width:100%" placeholder="选择分类">
+                <el-option-group label="收入">
+                  <el-option label="订单收入" value="订单收入"/>
+                  <el-option label="充值收入" value="充值收入"/>
+                </el-option-group>
+                <el-option-group label="支出">
+                  <el-option label="采购支出" value="采购支出"/>
+                  <el-option label="工资" value="工资"/>
+                  <el-option label="房租" value="房租"/>
+                  <el-option label="广告费" value="广告费"/>
+                  <el-option label="印刷费" value="印刷费"/>
+                  <el-option label="设计费" value="设计费"/>
+                  <el-option label="材料费" value="材料费"/>
+                  <el-option label="图文类" value="图文类"/>
+                  <el-option label="退款" value="退款"/>
+                  <el-option label="其他" value="其他"/>
+                </el-option-group>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="公司/客户" prop="relatedName">
+              <div style="display:flex;gap:6px;width:100%;">
+                <el-select v-model="quickForm.relatedName" filterable allow-create default-first-option placeholder="选择或输入" style="flex:1;">
+                  <el-option v-if="retailCustomer" :label="'🏷️ ' + (retailCustomer.customerName || retailCustomer.name) + '（公共客户）'" :value="retailCustomer.customerName || retailCustomer.name" style="color:#e6a23c;font-weight:600;"/>
+                  <el-option v-for="c in companyList" :key="c.id || c" :label="c.name || c" :value="c.name || c"/>
+                </el-select>
+                <el-button size="default" @click="quickForm.relatedName = retailCustomer ? (retailCustomer.customerName || retailCustomer.name) : '零售客户'" style="flex-shrink:0;border-color:#e6a23c;color:#e6a23c;background:#fdf6ec;" title="零散记账默认选择零售客户">🏷️ 零售</el-button>
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="支付方式" prop="paymentMethod">
+              <el-select v-model="quickForm.paymentMethod" style="width:100%" placeholder="选择支付方式">
+                <el-option label="现金" value="cash"/>
+                <el-option label="微信" value="wechat"/>
+                <el-option label="支付宝" value="alipay"/>
+                <el-option label="银行转账" value="transfer"/>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="备注">
+          <el-input v-model="quickForm.remark" type="textarea" :rows="2" placeholder="可选"/>
+        </el-form-item>
+
+        <!-- 物料明细区域 -->
+        <el-divider content-position="left">
+          <span style="font-size:14px;">物料明细</span>
+          <span style="color:#909399;font-size:12px;margin-left:8px;">（添加物料将自动扣减库存）</span>
+        </el-divider>
+
+        <div class="quick-material-items">
+          <div v-for="(item, index) in quickForm.items" :key="index" class="quick-material-row">
+            <el-row :gutter="8" align="middle">
+              <el-col :span="7">
+                <el-select v-model="item.materialId" filterable placeholder="选择物料" style="width:100%"
+                  @change="(val: any) => onQuickMaterialSelect(item, val)" value-key="id">
+                  <el-option v-for="m in materialList" :key="m.id" :label="m.name" :value="m.id">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <span>{{ m.name }}</span>
+                      <span style="color:#909399;font-size:12px;">
+                        ¥{{ m.price?.toFixed(2) }}{{ m.pricingType === 1 ? '/㎡' : '' }}
+                        <el-tag size="small" type="info" style="margin-left:4px;">库存:{{ m.stockQuantity }}</el-tag>
+                      </span>
+                    </div>
+                  </el-option>
+                </el-select>
+              </el-col>
+              <!-- 按数量模式 -->
+              <el-col :span="4" v-if="item.pricingType !== 1">
+                <el-input-number v-model="item.quantity" :min="1" :precision="0" placeholder="数量"
+                  controls-position="right" style="width:100%;" @change="calcQuickItemTotal(item)"/>
+              </el-col>
+              <!-- 按面积模式 -->
+              <template v-else>
+                <el-col :span="3">
+                  <el-input-number v-model="item.width" :min="0.01" :precision="2" placeholder="宽"
+                    controls-position="right" style="width:100%;" @change="calcQuickItemTotal(item)"/>
+                </el-col>
+                <el-col :span="1" style="text-align:center;line-height:32px;color:#909399;">×</el-col>
+                <el-col :span="3">
+                  <el-input-number v-model="item.height" :min="0.01" :precision="2" placeholder="高"
+                    controls-position="right" style="width:100%;" @change="calcQuickItemTotal(item)"/>
+                </el-col>
+                <el-col :span="1" style="text-align:center;line-height:32px;color:#909399;">㎡</el-col>
+              </template>
+              <el-col :span="4">
+                <el-input v-model="item.totalPriceDisplay" placeholder="小计" readonly style="width:100%;">
+                  <template #prefix>¥</template>
+                </el-input>
+              </el-col>
+              <el-col :span="2">
+                <el-button type="danger" link @click="removeQuickItem(index)" :disabled="quickForm.items.length <= 1">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </el-col>
+            </el-row>
+            <div v-if="item.stockWarning" class="quick-stock-warning">
+              ⚠️ {{ item.stockWarning }}
             </div>
-            <select class="quick-select" v-model="quickForm.category">
-              <option value="图文类">📄 图文类</option>
-              <option value="广告类">🎨 广告类</option>
-              <option value="印刷类">🖨️ 印刷类</option>
-              <option value="设计费">🎨 设计费</option>
-              <option value="其他">📝 其他</option>
-            </select>
-            <select class="quick-select" v-model="quickForm.paymentMethod">
-              <option value="cash">💵 现金</option>
-              <option value="wechat">💚 微信</option>
-              <option value="alipay">💙 支付宝</option>
-              <option value="transfer">💳 银行转账</option>
-            </select>
-            <input v-model="quickForm.remark" type="text" class="form-input" placeholder="备注说明（可选）">
-            <button class="quick-submit" @click="submitQuickAccount" :disabled="submitting">
-              {{ submitting ? '保存中...' : '💾 保存记账' }}
-            </button>
-            <p class="quick-hint">💡 按 Enter 键可快速保存</p>
           </div>
         </div>
-      </div>
-    </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <el-button size="small" @click="addQuickItem">+ 添加物料行</el-button>
+          <div class="quick-total-price">
+            物料合计：<strong>¥{{ quickMaterialTotal }}</strong>
+          </div>
+        </div>
+
+        <el-form-item label="记账金额" prop="amount" style="margin-top:16px;">
+          <el-input-number v-model="quickForm.amount" :min="0.01" :precision="2" :step="100" style="width:100%;"/>
+          <el-button v-if="Number(quickMaterialTotal) > 0" type="primary" link size="small"
+            @click="quickForm.amount = Math.ceil(Number(quickMaterialTotal))" style="margin-left:8px;">
+            填入物料合计（向上取整）
+          </el-button>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showQuickAccount=false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitQuickAccount">确认记账</el-button>
+      </template>
+    </el-dialog>
   </Teleport>
 
   <!-- 通知面板（样式由 prototype-ui.scss 全局提供） -->
@@ -187,12 +272,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { Delete } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFinanceStore } from '@/stores/finance'
-import { financeApi, customerApi, systemApi } from '@/api'
+import { financeApi, customerApi, systemApi, materialApi } from '@/api'
 
 defineEmits(['toggle-sidebar'])
 const props = defineProps<{ collapsed?: boolean }>()
@@ -214,20 +300,186 @@ const roleDisplay = computed(() => {
   return roles.map(r => roleMap[r] || r).join('/')
 })
 
-// 快速记账弹窗状态
+// ========== 快速记账弹窗（含物料明细） ==========
+interface QuickMaterialItem {
+  materialId: number | null
+  materialName: string
+  pricingType: number
+  quantity: number
+  width: number
+  height: number
+  area: number
+  unitPrice: number
+  totalPrice: number
+  totalPriceDisplay: string
+  stockWarning: string
+  _stockQuantity: number
+}
+
 const showQuickAccount = ref(false)
 const submitting = ref(false)
-const quickAmountRef = ref<HTMLInputElement>()
-const showNewCompany = ref(false)
+const quickFormRef = ref<any>(null)
 const companyList = ref<any[]>([])
-const quickForm = ref({
-  amount: '',
-  company: '',
-  newCompany: '',
-  category: '图文类',
-  paymentMethod: 'cash',
-  remark: ''
+const materialList = ref<any[]>([])
+const retailCustomer = ref<any>(null)
+
+async function loadRetailCustomer() {
+  try {
+    const r: any = await customerApi.getRetailCustomer()
+    retailCustomer.value = r.data
+  } catch { /* 静默 */ }
+}
+
+function createQuickEmptyItem(): QuickMaterialItem {
+  return {
+    materialId: null, materialName: '', pricingType: 0,
+    quantity: 1, width: 0, height: 0, area: 0,
+    unitPrice: 0, totalPrice: 0, totalPriceDisplay: '',
+    stockWarning: '', _stockQuantity: 0
+  }
+}
+
+const quickForm = reactive({
+  type: 'income' as string,
+  relatedName: '' as string,
+  category: '图文类' as string,
+  amount: 0 as number,
+  paymentMethod: 'cash' as string,
+  remark: '' as string,
+  items: [createQuickEmptyItem()] as QuickMaterialItem[]
 })
+
+const quickRules = {
+  type: [{ required: true, message: '请选择类型', trigger: 'change' }],
+  relatedName: [{ required: true, message: '请选择或输入公司/客户名', trigger: 'change' }],
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+  paymentMethod: [{ required: true, message: '请选择支付方式', trigger: 'change' }]
+}
+
+const quickMaterialTotal = computed(() => {
+  const sum = quickForm.items.reduce((acc, item) => acc + (item.totalPrice || 0), 0)
+  return sum > 0 ? Math.ceil(sum).toFixed(2) : '0.00'
+})
+
+function onQuickMaterialSelect(item: QuickMaterialItem, materialId: number) {
+  const m = materialList.value.find((mat: any) => mat.id === materialId)
+  if (!m) return
+  item.materialName = m.name
+  item.pricingType = m.pricingType || 0
+  item.unitPrice = m.price || 0
+  item._stockQuantity = m.stockQuantity || 0
+  item.quantity = 1; item.width = 0; item.height = 0; item.area = 0
+  item.stockWarning = ''; item.totalPrice = 0; item.totalPriceDisplay = ''
+  calcQuickItemTotal(item)
+}
+
+function calcQuickItemTotal(item: QuickMaterialItem) {
+  if (item.pricingType === 1) {
+    if (item.width > 0 && item.height > 0) {
+      item.area = Math.round(item.width * item.height * 100) / 100
+      item.totalPrice = Math.ceil(item.area * item.unitPrice)
+      const needed = Math.ceil(item.area)
+      item.stockWarning = needed > item._stockQuantity
+        ? `库存不足！需要 ${needed}，当前 ${item._stockQuantity}` : ''
+    } else { item.totalPrice = 0; item.stockWarning = '' }
+  } else {
+    if (item.quantity > 0 && item.unitPrice > 0) {
+      item.totalPrice = Math.ceil(item.quantity * item.unitPrice)
+      item.stockWarning = item.quantity > item._stockQuantity
+        ? `库存不足！需要 ${item.quantity}，当前 ${item._stockQuantity}` : ''
+    } else { item.totalPrice = 0; item.stockWarning = '' }
+  }
+  item.totalPriceDisplay = item.totalPrice > 0 ? item.totalPrice.toFixed(2) : ''
+}
+
+function addQuickItem() { quickForm.items.push(createQuickEmptyItem()) }
+function removeQuickItem(index: number) {
+  if (quickForm.items.length > 1) quickForm.items.splice(index, 1)
+}
+
+function resetQuickForm() {
+  quickForm.type = 'income'
+  quickForm.relatedName = ''
+  quickForm.category = '图文类'
+  quickForm.amount = 0
+  quickForm.paymentMethod = 'cash'
+  quickForm.remark = ''
+  quickForm.items = [createQuickEmptyItem()]
+}
+
+// 提交快速记账
+async function submitQuickAccount() {
+  if (!quickFormRef.value) return
+  await quickFormRef.value.validate()
+
+  if (!quickForm.amount || quickForm.amount <= 0) {
+    ElMessage.warning('请输入有效金额'); return
+  }
+
+  // 检查库存不足（仅警告）
+  const warnings = quickForm.items.filter(item => item.materialId && item.stockWarning)
+  if (warnings.length > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `有 ${warnings.length} 项物料库存不足，是否继续提交？`,
+        '库存不足警告',
+        { type: 'warning', confirmButtonText: '继续提交', cancelButtonText: '取消' }
+      )
+    } catch { return }
+  }
+
+  submitting.value = true
+  try {
+    const items = quickForm.items
+      .filter(item => item.materialId && item.totalPrice > 0)
+      .map(item => ({
+        materialId: item.materialId,
+        materialName: item.materialName,
+        pricingType: item.pricingType,
+        quantity: item.pricingType === 1 ? null : item.quantity,
+        width: item.pricingType === 1 ? item.width : null,
+        height: item.pricingType === 1 ? item.height : null,
+        area: item.pricingType === 1 ? item.area : null,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice
+      }))
+
+    await financeApi.createQuickRecord({
+      type: quickForm.type,
+      category: quickForm.category,
+      amount: quickForm.amount,
+      relatedName: quickForm.relatedName,
+      paymentMethod: quickForm.paymentMethod,
+      remark: quickForm.remark,
+      items: items.length > 0 ? items : undefined
+    })
+
+    ElMessage.success('记账成功' + (items.length > 0 ? `，已扣减 ${items.length} 项物料库存` : ''))
+    showQuickAccount.value = false
+    financeStore.triggerRefresh()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '记账失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 加载客户列表
+async function loadCompanyList() {
+  try {
+    const r = await customerApi.getList({ current: 1, size: 200 })
+    companyList.value = r.data?.records || []
+  } catch { companyList.value = [] }
+}
+
+// 加载物料列表
+async function loadMaterialList() {
+  try {
+    const r = await materialApi.listAll()
+    materialList.value = r.data || []
+  } catch { materialList.value = [] }
+}
 
 const avatarText = computed(() => {
   const name = authStore.userInfo?.realName || authStore.userInfo?.username || '管'
@@ -236,13 +488,6 @@ const avatarText = computed(() => {
 
 // 用户信息弹窗
 const showUserProfile = ref(false)
-
-function onCompanyChange() {
-  showNewCompany.value = quickForm.value.company === 'new'
-  if (showNewCompany.value) {
-    quickForm.value.newCompany = ''
-  }
-}
 
 function handleUserCmd(cmd: string) {
   if (cmd === 'logout') {
@@ -256,49 +501,6 @@ function handleUserCmd(cmd: string) {
     showUserProfile.value = true
   } else if (cmd === 'settings') {
     router.push('/settings')
-  }
-}
-
-// 提交快速记账
-async function submitQuickAccount() {
-  if (!quickForm.value.amount || Number(quickForm.value.amount) <= 0) {
-    ElMessage.warning('请输入有效金额')
-    return
-  }
-  const company = quickForm.value.company === 'new' ? quickForm.value.newCompany : quickForm.value.company
-  if (!company) {
-    ElMessage.warning('请选择或输入公司/客户名称')
-    return
-  }
-  submitting.value = true
-  try {
-    await financeApi.createQuickRecord({
-      type: 'income',
-      amount: Number(quickForm.value.amount),
-      category: quickForm.value.category,
-      relatedName: company,
-      paymentMethod: quickForm.value.paymentMethod,
-      remark: quickForm.value.remark
-    })
-    ElMessage.success('记账成功')
-    financeStore.triggerRefresh()
-    quickForm.value = { amount: '', company: '', newCompany: '', category: '图文类', paymentMethod: 'cash', remark: '' }
-    showNewCompany.value = false
-    showQuickAccount.value = false
-  } catch (e: any) {
-    ElMessage.error(e.message || '记账失败')
-  } finally {
-    submitting.value = false
-  }
-}
-
-// 加载客户列表
-async function loadCompanyList() {
-  try {
-    const r = await customerApi.getList({ current: 1, size: 200 })
-    companyList.value = r.data?.records || []
-  } catch {
-    companyList.value = []
   }
 }
 
@@ -318,11 +520,12 @@ function handleSwitchCompany(id: number) {
   ElMessage.success('已切换到 ' + (authStore.companyList.find(c => c.id === id)?.companyName || ''))
 }
 
-// 弹窗打开后自动聚焦金额输入框 + 刷新客户列表
+// 弹窗打开后刷新客户和物料列表
 watch(showQuickAccount, (val) => {
   if (val) {
+    loadRetailCustomer()
     loadCompanyList()
-    nextTick(() => quickAmountRef.value?.focus())
+    loadMaterialList()
   }
 })
 
@@ -333,7 +536,8 @@ function onShowQuickAccount() {
 onMounted(() => {
   window.addEventListener('show-quick-account', onShowQuickAccount)
   loadCompanyList()
-  loadSystemCompanies() // ★ 加载系统公司列表
+  loadMaterialList()
+  loadSystemCompanies()
 })
 onUnmounted(() => {
   window.removeEventListener('show-quick-account', onShowQuickAccount)
@@ -421,4 +625,30 @@ onUnmounted(() => {
 .user-meta { display: flex; flex-direction: column; }
 .user-name { font-size: 13px; color: $text-primary; }
 .user-role { font-size: 11px; color: $text-secondary; }
+
+// 快速记账 - 物料明细
+.quick-material-items {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+}
+.quick-material-row {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #ebeef5;
+  &:last-child { margin-bottom: 0; }
+}
+.quick-stock-warning {
+  color: #e6a23c;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.quick-total-price {
+  font-size: 14px;
+  color: #303133;
+  strong { color: #409eff; font-size: 18px; }
+}
 </style>

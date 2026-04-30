@@ -32,5 +32,5 @@ public class Member {
     @TableField(exist = false)
     private String remark;           // 备注
     @TableField(exist = false)
-    private Integer orderCount;      // 关联订单数
+    private Long orderCount;         // 关联订单数
 }

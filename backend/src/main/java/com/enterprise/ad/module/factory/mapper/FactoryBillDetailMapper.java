@@ -19,7 +19,7 @@ public interface FactoryBillDetailMapper extends BaseMapper<FactoryBillDetail> {
     List<FactoryBillDetail> selectByBillId(@Param("billId") Long billId);
 
     /** 根据账单ID删除所有明细（逻辑删除） */
-    @Select("UPDATE fac_factory_bill_detail SET deleted = 1, update_time = NOW() " +
+    @Update("UPDATE fac_factory_bill_detail SET deleted = 1, update_time = NOW() " +
             "WHERE bill_id = #{billId}")
     void logicDeleteByBillId(@Param("billId") Long billId);
 

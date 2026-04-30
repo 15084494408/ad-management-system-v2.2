@@ -4,18 +4,25 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.dto.QuoteStatusRequest;
 import com.enterprise.ad.common.util.CsvExportUtil;
 import com.enterprise.ad.common.util.DateUtil;
-import com.enterprise.ad.common.dto.QuoteStatusRequest;
 import com.enterprise.ad.module.finance.dto.CreateQuoteRequest;
+import com.enterprise.ad.module.finance.dto.CreateRecordRequest;
 import com.enterprise.ad.module.finance.entity.FinanceRecord;
+import com.enterprise.ad.module.finance.entity.FinanceRecordItem;
 import com.enterprise.ad.module.finance.entity.FinanceQuote;
 import com.enterprise.ad.module.finance.entity.FinanceInvoice;
 import com.enterprise.ad.module.finance.entity.FinQuoteDetail;
 import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
+import com.enterprise.ad.module.finance.mapper.FinanceRecordItemMapper;
 import com.enterprise.ad.module.finance.mapper.FinanceQuoteMapper;
 import com.enterprise.ad.module.finance.mapper.FinanceInvoiceMapper;
 import com.enterprise.ad.module.finance.mapper.FinQuoteDetailMapper;
+import com.enterprise.ad.module.material.entity.Material;
+import com.enterprise.ad.module.material.entity.StockLog;
+import com.enterprise.ad.module.material.mapper.MaterialMapper;
+import com.enterprise.ad.module.material.mapper.StockLogMapper;
 import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
 import com.enterprise.ad.module.factory.entity.FactoryBill;
@@ -28,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -46,22 +54,32 @@ import java.util.stream.Collectors;
 public class FinanceController {
 
     private final FinanceRecordMapper financeRecordMapper;
+    private final FinanceRecordItemMapper recordItemMapper;
     private final FinanceQuoteMapper quoteMapper;
     private final FinanceInvoiceMapper invoiceMapper;
     private final FinQuoteDetailMapper quoteDetailMapper;
     private final OrderMapper orderMapper;
     private final FactoryBillMapper factoryBillMapper;
+    private final MaterialMapper materialMapper;
+    private final StockLogMapper stockLogMapper;
 
     @GetMapping("/records")
     @Operation(summary = "财务流水列表")
     @PreAuthorize("hasAuthority('finance:view')")
     public Result<PageResult<FinanceRecord>> listRecords(
             @RequestParam(defaultValue = "1") long current,
+            // ★ 修复 P2-9: 分页上限校验
             @RequestParam(defaultValue = "20") long size,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+        // ★ 分页上限校验
+        size = Math.min(size, 100);
+        // ★ 空字符串视为不筛选
+        if (type != null && type.isBlank()) type = null;
+        if (category != null && category.isBlank()) category = null;
+
         Page<FinanceRecord> page = new Page<>(current, size);
         // ★ 使用 DateUtil 统一日期转换
         LocalDateTime startDateTime = DateUtil.startOfDay(startDate);
@@ -78,27 +96,92 @@ public class FinanceController {
     }
 
     @PostMapping("/records")
-    @Operation(summary = "新增财务记录（快速记账）")
+    @Operation(summary = "新增财务记录（快速记账，支持物料明细+库存联动）")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Long> createRecord(@RequestBody FinanceRecord record) {
-        if (record.getAmount() == null || record.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+    @Transactional
+    public Result<Long> createRecord(@Valid @RequestBody CreateRecordRequest request) {
+        if (request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             return Result.fail(400, "金额必须大于0");
         }
-        if (record.getType() == null || record.getType().isBlank()) {
-            return Result.fail(400, "类型不能为空");
-        }
 
+        // 1. 创建财务流水
+        FinanceRecord record = new FinanceRecord();
         record.setRecordNo("FIN" + System.currentTimeMillis());
+        record.setType(request.getType());
+        record.setCategory(request.getCategory());
+        record.setAmount(request.getAmount());
+        record.setRelatedName(request.getRelatedName());
+        record.setPaymentMethod(request.getPaymentMethod());
+        record.setRemark(request.getRemark());
         record.setCreateTime(LocalDateTime.now());
         record.setDeleted(0);
         financeRecordMapper.insert(record);
+
+        // 2. 处理物料明细（有明细时触发库存出库联动）
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            for (CreateRecordRequest.RecordItemRequest item : request.getItems()) {
+                // 保存明细记录
+                FinanceRecordItem recordItem = new FinanceRecordItem();
+                recordItem.setRecordId(record.getId());
+                recordItem.setMaterialId(item.getMaterialId());
+                recordItem.setMaterialName(item.getMaterialName());
+                recordItem.setPricingType(item.getPricingType() != null ? item.getPricingType() : 0);
+                recordItem.setQuantity(item.getQuantity());
+                recordItem.setWidth(item.getWidth());
+                recordItem.setHeight(item.getHeight());
+                recordItem.setArea(item.getArea());
+                recordItem.setUnitPrice(item.getUnitPrice());
+                recordItem.setTotalPrice(item.getTotalPrice());
+                recordItem.setCreateTime(LocalDateTime.now());
+                recordItem.setDeleted(0);
+                recordItemMapper.insert(recordItem);
+
+                // 3. 执行库存出库（扣减库存 + 记录日志 + 同组同步）
+                Material material = materialMapper.selectById(item.getMaterialId());
+                if (material != null && material.getDeleted() == 0) {
+                    // 计算出库数量：按数量直接用quantity，按面积取Math.ceil(area)
+                    int stockOutQty = (item.getQuantity() != null) ? item.getQuantity() : 0;
+                    if (item.getPricingType() != null && item.getPricingType() == 1 && item.getArea() != null) {
+                        stockOutQty = item.getArea().setScale(0, RoundingMode.CEILING).intValue();
+                    }
+
+                    if (stockOutQty > 0) {
+                        int beforeStock = material.getStockQuantity();
+                        int afterStock = beforeStock - stockOutQty;
+
+                        // 记录库存变动日志
+                        StockLog stockLog = new StockLog();
+                        stockLog.setMaterialId(material.getId());
+                        stockLog.setMaterialName(material.getName());
+                        stockLog.setChangeType(2); // 出库
+                        stockLog.setQuantity(-stockOutQty);
+                        stockLog.setBeforeStock(beforeStock);
+                        stockLog.setAfterStock(afterStock);
+                        stockLog.setUnitPrice(material.getPrice());
+                        stockLog.setTotalPrice(material.getPrice().multiply(new BigDecimal(stockOutQty)));
+                        stockLog.setRemark("快速记账关联出库：" + record.getRecordNo());
+                        stockLog.setCreateTime(LocalDateTime.now());
+                        stockLogMapper.insert(stockLog);
+
+                        // 更新库存
+                        material.setStockQuantity(afterStock);
+                        material.setUpdateTime(LocalDateTime.now());
+                        materialMapper.updateById(material);
+
+                        // 同步同纸张分组的其他物料
+                        syncPaperGroupStock(material, afterStock);
+                    }
+                }
+            }
+        }
+
         return Result.ok(record.getId());
     }
 
     @PutMapping("/records/{id}")
     @Operation(summary = "更新财务记录")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Void> updateRecord(@PathVariable Long id, @RequestBody FinanceRecord record) {
+    public Result<Void> updateRecord(@PathVariable Long id, @Valid @RequestBody FinanceRecord record) {
         record.setId(id);
         if (record.getAmount() != null && record.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             return Result.fail(400, "金额必须大于0");
@@ -199,9 +282,14 @@ public class FinanceController {
     @PreAuthorize("hasAuthority('finance:view')")
     public Result<PageResult<Order>> receivableList(
             @RequestParam(defaultValue = "1") long current,
+            // ★ 修复 P2-9: 分页上限校验
             @RequestParam(defaultValue = "20") long size,
             @RequestParam(required = false) String customerName,
             @RequestParam(required = false) String status) {
+        if (customerName != null && customerName.isBlank()) customerName = null;
+        if (status != null && status.isBlank()) status = null;
+        // ★ 分页上限校验
+        size = Math.min(size, 100);
         Page<Order> page = new Page<>(current, size);
         LambdaQueryWrapper<Order> qw = new LambdaQueryWrapper<Order>()
             .eq(Order::getDeleted, 0)
@@ -219,6 +307,8 @@ public class FinanceController {
             @RequestParam(defaultValue = "20") long size,
             @RequestParam(required = false) String supplier,
             @RequestParam(required = false) String status) {
+        if (supplier != null && supplier.isBlank()) supplier = null;
+        if (status != null && status.isBlank()) status = null;
         Page<FactoryBill> page = new Page<>(current, size);
         LambdaQueryWrapper<FactoryBill> qw = new LambdaQueryWrapper<FactoryBill>()
             .eq(FactoryBill::getDeleted, 0)
@@ -238,6 +328,10 @@ public class FinanceController {
             @RequestParam(defaultValue = "20") long size,
             @RequestParam(required = false) String customerName,
             @RequestParam(required = false) String status) {
+        // ★ 空字符串视为不筛选，避免 LIKE '' 或 = '' 导致查不到数据
+        if (customerName != null && customerName.isBlank()) customerName = null;
+        if (status != null && status.isBlank()) status = null;
+
         Page<FinanceQuote> page = new Page<>(current, size);
         LambdaQueryWrapper<FinanceQuote> qw = new LambdaQueryWrapper<FinanceQuote>()
             .eq(FinanceQuote::getDeleted, 0)
@@ -356,7 +450,7 @@ public class FinanceController {
     @PostMapping("/quote/save")
     @Operation(summary = "新建/更新报价")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Long> saveQuote(@RequestBody FinanceQuote quote) {
+    public Result<Long> saveQuote(@Valid @RequestBody FinanceQuote quote) {
         if (quote.getId() != null) {
             quote.setUpdateTime(LocalDateTime.now());
             quoteMapper.updateById(quote);
@@ -385,6 +479,10 @@ public class FinanceController {
             @RequestParam(required = false) String customerName,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String status) {
+        if (invoiceNo != null && invoiceNo.isBlank()) invoiceNo = null;
+        if (customerName != null && customerName.isBlank()) customerName = null;
+        if (type != null && type.isBlank()) type = null;
+        if (status != null && status.isBlank()) status = null;
         Page<FinanceInvoice> page = new Page<>(current, size);
         LambdaQueryWrapper<FinanceInvoice> qw = new LambdaQueryWrapper<FinanceInvoice>()
             .eq(FinanceInvoice::getDeleted, 0)
@@ -400,7 +498,7 @@ public class FinanceController {
     @PostMapping("/invoice/save")
     @Operation(summary = "新建/更新发票")
     @PreAuthorize("hasAuthority('finance:edit')")
-    public Result<Long> saveInvoice(@RequestBody FinanceInvoice invoice) {
+    public Result<Long> saveInvoice(@Valid @RequestBody FinanceInvoice invoice) {
         if (invoice.getId() != null) {
             invoice.setUpdateTime(LocalDateTime.now());
             invoiceMapper.updateById(invoice);
@@ -675,6 +773,46 @@ public class FinanceController {
         csv.append(String.format("统计周期,%s 至 %s\n", start, today));
 
         response.getWriter().write(csv.toString());
+    }
+
+    // ========== 流水物料明细 ==========
+
+    @GetMapping("/records/{recordId}/items")
+    @Operation(summary = "获取流水物料明细")
+    @PreAuthorize("hasAuthority('finance:view')")
+    public Result<List<FinanceRecordItem>> getRecordItems(@PathVariable Long recordId) {
+        List<FinanceRecordItem> items = recordItemMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecordItem>()
+                .eq(FinanceRecordItem::getRecordId, recordId)
+                .eq(FinanceRecordItem::getDeleted, 0)
+                .orderByAsc(FinanceRecordItem::getId)
+        );
+        return Result.ok(items);
+    }
+
+    // ========== 纸张分组库存同步 ==========
+
+    /**
+     * 同步同纸张分组（paperGroup）的其他物料的库存数量
+     * 同一 paperGroup（同纸张类型+材质）的黑白/彩色共享库存
+     */
+    private void syncPaperGroupStock(Material source, int newStock) {
+        String paperGroup = source.getPaperGroup();
+        if (paperGroup == null || paperGroup.isBlank()) {
+            return;
+        }
+        List<Material> siblings = materialMapper.selectList(
+            new LambdaQueryWrapper<Material>()
+                .eq(Material::getPaperGroup, paperGroup)
+                .eq(Material::getDeleted, 0)
+                .ne(Material::getId, source.getId())
+        );
+        LocalDateTime now = LocalDateTime.now();
+        for (Material m : siblings) {
+            m.setStockQuantity(newStock);
+            m.setUpdateTime(now);
+            materialMapper.updateById(m);
+        }
     }
 
 }

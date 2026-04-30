@@ -22,4 +22,10 @@ public interface FactoryBillMapper extends BaseMapper<FactoryBill> {
 
     @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM fac_factory_bill WHERE deleted = 0")
     BigDecimal sumAllPaidAmount();
+
+    /** 检查指定客户+月份是否已存在客户账单（billType=2） */
+    @Select("SELECT COUNT(*) FROM fac_factory_bill " +
+            "WHERE deleted = 0 AND bill_type = 2 " +
+            "AND customer_id = #{customerId} AND month = #{month}")
+    int countByCustomerAndMonth(@Param("customerId") Long customerId, @Param("month") String month);
 }

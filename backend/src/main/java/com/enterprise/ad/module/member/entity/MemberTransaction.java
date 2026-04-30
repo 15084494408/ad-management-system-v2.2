@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 public class MemberTransaction {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long memberId;
+    private Long customerId;       // 客户ID（关联 crm_customer.id，迁移后主用此字段）
+    private Long memberId;         // 旧会员ID（迁移兼容）
     private String type;            // 类型：recharge充值 consume消费
     private BigDecimal amount;      // 金额（正数）
     private BigDecimal balanceBefore; // 变动前余额

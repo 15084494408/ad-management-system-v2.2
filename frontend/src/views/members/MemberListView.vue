@@ -113,6 +113,7 @@
                 <button class="action-btn view" @click="openDetail(m)">详情</button>
                 <button class="action-btn recharge" @click="openRecharge(m)">充值</button>
                 <button class="action-btn edit" @click="openEdit(m)">编辑</button>
+                <button class="action-btn delete" @click="handleDelete(m)">删除</button>
               </div>
             </td>
           </tr>
@@ -135,7 +136,7 @@
         <div class="modal-body">
           <div class="form-row">
             <div class="form-group"><label class="form-label">会员名称 *</label><input v-model="addForm.memberName" class="form-input" placeholder="请输入公司或个人名称" /></div>
-            <div class="form-group"><label class="form-label">联系电话 *</label><input v-model="addForm.phone" class="form-input" placeholder="请输入联系电话" /></div>
+            <div class="form-group"><label class="form-label">联系电话</label><input v-model="addForm.phone" class="form-input" placeholder="请输入联系电话（选填）" /></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">会员等级</label>
@@ -189,16 +190,16 @@
     <!-- 会员详情弹窗 -->
     <div class="modal-overlay" :class="{ show: detailVisible }" @click.self="detailVisible=false">
       <div class="modal" style="max-width:560px;">
-        <div class="modal-header"><h3 class="modal-title">👑 会员详情 — {{ currentMember?.memberName }}</h3><button class="modal-close" @click="detailVisible=false">×</button></div>
+        <div class="modal-header"><h3 class="modal-title">会员详情 — {{ currentMember?.memberName || currentMember?.customerName }}</h3><button class="modal-close" @click="detailVisible=false">×</button></div>
         <div class="modal-body" v-if="currentMember">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
             <div style="background:#f5f7fa;padding:12px;border-radius:8px;grid-column:span 2;">
               <div style="display:flex;align-items:center;justify-content:space-between;">
                 <div>
-                  <div style="font-size:16px;font-weight:700;margin-bottom:4px;">{{ currentMember.memberName }}</div>
+                  <div style="font-size:16px;font-weight:700;margin-bottom:4px;">{{ currentMember.memberName || currentMember.customerName }}</div>
                   <div style="font-size:12px;color:#909399;">ID: {{ currentMember.id }} · 加入日期: {{ fmtDate(currentMember.createTime) }}</div>
                 </div>
-                <span class="level-badge" :style="getLevelStyle(currentMember.level)">{{ getLevelIcon(currentMember.level) }} {{ getLevelName(currentMember.level) }}</span>
+                <span class="level-badge" :style="getLevelStyle(currentMember.memberLevel || currentMember.level)">{{ getLevelIcon(currentMember.memberLevel || currentMember.level) }} {{ getLevelName(currentMember.memberLevel || currentMember.level) }}</span>
               </div>
             </div>
             <div style="background:linear-gradient(135deg,#409eff,#66b1ff);padding:14px;border-radius:8px;color:#fff;">
@@ -219,11 +220,11 @@
             </div>
             <div style="background:#f5f7fa;padding:12px;border-radius:8px;">
               <div style="font-size:11px;color:#909399;margin-bottom:4px;">联系电话</div>
-              <div style="font-size:14px;font-weight:600;">{{ currentMember.phone }}</div>
+              <div style="font-size:14px;font-weight:600;">{{ currentMember.phone || '未填写' }}</div>
             </div>
-            <div :style="{ background: getLevelStyle(currentMember.level).background, padding: '12px', borderRadius: '8px' }">
-              <div :style="{ fontSize: '11px', color: getLevelStyle(currentMember.level).color, marginBottom: '4px' }">享受折扣</div>
-              <div :style="{ fontSize: '14px', fontWeight: 700, color: getLevelStyle(currentMember.level).color }">{{ getLevelDiscount(currentMember.level) }}</div>
+            <div :style="{ background: getLevelStyle(currentMember.memberLevel || currentMember.level).background, padding: '12px', borderRadius: '8px' }">
+              <div :style="{ fontSize: '11px', color: getLevelStyle(currentMember.memberLevel || currentMember.level).color, marginBottom: '4px' }">享受折扣</div>
+              <div :style="{ fontSize: '14px', fontWeight: 700, color: getLevelStyle(currentMember.memberLevel || currentMember.level).color }">{{ getLevelDiscount(currentMember.memberLevel || currentMember.level) }}</div>
             </div>
           </div>
         </div>
@@ -244,7 +245,7 @@
           <div v-if="currentMember" style="background:linear-gradient(135deg,#409eff,#66b1ff);padding:16px 20px;border-radius:10px;margin-bottom:18px;color:#fff;">
             <div style="font-size:12px;opacity:0.85;margin-bottom:4px;">当前预存余额</div>
             <div style="font-size:26px;font-weight:700;">¥ {{ formatMoney(currentMember.balance) }}</div>
-            <div style="font-size:12px;opacity:0.8;margin-top:4px;"><span class="level-badge" style="background:rgba(255,255,255,0.2);color:#fff;">{{ getLevelIcon(currentMember.level) }} {{ getLevelName(currentMember.level) }}</span></div>
+            <div style="font-size:12px;opacity:0.8;margin-top:4px;"><span class="level-badge" style="background:rgba(255,255,255,0.2);color:#fff;">{{ getLevelIcon(currentMember.memberLevel || currentMember.level) }} {{ getLevelName(currentMember.memberLevel || currentMember.level) }}</span></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">充值金额 *</label><input v-model.number="rechargeForm.amount" type="number" class="form-input" placeholder="请输入充值金额" @input="calcBonus" /></div>
@@ -269,21 +270,22 @@
     <!-- 关联订单弹窗 -->
     <div class="modal-overlay" :class="{ show: ordersVisible }" @click.self="ordersVisible=false">
       <div class="modal" style="max-width:600px;">
-        <div class="modal-header"><h3 class="modal-title">📋 关联订单 — {{ currentMember?.memberName }}</h3><button class="modal-close" @click="ordersVisible=false">×</button></div>
+        <div class="modal-header"><h3 class="modal-title">关联订单 — {{ currentMember?.memberName || currentMember?.customerName }}</h3><button class="modal-close" @click="ordersVisible=false">×</button></div>
         <div class="modal-body">
           <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:13px;color:#606266;">共 {{ currentMember?.orderCount || 0 }} 个关联订单</span>
           </div>
           <table>
-            <thead><tr><th>订单编号</th><th>订单名称</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
+            <thead><tr><th>订单编号</th><th>订单标题</th><th>金额(¥)</th><th>已付(¥)</th><th>状态</th><th>创建时间</th></tr></thead>
             <tbody>
-              <tr v-if="memberOrders.length === 0"><td colspan="5" style="text-align:center;color:#909399;padding:20px;">暂无关联订单</td></tr>
+              <tr v-if="memberOrders.length === 0"><td colspan="6" style="text-align:center;color:#909399;padding:20px;">暂无关联订单</td></tr>
               <tr v-for="o in memberOrders" :key="o.id">
-                <td style="color:var(--primary,#409eff);cursor:pointer;">#{{ o.orderNo || o.id }}</td>
-                <td>{{ o.orderName || '-' }}</td>
-                <td style="color:#67c23a;font-weight:600;">¥{{ formatMoney(o.amount) }}</td>
-                <td><span :class="'status-tag status-' + o.status">{{ getStatusName(o.status) }}</span></td>
-                <td>{{ fmtDate(o.createTime) }}</td>
+                <td style="color:var(--primary,#409eff);">{{ o.orderNo || '-' }}</td>
+                <td>{{ o.title || o.customerName || '-' }}</td>
+                <td style="font-weight:600;">¥{{ formatMoney(o.totalAmount) }}</td>
+                <td style="color:#67c23a;">¥{{ formatMoney(o.paidAmount) }}</td>
+                <td><span :class="'status-tag status-' + o.status">{{ orderStatusName(o.status) }}</span></td>
+                <td style="font-size:12px;color:#909399;">{{ fmtDate(o.createTime) }}</td>
               </tr>
             </tbody>
           </table>
@@ -295,8 +297,8 @@
 </template>
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { memberApi } from '@/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { customerApi } from '@/api/modules/customer'
 import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
@@ -364,7 +366,7 @@ const totalAmount = ref(0)
 
 function calcBonus() {
   const amt = rechargeForm.amount || 0
-  const level = currentMember.value?.level || 'normal'
+  const level = currentMember.value?.memberLevel || currentMember.value?.level || 'normal'
   const bonusRate = level === 'diamond' ? 0.06 : level === 'gold' ? 0.04 : level === 'silver' ? 0.02 : 0
   bonusAmount.value = Math.floor(amt * bonusRate * 100) / 100
   totalAmount.value = amt + bonusAmount.value
@@ -376,19 +378,29 @@ function openDetail(m: any) { currentMember.value = m; detailVisible.value = tru
 function openRecharge(m: any) { currentMember.value = m; Object.assign(rechargeForm, { amount: 0, method: 'wechat', remark: '' }); calcBonus(); rechargeVisible.value = true }
 function openOrders(m: any) { currentMember.value = m; loadOrders(m.id); ordersVisible.value = true }
 
-async function loadOrders(memberId: number) {
-  try { const r = await memberApi.getTransactions(memberId); memberOrders.value = r.data || [] } catch { memberOrders.value = [] }
+async function loadOrders(customerId: number) {
+  try { const r = await customerApi.getTransactions(customerId); memberOrders.value = r.data || [] } catch { memberOrders.value = [] }
+}
+
+function orderStatusName(status: number) {
+  const map: Record<number, string> = { 1: '待处理', 2: '进行中', 3: '已完成', 4: '已取消' }
+  return map[status] || '未知'
 }
 
 async function submitAdd() {
   if (!addForm.memberName.trim()) { ElMessage.warning('请输入会员名称！'); return }
-  if (!addForm.phone.trim()) { ElMessage.warning('请输入联系电话！'); return }
   try {
-    const data: Record<string, any> = { memberName: addForm.memberName, phone: addForm.phone, level: addForm.level }
-    if (addForm.contactPerson) data.contactPerson = addForm.contactPerson
-    if (addForm.balance > 0) data.balance = addForm.balance
-    if (addForm.remark) data.remark = addForm.remark
-    await memberApi.create(data)
+    // 先创建客户，再升级为会员
+    const customerData: Record<string, any> = { customerName: addForm.memberName, contactPerson: addForm.contactPerson, phone: addForm.phone }
+    const createRes: any = await customerApi.create(customerData)
+    const customerId = createRes.data
+
+    if (addForm.balance > 0) {
+      await customerApi.upgradeToMember(customerId, { level: addForm.level, balance: addForm.balance })
+    } else {
+      await customerApi.upgradeToMember(customerId, { level: addForm.level })
+    }
+
     ElMessage.success(`会员「${addForm.memberName}」创建成功！`)
     addVisible.value = false
     load()
@@ -397,8 +409,8 @@ async function submitAdd() {
 
 async function submitEdit() {
   try {
-    const data: Record<string, any> = { memberName: editForm.memberName, phone: editForm.phone, level: editForm.level, status: editForm.status }
-    await memberApi.update(editForm.id, data)
+    const data: Record<string, any> = { customerName: editForm.memberName || editForm.customerName, phone: editForm.phone, memberLevel: editForm.level || editForm.memberLevel, status: editForm.status }
+    await customerApi.update(editForm.id, data)
     ElMessage.success('会员信息已更新！')
     editVisible.value = false
     load()
@@ -411,11 +423,35 @@ async function submitRecharge() {
   if (!currentMember.value) { ElMessage.warning('请先选择会员！'); return }
   try {
     const remark = rechargeForm.remark || `充值（${rechargeForm.method}）`
-    await memberApi.recharge(currentMember.value.id, { amount: amt, remark })
+    await customerApi.recharge(currentMember.value.id, { amount: amt, remark })
     ElMessage.success(`充值成功！到账金额 ¥${totalAmount.value}`)
     rechargeVisible.value = false
     load()
   } catch { ElMessage.error('充值失败') }
+}
+
+async function handleDelete(m: any) {
+  const name = m.memberName || m.customerName
+  // 前端前置提示：有余额或有订单时给出警告
+  const warnings: string[] = []
+  if (Number(m.balance) > 0) warnings.push('该会员仍有预存余额，需要先退还或消费完毕')
+  if (Number(m.orderCount) > 0) warnings.push(`该会员有 ${m.orderCount} 笔关联订单，需要先删除所有订单`)
+  const tip = warnings.length > 0
+    ? '\n\n⚠️ 无法删除原因：\n' + warnings.map(w => '• ' + w).join('\n')
+    : ''
+  try {
+    await ElMessageBox.confirm(`确定要删除会员「${name}」吗？${tip}`, '确认删除', {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await customerApi.delete(m.id)
+    ElMessage.success(`会员「${name}」已删除`)
+    load()
+  } catch (e: any) {
+    // 后端返回的业务错误信息
+    if (e?.message && e.message !== 'cancel') ElMessage.error(e.message)
+  }
 }
 
 function handleSearch() { page.value = 1; load() }
@@ -424,7 +460,7 @@ function exportData() {
     filename: '会员列表',
     header: ['会员卡号', '姓名', '手机号', '等级', '积分', '余额', '注册时间'],
     data: list.value.map(m => [
-      `M${String(m.id).padStart(6, '0')}`, m.memberName, m.phone || '-',
+      `M${String(m.id).padStart(6, '0')}`, m.memberName || m.customerName, m.phone,
       getLevelName(m.level), '-', `¥${formatMoney(m.balance)}`,
       fmtDate(m.createTime),
     ]),
@@ -435,12 +471,20 @@ function exportData() {
 async function load() {
   loading.value = true
   try {
-    const params: Record<string, any> = { page: page.value, size: pageSize }
+    const params: Record<string, any> = { current: page.value, size: pageSize }
     if (searchForm.keyword) params.keyword = searchForm.keyword
-    if (searchForm.level) params.level = searchForm.level
+    if (searchForm.level) params.memberLevel = searchForm.level
     if (searchForm.status !== '' && searchForm.status !== undefined) params.status = searchForm.status
-    const r = await memberApi.getList(params)
-    list.value = r.data?.records || r.data?.list || []
+    const r = await customerApi.getMemberList(params)
+    // 适配新接口返回的字段名（后端 @JsonProperty("name") 映射 customerName 为 "name"）
+    const rawList = r.data?.records || r.data?.list || []
+    list.value = rawList.map((m: any) => ({
+      ...m,
+      // 兼容多种字段名：name -> customerName -> memberName -> '(未命名)'
+      memberName: m.name || m.customerName || m.memberName || '(未命名)',
+      phone: m.phone || '-',
+      level: m.memberLevel || m.level || 'normal',
+    }))
     total.value = r.data?.total || list.value.length
     // 统计
     stats.total = total.value

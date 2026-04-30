@@ -292,8 +292,15 @@ const form = reactive({
 })
 
 const filteredItems = computed(() => {
-  if (filterStatus.value === null) return allItems.value
-  return allItems.value.filter(it => it.status === filterStatus.value)
+  const items = filterStatus.value === null
+    ? allItems.value
+    : allItems.value.filter(it => it.status === filterStatus.value)
+  // 已转订单(status=4)排到最后，未完成的排前面
+  return [...items].sort((a, b) => {
+    if (a.status === 4 && b.status !== 4) return 1
+    if (a.status !== 4 && b.status === 4) return -1
+    return 0
+  })
 })
 
 const totalCount = computed(() => allItems.value.length)
@@ -395,12 +402,13 @@ async function generateQuote(item: any) {
 }
 
 async function convertToOrder(item: any) {
-  // 跳转到创建订单页面，预填客户名和需求
+  // 跳转到创建订单页面，预填客户名和需求，带上待办ID
   showDetail.value = false
   router.push({
     name: 'OrderCreate',
     query: {
       fromTodo: '1',
+      todoId: String(item.id),
       customerName: item.customerName,
       contactPhone: item.contactPhone,
       requirements: item.requirements,

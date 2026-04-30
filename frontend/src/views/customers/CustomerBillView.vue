@@ -17,6 +17,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           导出
         </button>
+        <button class="btn btn-generate" @click="openGenerateModal" :disabled="generating">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          {{ generating ? '生成中...' : '从订单生成' }}
+        </button>
         <button class="btn btn-primary" @click="openCreateModal">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           新建账单
@@ -437,6 +441,44 @@
       </div>
     </div>
 
+    <!-- ========== 从订单生成账单弹窗 ========== -->
+    <div class="modal-overlay" :class="{ show: showGenerate }" @click.self="showGenerate = false">
+      <div class="modal" style="max-width:460px;">
+        <div class="modal-header" style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <span class="modal-title">从订单自动生成账单</span>
+          <button class="modal-close" @click="showGenerate = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="generate-desc">选择客户和月份，系统将自动汇总该客户该月所有未取消的订单，生成客户账单和明细。</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">客户 *</label>
+              <select v-model="generateForm.customerId" class="form-input">
+                <option value="">请选择客户</option>
+                <option v-for="c in customers" :key="c.id" :value="c.id">
+                  {{ c.customerName || c.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">月份 *</label>
+              <input v-model="generateForm.month" type="month" class="form-input">
+            </div>
+          </div>
+          <div class="generate-tip" v-if="generatePreview">
+            <div class="tip-icon">💡</div>
+            <div class="tip-text">{{ generatePreview }}</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showGenerate = false">取消</button>
+          <button class="btn btn-generate" @click="submitGenerate" :disabled="generating || !generateForm.customerId || !generateForm.month">
+            {{ generating ? '生成中...' : '确认生成' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -463,6 +505,15 @@ const showPay = ref(false)
 const showDetail = ref(false)
 const payTarget = ref<any>(null)
 const payAmount = ref<number | null>(null)
+
+// 从订单生成
+const showGenerate = ref(false)
+const generating = ref(false)
+const generateForm = reactive({
+  customerId: '' as any,
+  month: '',
+})
+const generatePreview = ref('')
 
 // 详情
 const detailData = ref<any>(null)
@@ -828,6 +879,47 @@ async function submitPay() {
   }
 }
 
+// ========== 从订单生成 ==========
+function openGenerateModal() {
+  generateForm.customerId = searchForm.customerId || ''
+  // 默认当前月份
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  generateForm.month = `${y}-${m}`
+  generatePreview.value = ''
+  showGenerate.value = true
+}
+
+async function submitGenerate() {
+  if (!generateForm.customerId || !generateForm.month) {
+    ElMessage.warning('请选择客户和月份')
+    return
+  }
+  generating.value = true
+  generatePreview.value = ''
+  try {
+    const res = await request.post('/factory/customer-bills/generate', null, {
+      params: {
+        customerId: generateForm.customerId,
+        month: generateForm.month,
+      },
+    })
+    ElMessage.success(res.data || '生成成功')
+    showGenerate.value = false
+    // 自动筛选到刚生成的客户和月份
+    searchForm.customerId = generateForm.customerId
+    const [y, m] = generateForm.month.split('-')
+    searchForm.month = `${y}年${m}月`
+    current.value = 1
+    loadBills()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '生成失败')
+  } finally {
+    generating.value = false
+  }
+}
+
 // ========== 删除 ==========
 async function confirmDelete(row: any) {
   if (!confirm(`确定要删除账单「${row.billNo}」吗？\n\n此操作不可恢复！`)) return
@@ -953,6 +1045,8 @@ onMounted(() => {
 }
 .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+.btn-generate { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #fff; }
+.btn-generate:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4); }
 .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: #fff; }
 .btn-success:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(56, 239, 125, 0.4); }
 .btn-outline { background: transparent; color: #667eea; border: 2px solid #667eea; }
@@ -1239,4 +1333,18 @@ onMounted(() => {
 .pay-info-item:last-child { border-bottom: none; }
 .pay-label { font-size: 14px; color: #909399; }
 .pay-value { font-size: 14px; color: #303133; font-weight: 500; }
+
+/* ========== 从订单生成 ========== */
+.generate-desc {
+  font-size: 13px; color: #606266; margin: 0 0 16px 0;
+  padding: 12px 14px; background: #fff7ed; border-radius: 10px;
+  border-left: 3px solid #f5576c;
+}
+.generate-tip {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-top: 12px; padding: 12px 14px; background: #ecf5ff;
+  border-radius: 10px; border-left: 3px solid #409eff;
+}
+.tip-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.tip-text { font-size: 13px; color: #409eff; line-height: 1.6; }
 </style>

@@ -104,8 +104,9 @@
     <div class="card" style="margin-top:16px;">
       <div class="amount-summary">
         <div class="amount-item">
-          <span class="amount-label">订单总额</span>
+          <span class="amount-label">有效订单总额</span>
           <span class="amount-value primary">¥{{ formatMoney(stats.totalAmount) }}</span>
+          <span class="amount-hint">（不含已取消）</span>
         </div>
         <div class="amount-item">
           <span class="amount-label">已收金额</span>
@@ -114,6 +115,11 @@
         <div class="amount-item">
           <span class="amount-label">待收金额</span>
           <span class="amount-value danger">¥{{ formatMoney((stats.totalAmount || 0) - (stats.paidAmount || 0)) }}</span>
+        </div>
+        <div class="amount-item" v-if="stats.cancelledCount > 0">
+          <span class="amount-label">已取消订单</span>
+          <span class="amount-value cancelled">{{ stats.cancelledCount }} 笔</span>
+          <span class="amount-hint">金额已排除</span>
         </div>
       </div>
     </div>
@@ -147,8 +153,8 @@
           <div style="background:#ecf5ff;padding:15px;border-radius:8px;margin-top:15px;">
             <h4 style="font-size:13px;margin-bottom:10px;">📊 报表预览</h4>
             <div style="font-size:12px;color:#909399;">
-              本月订单数：{{ stats.totalCount || 0 }} 单<br>
-              本月营收：¥{{ formatMoney(stats.totalAmount) }}<br>
+              本月订单数：{{ stats.totalCount || 0 }} 单（已取消 {{ stats.cancelledCount || 0 }} 笔）<br>
+              有效营收：¥{{ formatMoney(stats.totalAmount) }}（不含已取消）<br>
               已完成订单：{{ stats.completedCount || 0 }} 单
             </div>
           </div>
@@ -241,9 +247,10 @@ function doExport() {
     ['待确认订单', String(stats.pendingCount || 0)],
     ['已取消订单', String(stats.cancelledCount || 0)],
     ['完成率', `${stats.completionRate || 0}%`],
-    ['订单总额', `¥${formatMoney(stats.totalAmount)}`],
+    ['订单总额（不含已取消）', `¥${formatMoney(stats.totalAmount)}`],
     ['已收金额', `¥${formatMoney(stats.paidAmount)}`],
     ['待收金额', `¥${formatMoney((stats.totalAmount || 0) - (stats.paidAmount || 0))}`],
+    ['已取消订单', `${stats.cancelledCount || 0} 笔（金额已排除）`],
   ]
 
   // 趋势数据（近7天）
@@ -367,7 +374,9 @@ onMounted(loadData)
   &.primary { color: #409eff; }
   &.success { color: #67c23a; }
   &.danger { color: #f56c6c; }
+  &.cancelled { color: #909399; font-size: 16px; }
 }
+.amount-hint { font-size: 11px; color: #c0c4cc; display: block; margin-top: 2px; }
 
 // Modal
 .modal-overlay {

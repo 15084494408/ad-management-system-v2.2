@@ -86,7 +86,7 @@
           </tr>
           <tr v-for="r in list" :key="r.id">
             <td style="color:#c0c4cc;font-size:12px;font-variant-numeric:tabular-nums;">#{{ r.transactionNo || r.id }}</td>
-            <td style="font-weight:500;">{{ r.memberName || r.memberId }}</td>
+            <td style="font-weight:500;">{{ r.name || r.memberName || r.memberId }}</td>
             <td><span class="tag tag-warning">余额消费</span></td>
             <td style="font-weight:700;color:#f56c6c;font-variant-numeric:tabular-nums;">-¥{{ formatMoney(r.amount) }}</td>
             <td style="color:#909399;font-variant-numeric:tabular-nums;">¥{{ formatMoney(r.balanceBefore) }}</td>
@@ -110,7 +110,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { memberApi } from '@/api'
+import { customerApi } from '@/api/modules/customer'
 import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
@@ -142,7 +142,7 @@ function exportData() {
     filename: '会员消费记录',
     header: ['消费单号', '会员姓名', '消费金额', '消费类型', '余额变动', '消费时间'],
     data: list.value.map(r => [
-      `#${r.transactionNo || r.id}`, r.memberName || r.memberId,
+      `#${r.transactionNo || r.id}`, r.name || r.memberName || r.memberId,
       `-¥${formatMoney(r.amount)}`, '余额消费',
       `${formatMoney(r.balanceBefore)} → ${formatMoney(r.balanceAfter)}`,
       fmtDate(r.createTime),
@@ -158,7 +158,7 @@ async function load() {
     if (searchForm.keyword) params.keyword = searchForm.keyword
     if (searchForm.startDate) params.startDate = searchForm.startDate
     if (searchForm.endDate) params.endDate = searchForm.endDate
-    const r = await memberApi.getConsumeRecords(params)
+    const r = await customerApi.getConsumeRecords(params)
     list.value = r.data?.records || r.data?.list || []
     total.value = r.data?.total || list.value.length
     stats.monthCount = list.value.length

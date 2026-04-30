@@ -21,8 +21,8 @@
           ❌ 放弃报价
         </button>
         <button class="btn btn-primary" :disabled="submitting || selectedMaterials.length === 0"
-          @click="handlePlaceOrder">
-          🛒 立即下单
+          @click="handleSaveQuote">
+          💾 保存报价
         </button>
       </div>
     </div>
@@ -281,8 +281,8 @@
         <div class="summary-actions">
           <button class="btn btn-danger" @click="handleGiveUp">❌ 放弃报价</button>
           <button class="btn btn-success" @click="showPreviewDialog = true">📋 预览 / 导出</button>
-          <button class="btn btn-primary submit-btn" :disabled="submitting" @click="handlePlaceOrder">
-            {{ submitting ? '处理中...' : '🛒 立即下单' }}
+          <button class="btn btn-primary submit-btn" :disabled="submitting" @click="handleSaveQuote">
+            {{ submitting ? '保存中...' : '💾 保存报价' }}
           </button>
         </div>
       </div>
@@ -396,8 +396,8 @@
           <button class="btn btn-default" @click="showPreviewDialog = false">← 返回编辑</button>
           <button class="btn btn-success" @click="exportQuoteToExcel">📥 导出 Excel</button>
           <button class="btn btn-danger" @click="showPreviewDialog = false; handleGiveUp()">❌ 放弃报价</button>
-          <button class="btn btn-primary" :disabled="submitting" @click="showPreviewDialog = false; handlePlaceOrder()">
-            🛒 立即下单
+          <button class="btn btn-primary" :disabled="submitting" @click="showPreviewDialog = false; handleSaveQuote()">
+            💾 保存报价
           </button>
         </div>
         <button class="quote-close-btn" @click="showPreviewDialog = false">✕</button>
@@ -412,7 +412,6 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { orderApi } from '@/api/modules/order'
 import { materialApi } from '@/api/modules/material'
 import { customerApi } from '@/api/modules/customer'
 import { financeApi } from '@/api/modules/finance'
@@ -647,8 +646,8 @@ async function handleGiveUp() {
   }
 }
 
-// ===== 立即下单 =====
-async function handlePlaceOrder() {
+// ===== 保存报价（不自动下单）=====
+async function handleSaveQuote() {
   if (!form.projectName.trim()) { ElMessage.warning('请填写报价标题/项目名称'); return }
   if (!form.customerId) { ElMessage.warning('请选择客户'); return }
   if (selectedMaterials.value.length === 0) { ElMessage.warning('请至少选择一件物料'); return }
@@ -658,17 +657,16 @@ async function handlePlaceOrder() {
 
   try {
     await ElMessageBox.confirm(
-      `即将根据报价单「${form.projectName}」创建订单\n` +
+      `确认保存报价单「${form.projectName}」？\n` +
       `客户：${form.customerName}\n` +
       `共 ${selectedMaterials.value.length} 件物料，报价总计 ¥${formatMoney(grandTotal.value)}\n\n` +
-      `确认下单后将跳转至订单管理页面。`,
-      '确认立即下单', { confirmButtonText: '确认下单', cancelButtonText: '取消' }
+      `保存后可在报价管理中查看，客户确认后再转为订单。`,
+      '确认保存报价', { confirmButtonText: '确认保存', cancelButtonText: '取消' }
     )
   } catch { return }
 
   submitting.value = true
   try {
-    // 1. 先保存报价单
     const quotePayload = {
       companyId: form.companyId,
       projectName: form.projectName,
@@ -682,8 +680,9 @@ async function handlePlaceOrder() {
       remark: form.remark,
       totalAmount: materialTotal.value,
       finalAmount: grandTotal.value,
-      status: 'accepted',  // 直接下单则报价状态=已采纳
-      items: selectedMaterials.value.map(s => ({
+      taxAmount: taxAmount.value,
+      status: 'pending',
+      details: selectedMaterials.value.map(s => ({
         materialId: s.isCustom ? null : s.materialId,
         materialName: s.materialName,
         spec: s.spec,
@@ -696,32 +695,10 @@ async function handlePlaceOrder() {
       })),
     }
     await financeApi.createQuote(quotePayload)
-
-    // 2. 创建订单
-    const orderPayload = {
-      title: form.projectName,
-      orderType: '2',  // 默认广告类型
-      customerId: form.customerId,
-      customerName: form.customerName,
-      contactPerson: form.contactPerson,
-      contactPhone: form.contactPhone,
-      remark: form.remark ? `[报价转单] ${form.remark}` : '[报价转单]',
-      totalAmount: grandTotal.value,
-      source: 2,  // 来源：报价转单
-      materials: selectedMaterials.value.map(s => ({
-        materialName: s.materialName,
-        spec: s.spec,
-        unit: s.unit,
-        quantity: s.quantity,
-        unitPrice: s.unitPrice,
-        amount: s.amount,
-      })),
-    }
-    await orderApi.create(orderPayload)
-    ElMessage.success('✅ 报价已保存，订单创建成功！')
-    router.push({ name: 'Orders' })
+    ElMessage.success('✅ 报价单已保存！')
+    router.push({ name: 'FinanceQuote' })
   } catch (e: any) {
-    ElMessage.error(e?.message || '操作失败，请重试')
+    ElMessage.error(e?.message || '保存失败，请重试')
   } finally {
     submitting.value = false
   }

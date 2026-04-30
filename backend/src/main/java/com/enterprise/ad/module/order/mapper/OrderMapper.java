@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import org.apache.ibatis.annotations.Update;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,10 +30,10 @@ public interface OrderMapper extends BaseMapper<Order> {
     @Select("SELECT COUNT(*) FROM ord_order WHERE deleted = 0 AND status = #{status} AND create_time >= #{start} AND create_time <= #{end}")
     long countByStatusAndTimeRange(@Param("status") int status, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    @Select("SELECT COALESCE(SUM(total_amount), 0) FROM ord_order WHERE deleted = 0 AND create_time >= #{start} AND create_time <= #{end}")
+    @Select("SELECT COALESCE(SUM(total_amount), 0) FROM ord_order WHERE deleted = 0 AND status != 4 AND create_time >= #{start} AND create_time <= #{end}")
     BigDecimal sumTotalAmount(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM ord_order WHERE deleted = 0 AND create_time >= #{start} AND create_time <= #{end}")
+    @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM ord_order WHERE deleted = 0 AND status != 4 AND create_time >= #{start} AND create_time <= #{end}")
     BigDecimal sumPaidAmount(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
@@ -44,9 +46,36 @@ public interface OrderMapper extends BaseMapper<Order> {
 
     // ★ 修复 P1-11: 应收应付 SQL 聚合
 
-    @Select("SELECT COALESCE(SUM(total_amount), 0) FROM ord_order WHERE deleted = 0")
+    @Select("SELECT COALESCE(SUM(total_amount), 0) FROM ord_order WHERE deleted = 0 AND status != 4")
     BigDecimal sumAllTotalAmount();
 
-    @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM ord_order WHERE deleted = 0")
+    @Select("SELECT COALESCE(SUM(paid_amount), 0) FROM ord_order WHERE deleted = 0 AND status != 4")
     BigDecimal sumAllPaidAmount();
+
+    /**
+     * 累加订单的会员余额抵扣金额
+     */
+    @Update("UPDATE ord_order SET member_deduct_amount = IFNULL(member_deduct_amount, 0) + #{amount}, " +
+            "update_time = NOW() WHERE id = #{orderId} AND deleted = 0")
+    int updateMemberDeductAmount(@Param("orderId") Long orderId, @Param("amount") BigDecimal amount);
+
+    // ★ 修复 P0-2: 原子增加已付金额（并发安全）
+    // 返回影响行数：0 表示订单不存在，1 表示更新成功
+    @Update("UPDATE ord_order SET " +
+            "paid_amount = paid_amount + #{amount}, " +
+            "update_time = NOW() " +
+            "WHERE id = #{orderId} AND deleted = 0")
+    int addPaidAmount(@Param("orderId") Long orderId, @Param("amount") BigDecimal amount);
+
+    // ★ 修复 P0-2: 原子增加已付金额并设置抹零和支付状态（并发安全）
+    @Update("UPDATE ord_order SET " +
+            "paid_amount = paid_amount + #{amount}, " +
+            "rounding_amount = #{roundingAmount}, " +
+            "payment_status = #{paymentStatus}, " +
+            "update_time = NOW() " +
+            "WHERE id = #{orderId} AND deleted = 0")
+    int addPaidAmountWithWriteOff(@Param("orderId") Long orderId,
+                                    @Param("amount") BigDecimal amount,
+                                    @Param("roundingAmount") BigDecimal roundingAmount,
+                                    @Param("paymentStatus") Integer paymentStatus);
 }

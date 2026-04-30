@@ -14,28 +14,57 @@
       </div>
     </div>
     
-    <!-- 未收款订单提醒 -->
-    <div v-if="unpaidOrders.length > 0" class="payment-reminder">
-      <div class="reminder-header" @click="showUnpaidDetail = !showUnpaidDetail">
-        <span class="reminder-icon">💰</span>
-        <span class="reminder-title">未收款订单提醒</span>
-        <span class="reminder-count">{{ unpaidOrders.length }} 笔待收</span>
-        <span class="reminder-total">
-          共 ¥{{ unpaidOrders.reduce((sum, o) => sum + o.unpaidAmount, 0).toFixed(2) }}
+    <!-- 未完成订单（进行中 + 未收款） -->
+    <div v-if="activeOrders.length > 0" class="payment-reminder">
+      <div class="reminder-header" @click="showActiveDetail = !showActiveDetail">
+        <span class="reminder-icon">📋</span>
+        <span class="reminder-title">未完成订单</span>
+        <span class="reminder-count in-progress-count">{{ inProgressOrders.length }} 笔进行中</span>
+        <span v-if="unpaidOrders.length > 0" class="reminder-count unpaid-count">{{ unpaidOrders.length }} 笔未收款</span>
+        <span v-if="unpaidOrders.length > 0" class="reminder-total">
+          待收 ¥{{ unpaidOrders.reduce((sum, o) => sum + o.unpaidAmount, 0).toFixed(2) }}
         </span>
-        <span class="toggle-btn">{{ showUnpaidDetail ? '收起' : '展开' }} ▼</span>
+        <span class="toggle-btn">{{ showActiveDetail ? '收起' : '展开' }} ▼</span>
       </div>
 
-      <div v-show="showUnpaidDetail" class="reminder-cards">
+      <div v-show="showActiveDetail" class="reminder-cards">
+        <!-- 进行中订单 -->
+        <div
+          v-for="order in inProgressOrders"
+          :key="'p-' + order.id"
+          class="order-card order-card--progress"
+        >
+          <div class="card-left">
+            <div class="card-order-no">{{ order.orderNo }}</div>
+            <div class="card-customer">{{ order.customerName }}</div>
+            <div class="card-status-tag progress-tag">⚙️ 进行中</div>
+          </div>
+          <div class="card-center">
+            <div class="card-amount-info">
+              <span>总额 ¥{{ (order.totalAmount || 0).toFixed(2) }}</span>
+              <template v-if="order.paidAmount > 0">
+                <span class="card-divider">|</span>
+                <span>已付 ¥{{ order.paidAmount.toFixed(2) }}</span>
+              </template>
+            </div>
+            <div v-if="order.designerName" class="designer-tip">🎨 {{ order.designerName }}</div>
+          </div>
+          <div class="card-right">
+            <button class="collect-btn" @click="completeOrder(order)">✅ 完成</button>
+          </div>
+        </div>
+
+        <!-- 未收款订单（待处理状态） -->
         <div
           v-for="order in unpaidOrders"
-          :key="order.id"
+          :key="'u-' + order.id"
           class="order-card"
           :class="{ 'partial-paid': order.paymentStatus === 2 }"
         >
           <div class="card-left">
             <div class="card-order-no">{{ order.orderNo }}</div>
             <div class="card-customer">{{ order.customerName }}</div>
+            <div class="card-status-tag unpaid-tag">💰 未收款</div>
           </div>
           <div class="card-center">
             <div class="card-amount-info">
@@ -218,7 +247,7 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">📋 待处理事项</div>
-        <button class="btn btn-default btn-sm">查看全部</button>
+        <button class="btn btn-default btn-sm" @click="router.push('/orders')">查看全部</button>
       </div>
       <table class="data-table" v-if="pendingItems.length > 0">
         <thead>
@@ -234,7 +263,7 @@
             <td><span class="status-tag" :class="'status-' + item.type">{{ item.typeText }}</span></td>
             <td>{{ item.content }}</td>
             <td>{{ item.time }}</td>
-            <td><button class="btn btn-primary btn-sm">{{ item.action }}</button></td>
+            <td><button class="btn btn-primary btn-sm" @click="router.push(item.actionRoute || '/orders')">{{ item.action }}</button></td>
           </tr>
         </tbody>
       </table>
@@ -310,9 +339,12 @@ const dashboard = reactive({
 const recentOrders = ref<any[]>([])
 const pendingItems = ref<any[]>([])
 
-// ========== 未收款订单提醒 ==========
+// ========== 未完成订单（进行中 + 未收款） ==========
 const unpaidOrders = ref<any[]>([])
+const inProgressOrders = ref<any[]>([])
+const activeOrders = computed(() => [...inProgressOrders.value, ...unpaidOrders.value])
 const unpaidLoading = ref(false)
+const showActiveDetail = ref(true)
 const showUnpaidDetail = ref(true)
 const paymentMemberBalanceMap = ref<Record<number, number>>({})
 
@@ -389,6 +421,50 @@ const loadUnpaidOrders = async () => {
     unpaidOrders.value = []
   } finally {
     unpaidLoading.value = false
+  }
+}
+
+// 加载进行中订单
+const loadInProgressOrders = async () => {
+  try {
+    const res = await request.get('/orders', {
+      params: { page: 1, size: 50, status: 2 }
+    })
+    const records = res.data?.records || res.data || []
+    inProgressOrders.value = records.map((o: any) => ({
+      id: o.id,
+      orderNo: o.orderNo || '',
+      customerName: o.customerName || '',
+      totalAmount: o.totalAmount || 0,
+      paidAmount: o.paidAmount || 0,
+      designerName: o.designerName || '',
+      status: o.status,
+    }))
+  } catch {
+    inProgressOrders.value = []
+  }
+}
+
+// 完成订单
+const completeOrder = async (order: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认将订单 ${order.orderNo} 标记为已完成？\n客户 ${order.customerName} 已取走货物？`,
+      '确认完成',
+      { confirmButtonText: '确认完成', cancelButtonText: '取消', type: 'info' }
+    )
+    await request.patch(`/orders/${order.id}/status`, { status: 3 })
+    ElMessage.success('订单已完成！')
+    // 刷新数据
+    loadInProgressOrders()
+    loadUnpaidOrders()
+    loadDashboard()
+    loadPendingItems()
+  } catch (e: any) {
+    // 用户取消或接口错误
+    if (e !== 'cancel' && e?.message) {
+      ElMessage.error('操作失败：' + e.message)
+    }
   }
 }
 
@@ -503,16 +579,46 @@ const loadRecentOrders = async () => {
 
 const loadPendingItems = async () => {
   try {
-    const res = await request.get('/orders', { params: { page: 1, size: 10, status: 1 } })
-    const records = res.data?.records || res.data || []
-    pendingItems.value = records.map((o: any) => ({
-      id: o.id,
-      type: 'pending',
-      typeText: '待确认',
-      content: `客户"${o.customerName || ''}"提交订单 ${o.orderNo || ''}`,
-      time: o.createTime || '',
-      action: '处理',
-    }))
+    // 加载所有未完成的订单（待处理 + 进行中），不只展示未收款
+    const [res1, res2] = await Promise.all([
+      request.get('/orders', { params: { page: 1, size: 10, status: 1 } }),
+      request.get('/orders', { params: { page: 1, size: 10, status: 2 } }),
+    ])
+
+    const items: any[] = []
+
+    // 待处理订单
+    const pending = res1.data?.records || res1.data || []
+    pending.forEach((o: any) => {
+      items.push({
+        id: o.id,
+        type: 'pending',
+        typeText: '📋 待处理',
+        content: `客户"${o.customerName || ''}"提交订单 ${o.orderNo || ''}`,
+        time: o.createTime || '',
+        action: '处理',
+        actionRoute: `/orders`,
+      })
+    })
+
+    // 进行中订单
+    const inProgress = res2.data?.records || res2.data || []
+    inProgress.forEach((o: any) => {
+      const paymentText = o.paymentStatus === 3 ? '' : '（未收齐款项）'
+      items.push({
+        id: o.id,
+        type: 'in-progress',
+        typeText: '⚙️ 进行中',
+        content: `客户"${o.customerName || ''}"的订单 ${o.orderNo || ''} 正在设计制作中${paymentText}`,
+        time: o.createTime || '',
+        action: '查看',
+        actionRoute: `/orders`,
+      })
+    })
+
+    // 按时间倒序排列
+    items.sort((a, b) => (b.time > a.time ? 1 : -1))
+    pendingItems.value = items.slice(0, 15)
   } catch {
     pendingItems.value = []
   }
@@ -523,6 +629,7 @@ onMounted(() => {
   loadRecentOrders()
   loadPendingItems()
   loadUnpaidOrders()
+  loadInProgressOrders()
 })
 </script>
 
@@ -721,6 +828,7 @@ onMounted(() => {
   font-size: 12px; font-weight: 500;
 }
 .status-pending { background: #ecf5ff; color: #409eff; }
+.status-in-progress { background: #fdf6ec; color: #e6a23c; }
 .status-designing { background: #fdf6ec; color: #e6a23c; }
 .status-delivery { background: #f0f9eb; color: #67c23a; }
 .status-completed { background: #e6f7ff; color: #1890ff; }
@@ -737,20 +845,22 @@ onMounted(() => {
   &:hover { opacity: 0.8; }
 }
 
-// ========== 未收款订单提醒 ==========
+// ========== 未完成订单提醒 ==========
 .payment-reminder {
-  background: linear-gradient(135deg, #fff7e6, #fff3d3);
-  border: 1px solid #e6a23c;
+  background: linear-gradient(135deg, #f0f9ff, #e8f4fd);
+  border: 1px solid #b3d8ff;
   border-radius: 12px;
   margin-bottom: 20px;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(230, 162, 60, .15);
+  box-shadow: 0 2px 12px rgba(64, 158, 255, .12);
 }
 .reminder-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; cursor: pointer; transition: background .2s; }
-.reminder-header:hover { background: rgba(230,162,60,.08); }
+.reminder-header:hover { background: rgba(64,158,255,.06); }
 .reminder-icon { font-size: 22px; }
-.reminder-title { font-size: 15px; font-weight: 600; color: #e6a23c; }
-.reminder-count { background: #e6a23c; color: #fff; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.reminder-title { font-size: 15px; font-weight: 600; color: #409eff; }
+.reminder-count { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #fff; }
+.reminder-count.in-progress-count { background: #409eff; }
+.reminder-count.unpaid-count { background: #e6a23c; }
 .reminder-total { margin-left: auto; font-size: 16px; font-weight: 700; color: #e6a23c; }
 .toggle-btn { font-size: 12px; color: #909399; cursor: pointer; }
 
@@ -767,11 +877,16 @@ onMounted(() => {
   border: 1px solid rgba(230,162,60,.3);
   transition: all .25s;
 }
-.order-card:hover { box-shadow: 0 4px 12px rgba(230,162,60,.15); transform: translateY(-2px); }
+.order-card:hover { box-shadow: 0 4px 12px rgba(64,158,255,.12); transform: translateY(-2px); }
+.order-card.order-card--progress { border-color: rgba(64,158,255,.3); }
 .order-card.partial-paid { border-color: rgba(64,158,255,.3); }
 .card-left { flex-shrink: 0; min-width: 110px; }
 .card-order-no { font-size: 13px; font-weight: 600; color: $text-primary; }
 .card-customer { font-size: 11px; color: $text-secondary; margin-top: 3px; }
+.card-status-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; display: inline-block; margin-top: 3px; font-weight: 600; }
+.card-status-tag.progress-tag { background: #ecf5ff; color: #409eff; }
+.card-status-tag.unpaid-tag { background: #fef0f0; color: #e6a23c; }
+.designer-tip { margin-top: 4px; font-size: 11px; color: #909399; }
 .card-center { flex: 1; min-width: 0; }
 .card-amount-info { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
 .card-divider { color: #dcdfe6; }
@@ -780,6 +895,8 @@ onMounted(() => {
 .card-right { flex-shrink: 0; }
 .collect-btn { background: linear-gradient(135deg,#e6a23c,#ebb563); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all .25s; flex-shrink: 0; }
 .collect-btn:hover { background: linear-gradient(135deg,#cf8f1a,#d9a03e); box-shadow: 0 4px 12px rgba(230,162,60,.4); }
+.order-card--progress .collect-btn { background: linear-gradient(135deg, #67c23a, #85ce61); }
+.order-card--progress .collect-btn:hover { background: linear-gradient(135deg, #5daf34, #78c550); box-shadow: 0 4px 12px rgba(103,194,58,.4); }
 
 // 收款对话框
 .payment-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }

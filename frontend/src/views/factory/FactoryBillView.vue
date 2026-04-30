@@ -987,7 +987,7 @@ async function loadFactories() {
 async function loadBills() {
   loading.value = true
   try {
-    const params: any = { current: 1, size: 100 }
+    const params: any = { current: 1, size: 100, billType: 1 }
     if (selectedFactory.value !== 'all') params.factoryId = selectedFactory.value
     if (monthFilter.value) params.month = monthFilter.value
     if (statusFilter.value) {

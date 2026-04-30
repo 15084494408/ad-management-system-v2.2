@@ -45,18 +45,27 @@ public class StatisticsController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         
         LambdaQueryWrapper<Order> qw = new LambdaQueryWrapper<Order>()
-            .eq(Order::getDeleted, 0);
+            .eq(Order::getDeleted, 0)
+            .ne(Order::getStatus, 4);  // ★ 修复：排除已取消订单，避免取消订单金额计入统计
         if (startDate != null) qw.ge(Order::getCreateTime, startDate.atStartOfDay());
         if (endDate != null) qw.le(Order::getCreateTime, endDate.atTime(23, 59, 59));
         
         List<Order> orders = orderMapper.selectList(qw);
-        
+
+        // 单独查询已取消订单数量
+        LambdaQueryWrapper<Order> cancelQw = new LambdaQueryWrapper<Order>()
+            .eq(Order::getDeleted, 0)
+            .eq(Order::getStatus, 4);
+        if (startDate != null) cancelQw.ge(Order::getCreateTime, startDate.atStartOfDay());
+        if (endDate != null) cancelQw.le(Order::getCreateTime, endDate.atTime(23, 59, 59));
+        long cancelledCount = orderMapper.selectCount(cancelQw);
+
         BigDecimal totalAmount = orders.stream().map(Order::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal paidAmount = orders.stream().map(Order::getPaidAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         long pendingCount = orders.stream().filter(o -> o.getStatus() == 1).count();
         long processingCount = orders.stream().filter(o -> o.getStatus() == 2).count();
         long completedCount = orders.stream().filter(o -> o.getStatus() == 3).count();
-        
+
         return Result.ok(Map.of(
             "totalOrders", orders.size(),
             "totalAmount", totalAmount,
@@ -64,7 +73,8 @@ public class StatisticsController {
             "unpaidAmount", totalAmount.subtract(paidAmount),
             "pendingCount", pendingCount,
             "processingCount", processingCount,
-            "completedCount", completedCount
+            "completedCount", completedCount,
+            "cancelledCount", cancelledCount
         ));
     }
 
@@ -81,6 +91,7 @@ public class StatisticsController {
         List<Order> orders = orderMapper.selectList(
             new LambdaQueryWrapper<Order>()
                 .eq(Order::getDeleted, 0)
+                .ne(Order::getStatus, 4)  // ★ 排除已取消订单
                 .ge(Order::getCreateTime, startDate.atStartOfDay())
                 .le(Order::getCreateTime, endDate.atTime(23, 59, 59))
         );

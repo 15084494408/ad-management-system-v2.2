@@ -26,6 +26,7 @@ public class Order {
     private BigDecimal paidAmount;   // 已付金额
     private BigDecimal discountAmount; // 优惠金额
     private BigDecimal roundingAmount; // 抹零金额（负数表示减免）
+    private BigDecimal memberDeductAmount; // 会员余额抵扣金额
     private Integer paymentStatus;   // 支付状态：1未付 2部分付 3已付清 4已抹零结清
     private String contactPerson;     // 联系人
     private String contactPhone;     // 联系电话

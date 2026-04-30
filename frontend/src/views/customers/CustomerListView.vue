@@ -55,7 +55,7 @@
             <th class="col-id">客户ID</th>
             <th class="col-name">客户名称</th>
             <th class="col-type">客户类型</th>
-            <th class="col-factory">工厂类型</th>
+            <th class="col-member">会员</th>
             <th class="col-contact">联系人</th>
             <th class="col-phone">联系电话</th>
             <th class="col-amount">累计消费</th>
@@ -82,12 +82,12 @@
               </div>
             </td>
             <td class="col-type">
-              <span v-if="row.customerType === 2" class="badge badge-factory">🏭 工厂客户</span>
-              <span v-else class="badge badge-personal">👤 普通客户</span>
+              <span v-if="row.customerType === 2" class="badge badge-factory">工厂</span>
+              <span v-else class="badge badge-personal">普通</span>
             </td>
-            <td class="col-factory">
-              <span v-if="row.factoryType" class="badge badge-plain">{{ row.factoryType }}</span>
-              <span v-else class="text-muted">—</span>
+            <td class="col-member">
+              <span v-if="row.isMember === 1" class="badge badge-member">{{ getMemberLevelName(row.memberLevel) }} 余额¥{{ formatMoney(row.balance) }}</span>
+              <button v-else class="btn-upgrade" @click="openUpgradeModal(row)">升级会员</button>
             </td>
             <td class="col-contact">{{ row.contact || row.contactPerson || '—' }}</td>
             <td class="col-phone">{{ row.phone || '—' }}</td>
@@ -101,6 +101,9 @@
                 </button>
                 <button class="btn-icon btn-bill" @click="goCustomerBill(row)" title="客户账单">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </button>
+                <button v-if="row.isMember === 1" class="btn-icon btn-recharge" @click="openRechargeModal(row)" title="充值">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 </button>
                 <button class="btn-icon btn-edit" @click="openEditModal(row)" title="编辑">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -289,16 +292,87 @@
       </div>
     </div>
 
+    <!-- 升级会员弹窗 -->
+    <div class="modal-overlay" :class="{ show: showUpgrade }" @click.self="showUpgrade = false">
+      <div class="modal" style="max-width: 440px;">
+        <div class="modal-header">
+          <span class="modal-title">升级为会员</span>
+          <button class="modal-close" @click="showUpgrade = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background:#ecf5ff;padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size:13px;color:#409eff;">
+            客户：<strong>{{ upgradeTarget?.customerName || upgradeTarget?.name }}</strong>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">会员等级</label>
+              <select v-model="upgradeForm.level" class="form-input">
+                <option value="normal">普通会员</option>
+                <option value="silver">银牌会员</option>
+                <option value="gold">金牌会员</option>
+                <option value="diamond">钻石会员</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">初始预存金额</label>
+              <input v-model.number="upgradeForm.balance" type="number" class="form-input" placeholder="0.00（选填）">
+            </div>
+          </div>
+          <div v-if="upgradeForm.balance > 0" style="background:#f0f9eb;padding:10px 14px;border-radius:8px;font-size:12px;color:#67c23a;margin-top:4px;">
+            系统将自动生成一笔 ¥{{ upgradeForm.balance.toFixed(2) }} 的充值记录
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showUpgrade = false">取消</button>
+          <button class="btn btn-success" @click="submitUpgrade">确认升级</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 充值弹窗 -->
+    <div class="modal-overlay" :class="{ show: showRecharge }" @click.self="showRecharge = false">
+      <div class="modal" style="max-width: 440px;">
+        <div class="modal-header" style="background:linear-gradient(135deg,#38ef7d,#11998e);">
+          <span class="modal-title">会员充值</span>
+          <button class="modal-close" @click="showRecharge = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background:#f0f9eb;padding:14px;border-radius:10px;margin-bottom:16px;">
+            <div style="font-size:12px;color:#67c23a;margin-bottom:4px;">当前余额</div>
+            <div style="font-size:22px;font-weight:700;color:#38ef7d;">¥{{ formatMoney(rechargeTarget?.balance) }}</div>
+            <div style="font-size:12px;color:#909399;margin-top:2px;">{{ rechargeTarget?.customerName || rechargeTarget?.name }}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">充值金额 *</label>
+              <input v-model.number="rechargeForm.amount" type="number" class="form-input" placeholder="请输入充值金额">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">充值备注</label>
+              <input v-model="rechargeForm.remark" class="form-input" placeholder="如：季度充值（选填）">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showRecharge = false">取消</button>
+          <button class="btn btn-success" @click="submitRecharge">确认充值</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
 import { exportToExcel } from '@/utils/excelExport'
+import { customerApi } from '@/api/modules/customer'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -463,13 +537,84 @@ function goCustomerBill(row: any) {
 }
 
 async function confirmDeleteCustomer(row: any) {
-  if (!confirm(`确定要删除客户「${row.name || row.customerName}」吗？\n\n⚠️ 关联数据可能受影响，此操作不可恢复！`)) return
+  const name = row.name || row.customerName
+  // 前端前置提示
+  const warnings: string[] = []
+  if (row.isMember === 1 && Number(row.balance) > 0) warnings.push('该客户是会员且有预存余额，需先退还或消费完毕')
+  const tip = warnings.length > 0
+    ? '\n\n⚠️ 提示：\n' + warnings.map(w => '• ' + w).join('\n')
+    : ''
   try {
+    await ElMessageBox.confirm(
+      `确定要删除客户「${name}」吗？${tip}\n\n有关联订单或余额的客户将无法删除。`,
+      '确认删除',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
     await request.delete(`/customers/${row.id}`)
-    ElMessage.success(`已删除客户「${row.name || row.customerName}」`)
+    ElMessage.success(`已删除客户「${name}」`)
     loadData()
   } catch (e: any) {
-    ElMessage.error(e?.message || '删除失败')
+    if (e !== 'cancel' && e?.message) ElMessage.error(e.message)
+  }
+}
+
+// ========== 会员相关 ==========
+
+const memberLevelMap: Record<string, string> = { normal: '普通', silver: '银牌', gold: '金牌', diamond: '钻石' }
+function getMemberLevelName(level: string) { return memberLevelMap[level] || '普通' }
+function formatMoney(v: any) { return Number(v || 0).toLocaleString('zh', { minimumFractionDigits: 2 }) }
+
+const showUpgrade = ref(false)
+const upgradeTarget = ref<any>(null)
+const upgradeForm = ref({ level: 'normal', balance: 0 })
+
+const showRecharge = ref(false)
+const rechargeTarget = ref<any>(null)
+const rechargeForm = ref({ amount: 0, remark: '' })
+
+function openUpgradeModal(row: any) {
+  upgradeTarget.value = row
+  upgradeForm.value = { level: 'normal', balance: 0 }
+  showUpgrade.value = true
+}
+
+function openRechargeModal(row: any) {
+  rechargeTarget.value = row
+  rechargeForm.value = { amount: 0, remark: '' }
+  showRecharge.value = true
+}
+
+async function submitUpgrade() {
+  if (!upgradeTarget.value) return
+  try {
+    await customerApi.upgradeToMember(upgradeTarget.value.id, {
+      level: upgradeForm.value.level,
+      balance: upgradeForm.value.balance || undefined
+    })
+    ElMessage.success(`客户「${upgradeTarget.value.customerName || upgradeTarget.value.name}」已升级为会员！`)
+    showUpgrade.value = false
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '升级失败')
+  }
+}
+
+async function submitRecharge() {
+  if (!rechargeTarget.value) return
+  if (!rechargeForm.value.amount || rechargeForm.value.amount <= 0) {
+    ElMessage.warning('请输入有效的充值金额')
+    return
+  }
+  try {
+    await customerApi.recharge(rechargeTarget.value.id, {
+      amount: rechargeForm.value.amount,
+      remark: rechargeForm.value.remark || `充值 ¥${rechargeForm.value.amount}`
+    })
+    ElMessage.success('充值成功！')
+    showRecharge.value = false
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '充值失败')
   }
 }
 
@@ -631,6 +776,7 @@ onMounted(() => { loadData() })
 .col-name { min-width: 160px; }
 .col-type { width: 130px; }
 .col-factory { width: 100px; }
+.col-member { width: 160px; }
 .col-contact { width: 100px; }
 .col-phone { width: 120px; }
 .col-amount { width: 120px; text-align: right; }
@@ -707,6 +853,43 @@ onMounted(() => { loadData() })
 .badge-silver { background: linear-gradient(135deg, #e8e8e8 0%, #c0c0c0 100%); color: #666; }
 .badge-gold { background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%); color: #996600; }
 .badge-diamond { background: linear-gradient(135deg, #b9f2ff 0%, #667eea 100%); color: #fff; }
+
+.badge-member {
+  background: linear-gradient(135deg, #ecf5ff 0%, #d9ecff 100%);
+  color: #409eff;
+  font-size: 11px;
+}
+
+.btn-upgrade {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px dashed #409eff;
+  background: rgba(64, 158, 255, 0.05);
+  color: #409eff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-upgrade:hover {
+  background: #409eff;
+  color: #fff;
+  border-style: solid;
+}
+
+.btn-recharge {
+  background: rgba(56, 239, 125, 0.1) !important;
+  color: #38ef7d !important;
+}
+
+.btn-recharge:hover {
+  background: #38ef7d !important;
+  color: #fff !important;
+  transform: scale(1.1);
+}
 
 /* 金额 */
 .amount {

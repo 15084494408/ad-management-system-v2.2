@@ -135,7 +135,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { memberApi } from '@/api'
+import { customerApi } from '@/api/modules/customer'
 
 const members = ref<any[]>([])
 
@@ -189,7 +189,7 @@ async function submitEditLevel() {
 }
 
 async function loadMembers() {
-  try { const r = await memberApi.getList({ size: 999 }); members.value = r.data?.records || r.data?.list || [] } catch { members.value = [] }
+  try { const r = await customerApi.getMemberList({ size: 999 }); members.value = (r.data?.records || r.data?.list || []).map((m: any) => ({ ...m, memberName: m.customerName || m.memberName })) } catch { members.value = [] }
 }
 
 onMounted(loadMembers)

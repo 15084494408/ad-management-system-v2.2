@@ -2,7 +2,7 @@
 -- 企业广告管理系统 数据库初始化脚本（完整版）
 -- 数据库名: enterprise_ad
 -- 执行前请先创建数据库: CREATE DATABASE enterprise_ad DEFAULT CHARSET utf8mb4;
--- 版本: v3.0 (2026-04-29 客户账单+数据库修复)
+-- 版本: v3.1 (2026-04-30 会员模块+订单退款+客户删除保护)
 -- 变更:
 --   - [v2.2] 新增 fac_factory_bill_detail 表（工厂账单明细，支持3种计价模式）
 --   - [v2.2] crm_customer 增加 customer_type / factory_type 字段（合并客户+工厂）
@@ -21,6 +21,11 @@
 --   - [v3.0] fac_factory_bill 增加 bill_type 字段（1=工厂账单 2=客户账单）
 --           + idx_bill_type_customer 联合索引
 --   - [v3.0] sq_income.update_time 改为 DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+--   - [v3.1] crm_customer 增加会员字段（is_member, member_level, balance, total_recharge, total_consume）
+--   - [v3.1] mem_member_transaction 增加 customer_id 字段，member_id 改为可空
+--   - [v3.1] mem_member_transaction.type 增加 refund 退款类型
+--   - [v3.1] ord_order 增加 member_deduct_amount 字段（会员余额抵扣金额）
+--   - [v3.1] 客户删除保护：有订单或有余额的会员禁止删除（后端+前端双重校验）
 -- =========================================================
 
 USE enterprise_ad;
@@ -179,25 +184,32 @@ CREATE TABLE IF NOT EXISTS crm_customer (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     customer_name VARCHAR(200) NOT NULL COMMENT '客户名称',
     contact_person VARCHAR(100) COMMENT '联系人',
-    phone VARCHAR(20) COMMENT '手机号',
+    phone VARCHAR(20) COMMENT '手机号（选填）',
     telephone VARCHAR(20) COMMENT '座机',
     email VARCHAR(100) COMMENT '邮箱',
     address VARCHAR(500) COMMENT '地址',
     industry VARCHAR(100) COMMENT '行业',
-    customer_type TINYINT NOT NULL DEFAULT 1 COMMENT '客户类型：1=普通客户 2=工厂客户',
+    customer_type TINYINT NOT NULL DEFAULT 1 COMMENT '客户类型：1=普通客户 2=工厂客户 3=零售客户(公共)',
     factory_type VARCHAR(50) COMMENT '工厂类型（印刷/包装/广告制作，仅工厂客户）',
     total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '累计消费金额',
     order_count INT DEFAULT 0 COMMENT '订单数量',
     level TINYINT DEFAULT 1 COMMENT '等级：1普通 2VIP 3战略',
     status TINYINT DEFAULT 1 COMMENT '状态：1正常 0禁用',
+    -- 会员字段（客户升级为会员后启用）
+    is_member TINYINT NOT NULL DEFAULT 0 COMMENT '是否为会员：0否 1是',
+    member_level VARCHAR(20) DEFAULT 'normal' COMMENT '会员等级：normal/silver/gold/diamond',
+    balance DECIMAL(15,2) DEFAULT 0 COMMENT '会员余额（预存金额）',
+    total_recharge DECIMAL(15,2) DEFAULT 0 COMMENT '累计充值',
+    total_consume DECIMAL(15,2) DEFAULT 0 COMMENT '累计消费（会员余额消费）',
     creator_id BIGINT,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted TINYINT NOT NULL DEFAULT 0,
     INDEX idx_customer_name (customer_name),
     INDEX idx_phone (phone),
-    INDEX idx_customer_type (customer_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户表（含普通客户+工厂客户）';
+    INDEX idx_customer_type (customer_type),
+    INDEX idx_is_member (is_member)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户表（含普通客户+工厂客户+会员）';
 
 -- 2.2 客户标签表
 CREATE TABLE IF NOT EXISTS customer_tag (
@@ -254,11 +266,12 @@ CREATE TABLE IF NOT EXISTS mem_member (
     INDEX idx_member_name (member_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会员表';
 
--- 3.2 会员流水表
+-- 3.2 会员流水表（统一关联 crm_customer.id）
 CREATE TABLE IF NOT EXISTS mem_member_transaction (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    member_id BIGINT NOT NULL,
-    type VARCHAR(20) NOT NULL COMMENT '类型：recharge充值 consume消费',
+    customer_id BIGINT NOT NULL COMMENT '客户ID（关联 crm_customer.id）',
+    member_id BIGINT COMMENT '旧会员ID（迁移兼容，新记录不再使用）',
+    type VARCHAR(20) NOT NULL COMMENT '类型：recharge充值 consume消费 refund退款',
     amount DECIMAL(15,2) NOT NULL COMMENT '金额（正数）',
     balance_before DECIMAL(15,2) COMMENT '变动前余额',
     balance_after DECIMAL(15,2) COMMENT '变动后余额',
@@ -267,6 +280,7 @@ CREATE TABLE IF NOT EXISTS mem_member_transaction (
     creator_id BIGINT,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_customer_id (customer_id),
     INDEX idx_member_id (member_id),
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会员流水表';
@@ -287,9 +301,12 @@ CREATE TABLE IF NOT EXISTS ord_order (
     description TEXT COMMENT '订单描述',
     order_type TINYINT DEFAULT 1 COMMENT '类型：1印刷 2广告 3设计',
     total_amount DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT '订单总额',
+    total_cost DECIMAL(15,2) DEFAULT 0 COMMENT '订单总成本',
+    designer_commission DECIMAL(15,2) DEFAULT 0 COMMENT '设计师提成',
     paid_amount DECIMAL(15,2) DEFAULT 0 COMMENT '已付金额',
     discount_amount DECIMAL(15,2) DEFAULT 0 COMMENT '优惠金额',
     rounding_amount DECIMAL(15,2) DEFAULT 0 COMMENT '抹零金额',
+    member_deduct_amount DECIMAL(15,2) DEFAULT 0 COMMENT '会员余额抵扣金额（取消订单时据此退回）',
     status TINYINT DEFAULT 1 COMMENT '状态：1待确认 2进行中 3已完成 4已取消',
     payment_status TINYINT DEFAULT 1 COMMENT '支付：1未付 2部分付 3已付清 4已抹零结清',
     contact_person VARCHAR(100) COMMENT '联系人',
@@ -326,6 +343,7 @@ CREATE TABLE IF NOT EXISTS ord_order_material (
     quantity DECIMAL(10,2) DEFAULT 1 COMMENT '数量',
     unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '单价',
     amount DECIMAL(15,2) DEFAULT 0 COMMENT '小计金额',
+    unit_cost DECIMAL(15,2) DEFAULT 0 COMMENT '单位成本',
     remark VARCHAR(500) COMMENT '备注',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted TINYINT NOT NULL DEFAULT 0,
@@ -413,7 +431,7 @@ CREATE TABLE IF NOT EXISTS fac_factory_salesman (
 
 
 -- =========================================================
--- 6. 财务管理模块（3 张表）
+-- 6. 财务管理模块（5 张表）
 -- =========================================================
 
 -- 6.1 财务流水表
@@ -435,7 +453,26 @@ CREATE TABLE IF NOT EXISTS fin_record (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务流水表';
 
--- 6.2 报价记录表
+-- 6.2 财务流水物料明细表（快速记账关联物料出库）
+CREATE TABLE IF NOT EXISTS fin_record_item (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    record_id       BIGINT NOT NULL COMMENT '关联流水ID',
+    material_id     BIGINT NOT NULL COMMENT '物料ID',
+    material_name   VARCHAR(200) NOT NULL COMMENT '物料名称',
+    pricing_type    TINYINT DEFAULT 0 COMMENT '计价方式：0按数量 1按面积',
+    quantity        INT DEFAULT 0 COMMENT '数量（按数量计价时使用）',
+    width           DECIMAL(12,2) DEFAULT NULL COMMENT '宽度（按面积计价时使用）',
+    height          DECIMAL(12,2) DEFAULT NULL COMMENT '高度（按面积计价时使用）',
+    area            DECIMAL(12,2) DEFAULT NULL COMMENT '面积（宽×高）',
+    unit_price      DECIMAL(15,2) NOT NULL COMMENT '单价',
+    total_price     DECIMAL(15,2) NOT NULL COMMENT '小计金额（向上取整）',
+    create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted         TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_record_id (record_id),
+    INDEX idx_material_id (material_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务流水物料明细表';
+
+-- 6.3 报价记录表
 CREATE TABLE IF NOT EXISTS fin_quote (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     quote_no VARCHAR(50) NOT NULL COMMENT '报价编号',
@@ -461,7 +498,7 @@ CREATE TABLE IF NOT EXISTS fin_quote (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报价记录表';
 
--- 6.3 发票记录表
+-- 6.4 发票记录表
 CREATE TABLE IF NOT EXISTS fin_invoice (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     invoice_no VARCHAR(50) NOT NULL COMMENT '发票编号',
@@ -482,7 +519,7 @@ CREATE TABLE IF NOT EXISTS fin_invoice (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='发票记录表';
 
--- 6.4 设计师提成表
+-- 6.5 设计师提成表
 CREATE TABLE IF NOT EXISTS fin_designer_commission (
     id               BIGINT PRIMARY KEY AUTO_INCREMENT,
     order_id         BIGINT COMMENT '关联订单ID',
@@ -539,6 +576,7 @@ CREATE TABLE IF NOT EXISTS mat_material (
     price           DECIMAL(15,2) COMMENT '零售价',
     cost_price      DECIMAL(15,2) COMMENT '成本价',
     factory_price   DECIMAL(15,2) COMMENT '工厂价',
+    pricing_type    TINYINT DEFAULT 0 COMMENT '计价方式：0按数量 1按面积',
     stock_quantity  INT DEFAULT 0 COMMENT '库存数量',
     warning_quantity INT DEFAULT 10 COMMENT '预警库存',
     min_quantity    INT DEFAULT 5 COMMENT '最小库存',
@@ -814,6 +852,7 @@ INSERT INTO sys_role (role_name, role_code, description, sort, status) VALUES
 INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
 INSERT INTO sys_user_role (user_id, role_id) VALUES (2, 3);
 INSERT INTO sys_user_role (user_id, role_id) VALUES (3, 4);
+INSERT INTO sys_user_role (user_id, role_id) VALUES (3, 5);
 
 -- ------------------- 12.4.1 按钮资源初始数据 -------------------
 INSERT INTO sys_button (name, permission, type, parent_id, sort, status) VALUES
@@ -940,7 +979,7 @@ SELECT 4, id FROM sys_permission WHERE deleted = 0 AND (
 
 -- ------------------- 12.6 零售客户（系统默认客户，用于门店零散订单） -------------------
 INSERT INTO crm_customer (customer_name, contact_person, phone, industry, customer_type, total_amount, order_count, level, status) VALUES
-('零售客户', NULL, NULL, '零售', 1, 0.00, 0, 1, 1);
+('零售客户', NULL, NULL, '零售', 3, 0.00, 0, 1, 1);
 
 
 -- ------------------- 12.7 客户等级初始数据 -------------------

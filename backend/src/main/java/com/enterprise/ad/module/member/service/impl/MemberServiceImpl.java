@@ -28,6 +28,7 @@ public class MemberServiceImpl implements MemberService {
     @Override
     @Transactional
     public void recharge(Long memberId, BigDecimal amount, String remark) {
+        // ★ 修复 P0-3: 参数校验和空值处理
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(400, "充值金额必须大于0");
         }
@@ -37,14 +38,20 @@ public class MemberServiceImpl implements MemberService {
             throw new BusinessException("会员不存在");
         }
 
-        BigDecimal before = member.getBalance();
-        BigDecimal after = before.add(amount);
+        // 记录充值前的余额（原子操作前读取）
+        BigDecimal before = member.getBalance() != null ? member.getBalance() : BigDecimal.ZERO;
 
-        member.setBalance(after);
-        member.setTotalRecharge(member.getTotalRecharge().add(amount));
-        member.setUpdateTime(LocalDateTime.now());
-        memberMapper.updateById(member);
+        // ★ 修复 P0-3: 使用数据库原子操作（复用电 Mapper 已有的 addBalance 方法）
+        int rows = memberMapper.addBalance(memberId, amount);
+        if (rows == 0) {
+            throw new BusinessException("会员不存在或已删除");
+        }
 
+        // 读取充值后的余额
+        Member updated = memberMapper.selectById(memberId);
+        BigDecimal after = updated != null && updated.getBalance() != null ? updated.getBalance() : BigDecimal.ZERO;
+
+        // 记录流水
         MemberTransaction tx = new MemberTransaction();
         tx.setMemberId(memberId);
         tx.setType("recharge");

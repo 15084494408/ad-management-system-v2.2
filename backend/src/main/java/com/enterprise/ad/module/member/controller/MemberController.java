@@ -10,6 +10,8 @@ import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
 import com.enterprise.ad.module.member.mapper.MemberTransactionMapper;
+import com.enterprise.ad.module.order.entity.Order;
+import com.enterprise.ad.module.order.mapper.OrderMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMin;
@@ -35,6 +37,7 @@ public class MemberController {
 
     private final MemberMapper memberMapper;
     private final MemberTransactionMapper transactionMapper;
+    private final OrderMapper orderMapper;
 
     @GetMapping
     @Operation(summary = "会员列表（分页）")
@@ -60,13 +63,52 @@ public class MemberController {
         // 填充虚拟字段
         result.getRecords().forEach(m -> {
             m.setContact(m.getContactPerson());
-            m.setOrderCount(0); // 后续可关联订单表查询
+            m.setOrderCount(orderMapper.selectCount(
+                new LambdaQueryWrapper<Order>()
+                    .eq(Order::getMemberId, m.getId())
+                    .ne(Order::getStatus, 4)
+                    .eq(Order::getDeleted, 0)
+            ));
         });
 
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
     }
 
     // ===== 固定路径端点（必须放在 /{id} 之前，避免路径冲突） =====
+
+    @GetMapping("/match")
+    @Operation(summary = "根据手机号匹配会员（订单创建时自动关联）")
+    @PreAuthorize("hasAuthority('member:list')")
+    public Result<Member> matchByPhone(@RequestParam String phone) {
+        if (phone == null || phone.isBlank()) {
+            return Result.ok(null);
+        }
+        Member member = memberMapper.selectOne(
+            new LambdaQueryWrapper<Member>()
+                .eq(Member::getPhone, phone.trim())
+                .eq(Member::getStatus, 1)
+                .eq(Member::getDeleted, 0)
+                .last("LIMIT 1")
+        );
+        return Result.ok(member);
+    }
+
+    @GetMapping("/{id:[\\d]+}/orders")
+    @Operation(summary = "会员关联订单列表")
+    @PreAuthorize("hasAuthority('member:list')")
+    public Result<PageResult<Order>> getMemberOrders(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size) {
+        Page<Order> page = new Page<>(current, size);
+        LambdaQueryWrapper<Order> qw = new LambdaQueryWrapper<Order>()
+            .eq(Order::getMemberId, id)
+            .ne(Order::getStatus, 4)
+            .eq(Order::getDeleted, 0)
+            .orderByDesc(Order::getCreateTime);
+        Page<Order> result = orderMapper.selectPage(page, qw);
+        return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
+    }
 
     @GetMapping("/levels")
     @Operation(summary = "会员等级配置")
@@ -163,7 +205,12 @@ public class MemberController {
             throw new BusinessException("会员不存在");
         }
         member.setContact(member.getContactPerson());
-        member.setOrderCount(0);
+        member.setOrderCount(orderMapper.selectCount(
+            new LambdaQueryWrapper<Order>()
+                .eq(Order::getMemberId, id)
+                .ne(Order::getStatus, 4)
+                .eq(Order::getDeleted, 0)
+        ));
         return Result.ok(member);
     }
 

@@ -6,6 +6,8 @@ import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.finance.entity.DesignerCommission;
 import com.enterprise.ad.module.finance.mapper.DesignerCommissionMapper;
+import com.enterprise.ad.module.finance.entity.FinanceRecord;
+import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 public class DesignerCommissionController {
 
     private final DesignerCommissionMapper commissionMapper;
+    private final FinanceRecordMapper financeRecordMapper;
 
     @GetMapping
     @Operation(summary = "提成列表（分页+筛选）")
@@ -141,6 +144,7 @@ public class DesignerCommissionController {
     @PutMapping("/{id}/status")
     @Operation(summary = "更新提成状态（结算/打款）")
     @PreAuthorize("hasAuthority('finance:view')")
+    @org.springframework.transaction.annotation.Transactional
     public Result<Void> updateStatus(
             @PathVariable Long id,
             @RequestParam Integer status) {
@@ -148,6 +152,24 @@ public class DesignerCommissionController {
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("提成记录不存在");
         }
+
+        // 从非打款状态 → 已打款(status=3) 时，生成财务支出流水
+        if (existing.getStatus() < 3 && status == 3
+                && existing.getCommissionAmount() != null
+                && existing.getCommissionAmount().compareTo(BigDecimal.ZERO) > 0) {
+            FinanceRecord finRecord = new FinanceRecord();
+            finRecord.setRecordNo("DC" + System.currentTimeMillis());
+            finRecord.setType("expense");
+            finRecord.setCategory("设计师提成");
+            finRecord.setAmount(existing.getCommissionAmount());
+            finRecord.setRelatedId(existing.getDesignerId());
+            finRecord.setRelatedName(existing.getDesignerName());
+            finRecord.setRemark("提成打款 | 订单: " + existing.getOrderNo());
+            finRecord.setCreateTime(LocalDateTime.now());
+            finRecord.setDeleted(0);
+            financeRecordMapper.insert(finRecord);
+        }
+
         existing.setStatus(status);
         existing.setUpdateTime(LocalDateTime.now());
         if (status >= 2) {

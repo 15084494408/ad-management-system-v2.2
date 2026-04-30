@@ -151,11 +151,47 @@ async function loadData() {
   } catch {}
   try {
     const res = await request.get('/finance/arap/receivable', { params: searchForm.value })
-    receivableList.value = res.data?.records || res.data || []
+    const rawList = res.data?.records || res.data || []
+    // ★ 修复：后端返回 Order 实体，字段为 totalAmount/paidAmount，
+    // 需映射为前端使用的 receivedAmount/remainingAmount，并计算 status
+    receivableList.value = rawList.map((o: any) => {
+      const total = o.totalAmount || 0
+      const paid = o.paidAmount || 0
+      const rounding = o.roundingAmount || 0
+      const remaining = Math.max(total + rounding - paid, 0)
+      let status = 'pending'
+      if (paid <= 0) status = 'pending'
+      else if (paid >= total + rounding) status = 'completed'
+      else status = 'partial'
+      return {
+        ...o,
+        totalAmount: total,
+        receivedAmount: paid,
+        remainingAmount: remaining,
+        status
+      }
+    })
   } catch {}
   try {
     const res = await request.get('/finance/arap/payable', { params: searchForm.value })
-    payableList.value = res.data?.records || res.data || []
+    const rawList = res.data?.records || res.data || []
+    // ★ 修复：应付明细同理映射字段
+    payableList.value = rawList.map((b: any) => {
+      const total = b.totalAmount || 0
+      const paid = b.paidAmount || 0
+      const remaining = Math.max(total - paid, 0)
+      let status = 'pending'
+      if (paid <= 0) status = 'pending'
+      else if (paid >= total) status = 'completed'
+      else status = 'partial'
+      return {
+        ...b,
+        totalAmount: total,
+        paidAmount: paid,
+        remainingAmount: remaining,
+        status
+      }
+    })
   } catch {}
   loading.value = false
 }

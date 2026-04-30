@@ -45,12 +45,50 @@
         </div>
       </div>
 
-      <!-- 第二行：客户 + 设计师 -->
+      <!-- 第二行：客户 + 客户类型 + 设计师 -->
       <div class="form-row">
-        <div class="form-group" style="flex:2;">
+        <div class="form-group" style="flex:2; position:relative;">
           <label><span class="required">*</span> 客户</label>
-          <select v-model="form.customerId" class="form-control" @change="onCustomerChange">
-            <option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name || c.customerName }}</option>
+          <div style="display:flex;gap:6px;align-items:stretch;">
+            <div style="flex:1;position:relative;">
+              <input type="text" v-model="customerSearch" class="form-control"
+                placeholder="输入客户名称搜索或直接填写" autocomplete="off"
+                @input="onCustomerSearch" @focus="onCustomerSearch" @blur="hideCustomerDropdown" />
+              <!-- 模糊匹配下拉 -->
+              <div class="customer-dropdown" v-if="customerDropdownVisible && filteredCustomers.length > 0">
+                <div class="customer-dropdown-item retail-highlight" v-if="retailCustomer"
+                  @mousedown.prevent="selectRetailCustomer">
+                  <span class="cust-name">🏷️ {{ retailCustomer.customerName || retailCustomer.name }}</span>
+                  <span class="cust-type-tag ct3">公共客户</span>
+                  <span style="color:#909399;font-size:11px;">零散订单默认</span>
+                </div>
+                <div class="customer-dropdown-item" v-for="c in filteredCustomers" :key="c.id"
+                  @mousedown.prevent="onCustomerSelect(c)">
+                  <span class="cust-name">{{ c.customerName || c.name }}</span>
+                  <span class="cust-type-tag" :class="'ct' + (c.customerType || 1)">
+                    {{ c.customerType === 2 ? '工厂' : c.customerType === 3 ? '零售' : '普通' }}
+                  </span>
+                  <span class="cust-phone" v-if="c.phone">{{ c.phone }}</span>
+                </div>
+              </div>
+              <div class="customer-dropdown" v-if="customerDropdownVisible && customerSearch && filteredCustomers.length === 0 && !retailSelected">
+                <div class="customer-dropdown-empty">
+                  未找到匹配客户，将自动新建「{{ customerSearch }}」
+                </div>
+              </div>
+            </div>
+            <!-- 零售客户快捷按钮 -->
+            <button class="btn btn-retail-shortcut" @click="selectRetailCustomer"
+              :class="{ active: retailSelected }" title="零散订单无需登记客户时使用">
+              🏷️ 零售客户
+            </button>
+          </div>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>客户类型</label>
+          <select v-model="form.customerType" class="form-control">
+            <option :value="1">🛒 零售客户</option>
+            <option :value="2">🏭 工厂客户</option>
           </select>
         </div>
         <div class="form-group" style="flex:1;">
@@ -74,6 +112,20 @@
           <input type="text" v-model="form.contactPhone" class="form-control"
             placeholder="手机或座机" />
         </div>
+      </div>
+
+      <!-- 会员自动匹配提示 -->
+      <div v-if="memberInfo" class="member-match-bar">
+        <span class="mm-icon">🏷️</span>
+        <span class="mm-label">检测到会员：</span>
+        <strong>{{ memberInfo.customerName || memberInfo.memberName }}</strong>
+        <span class="mm-sep">|</span>
+        <span class="mm-level" :class="'mm-level-' + (memberInfo.memberLevel || memberInfo.level)">{{ levelLabelMap[memberInfo.memberLevel || memberInfo.level] || '普通' }}</span>
+        <span class="mm-sep">|</span>
+        <span>余额 <strong style="color:#e6a23c;">¥{{ formatMoney(memberInfo.balance) }}</strong></span>
+        <span class="mm-sep">|</span>
+        <span class="mm-auto">已自动关联，收款时优先扣余额</span>
+        <button class="mm-unlink" @click="unlinkMember" title="取消关联">✕</button>
       </div>
 
       <!-- 第四行：交付日期 + 优先级 -->
@@ -441,16 +493,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { orderApi } from '@/api/modules/order'
 import { materialApi } from '@/api/modules/material'
 import { customerApi } from '@/api/modules/customer'
+import { todoApi } from '@/api/modules/todo'
+import request from '@/api/request'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 // 成本列仅管理员/财务可见
@@ -481,6 +536,7 @@ const form = reactive({
   orderType: '',
   customerId: null as number | null,
   customerName: '',
+  customerType: 1 as number,                     // 客户类型：1=零售 2=工厂
   designerName: '',                          // 初始化时自动填入当前登录用户
   designerId: null as number | null,         // 设计师用户ID
   contactPerson: '',
@@ -492,9 +548,97 @@ const form = reactive({
   remark: '',
 })
 
+// ========== 客户模糊搜索 ==========
+const customerSearch = ref('')
+const customerDropdownVisible = ref(false)
+const filteredCustomers = computed(() => {
+  const kw = customerSearch.value.trim().toLowerCase()
+  if (!kw) return []
+  return customers.value.filter((c: any) => {
+    const name = (c.customerName || c.name || '').toLowerCase()
+    const phone = (c.phone || '').toLowerCase()
+    return name.includes(kw) || phone.includes(kw)
+  }).slice(0, 10)
+})
+
+function onCustomerSearch() {
+  customerDropdownVisible.value = true
+  retailSelected.value = false
+  // 输入时清空已有匹配
+  if (!customerSearch.value.trim()) {
+    form.customerId = null
+    form.customerName = ''
+  }
+}
+
+function hideCustomerDropdown() {
+  // 延迟隐藏以允许 click 事件触发
+  setTimeout(() => { customerDropdownVisible.value = false }, 200)
+}
+
+async function onCustomerSelect(c: any) {
+  customerSearch.value = c.customerName || c.name
+  form.customerId = c.id
+  form.customerName = c.customerName || c.name
+  form.customerType = c.customerType || 1
+  form.contactPerson = c.contactPerson || c.contact_person || ''
+  form.contactPhone = c.phone || ''
+  retailSelected.value = (c.customerType === 3)
+  customerDropdownVisible.value = false
+  // 自动匹配会员
+  if (form.contactPhone) {
+    await matchMember(form.contactPhone)
+  }
+}
+
+// ========== 会员自动匹配 ==========
+const memberInfo = ref<any>(null)
+const levelLabelMap: Record<string, string> = { normal: '普通', silver: '银卡', gold: '金卡', diamond: '钻石' }
+
+async function matchMember(phone: string) {
+  memberInfo.value = null
+  if (!phone || !phone.trim()) return
+  try {
+    const res: any = await customerApi.matchMemberByPhone(phone.trim())
+    if (res.data) {
+      memberInfo.value = res.data
+    }
+  } catch {
+    // 静默失败，不影响创建流程
+  }
+}
+
+function unlinkMember() {
+  memberInfo.value = null
+}
+
 // ========== 客户下拉 ==========
 const customers = ref<any[]>([])
 const designerList = ref<any[]>([])
+const retailCustomer = ref<any>(null)
+const retailSelected = ref(false)
+
+async function loadRetailCustomer() {
+  try {
+    const res: any = await customerApi.getRetailCustomer()
+    retailCustomer.value = res.data
+  } catch {
+    // 静默失败，零售客户为可选功能
+  }
+}
+
+function selectRetailCustomer() {
+  if (!retailCustomer.value) return
+  customerSearch.value = retailCustomer.value.customerName || retailCustomer.value.name
+  form.customerId = retailCustomer.value.id
+  form.customerName = retailCustomer.value.customerName || retailCustomer.value.name
+  form.customerType = 3 // TYPE_RETAIL
+  form.contactPerson = ''
+  form.contactPhone = ''
+  retailSelected.value = true
+  customerDropdownVisible.value = false
+  memberInfo.value = null // 零售客户不关联会员
+}
 
 async function loadCustomers() {
   try {
@@ -506,15 +650,7 @@ async function loadCustomers() {
   }
 }
 
-function onCustomerChange() {
-  const c = customers.value.find((cc: any) => cc.id === form.customerId)
-  if (c) {
-    form.customerName = c.name || c.customerName
-    // 自动填充联系人（后端返回字段可能是 contactPerson 或 contact_person）
-    form.contactPerson = c.contactPerson || c.contact_person || ''
-    form.contactPhone = c.phone || ''
-  }
-}
+// 客户选择/模糊匹配在上面的 ref 区域定义
 
 // ========== 设计师下拉 ==========
 async function loadDesigners() {
@@ -841,7 +977,6 @@ async function submitOrder() {
   // 基本验证
   if (!form.title.trim()) { ElMessage.warning('请输入订单标题'); return }
   if (!form.orderType) { ElMessage.warning('请选择订单类型'); return }
-  if (!form.customerId) { ElMessage.warning('请选择客户'); return }
   if (selectedMaterials.value.length === 0) { ElMessage.warning('请至少选择一件物料'); return }
 
   // 校验自定义物料的必填项
@@ -849,6 +984,33 @@ async function submitOrder() {
     if (s.isCustom && !s.materialName.trim()) {
       ElMessage.warning('自定义物料请填写物料名称')
       return
+    }
+  }
+
+  // 如果没有匹配到已有客户，优先使用零售客户
+  if (!form.customerId) {
+    if (retailCustomer.value) {
+      form.customerId = retailCustomer.value.id
+      form.customerName = retailCustomer.value.customerName || retailCustomer.value.name
+      form.customerType = 3
+      ElMessage.info('未选择客户，已自动使用「零售客户」')
+    } else {
+      // 兜底：自动新建
+      try {
+        const newCustomer = {
+          name: customerSearch.value.trim(),
+          customerType: form.customerType,
+          contactPerson: form.contactPerson || null,
+          phone: form.contactPhone || null,
+        }
+        const res: any = await customerApi.create(newCustomer)
+        form.customerId = res.data
+        form.customerName = customerSearch.value.trim()
+        ElMessage.success('已自动新建客户「' + form.customerName + '」')
+      } catch (e: any) {
+        ElMessage.error('自动创建客户失败：' + (e?.message || ''))
+        return
+      }
     }
   }
 
@@ -866,6 +1028,7 @@ async function submitOrder() {
       ...form,
       customerId: form.customerId,
       customerName: form.customerName,
+      memberId: memberInfo.value?.id || null,
       totalAmount: orderTotalAmount.value,
       creatorId: authStore.userInfo?.id,
       source: 1,
@@ -881,7 +1044,22 @@ async function submitOrder() {
       })),
     }
     const res: any = await orderApi.create(payload)
+    const newOrderId = res.data
     ElMessage.success(`✅ 订单创建成功！编号将自动生成`)
+
+    // ★ 从待办转订单成功后，更新待办状态为"已转订单"并回写订单ID
+    const todoId = route.query.todoId
+    if (todoId) {
+      try {
+        await todoApi.update(Number(todoId), {
+          status: 4,
+          orderId: newOrderId,
+        })
+      } catch {
+        // 静默失败，不影响订单创建成功的流程
+      }
+    }
+
     router.push({ name: 'Orders' })
   } catch (e: any) {
     ElMessage.error(e?.message || '创建失败，请检查输入后重试')
@@ -893,6 +1071,7 @@ async function submitOrder() {
 // ========== 初始化 ==========
 onMounted(async () => {
   await Promise.all([
+    loadRetailCustomer(),
     loadCustomers(),
     loadMaterialsAndCategories(),
     loadDesigners(),
@@ -907,10 +1086,86 @@ onMounted(async () => {
   const d = new Date()
   d.setDate(d.getDate() + 30)
   quoteValidUntil.value = d.toISOString().slice(0, 10)
+
+  // ★ 从待办工作台转入时，自动带入客户信息、尺寸和需求
+  if (route.query.fromTodo === '1') {
+    const todoCustomerName = route.query.customerName as string || ''
+    const todoPhone = route.query.contactPhone as string || ''
+    const todoRequirements = route.query.requirements as string || ''
+    const todoDimensions = route.query.dimensions as string || ''
+
+    // 尝试模糊匹配已有客户
+    if (todoCustomerName) {
+      customerSearch.value = todoCustomerName
+      const matched = customers.value.find((c: any) => {
+        const name = (c.customerName || c.name || '')
+        return name.includes(todoCustomerName) || todoCustomerName.includes(name)
+      })
+      if (matched) {
+        onCustomerSelect(matched)
+      } else {
+        // 未匹配到，预填搜索框，提交时会自动新建
+        form.customerName = todoCustomerName
+        if (todoPhone) form.contactPhone = todoPhone
+      }
+    }
+
+    // 将客户需求拼入备注（尺寸 + 需求）
+    const remarkParts: string[] = []
+    if (todoDimensions) remarkParts.push('量尺尺寸：' + todoDimensions)
+    if (todoRequirements) remarkParts.push('客户需求：' + todoRequirements)
+    if (remarkParts.length > 0) {
+      form.remark = remarkParts.join('\n')
+    }
+  }
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+/* ====== 会员匹配提示条 ====== */
+.member-match-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  margin: 0 0 14px;
+  background: linear-gradient(135deg, #f0f9eb, #e8f5e9);
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #2e7d32;
+  animation: fadeSlideIn .25s ease-out;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mm-icon { font-size: 16px; }
+.mm-label { font-weight: 500; }
+.mm-sep { color: #c8e6c9; margin: 0 2px; }
+.mm-level {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.mm-level-normal { background: #e0e0e0; color: #616161; }
+.mm-level-silver { background: #eceff1; color: #78909c; }
+.mm-level-gold { background: #fff8e1; color: #f9a825; }
+.mm-level-diamond { background: #e8eaf6; color: #3f51b5; }
+.mm-auto { color: #66bb6a; font-size: 12px; }
+.mm-unlink {
+  margin-left: auto;
+  width: 22px; height: 22px;
+  border: none; background: #ffcdd2; color: #c62828;
+  border-radius: 50%; cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.mm-unlink:hover { background: #c62828; color: #fff; }
+
 /* ====== 卡片样式 ====== */
 .order-info-card {
   margin-bottom: 20px;
@@ -1556,5 +1811,78 @@ textarea.form-control { resize: vertical; }
 .quote-actions .btn {
   padding: 10px 22px;
   font-size: 14px;
+}
+
+// 客户模糊搜索下拉
+.customer-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.customer-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+  &:hover { background: #ecf5ff; }
+  .cust-name { font-weight: 600; color: #303133; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-type-tag {
+    font-size: 11px; padding: 1px 6px; border-radius: 4px; font-weight: 500; flex-shrink: 0;
+    &.ct1 { background: #f0f9eb; color: #67c23a; }
+    &.ct2 { background: #ecf5ff; color: #409eff; }
+    &.ct3 { background: #fdf6ec; color: #e6a23c; border: 1px solid #faecd8; }
+  }
+  .cust-phone { color: #909399; font-size: 12px; flex-shrink: 0; }
+}
+.customer-dropdown-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+}
+
+// 零售客户快捷按钮
+.btn-retail-shortcut {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #e6a23c;
+  background: #fdf6ec;
+  color: #e6a23c;
+  white-space: nowrap;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.btn-retail-shortcut:hover,
+.btn-retail-shortcut.active {
+  background: #e6a23c;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(230,162,60,.35);
+}
+
+// 客户下拉中零售客户高亮行
+.retail-highlight {
+  background: linear-gradient(135deg, #fdf6ec, #fef9f0) !important;
+  border-bottom: 1px dashed #faecd8;
+  padding-bottom: 10px;
+  margin-bottom: 2px;
+}
+.retail-highlight:hover {
+  background: linear-gradient(135deg, #faecd8, #fdf6ec) !important;
 }
 </style>

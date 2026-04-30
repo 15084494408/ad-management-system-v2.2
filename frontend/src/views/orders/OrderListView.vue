@@ -19,13 +19,29 @@
     <!-- 状态流程 -->
     <div class="card">
       <div class="status-flow">
-        <div class="flow-step" v-for="(s, i) in statusFlow" :key="i">
-          <div class="flow-dot" :class="{ completed: i < activeStatusIdx, active: i === activeStatusIdx }">
-            {{ i < activeStatusIdx ? '✓' : i + 1 }}
+        <template v-for="(s, i) in statusFlow" :key="i">
+          <div class="flow-step" @click="query.status = String(s.value); query.current = 1; loadList()"
+               :class="{ clickable: true, current: query.status === String(s.value) }">
+            <div class="flow-dot" :class="{ completed: query.status && Number(query.status) > s.value, active: query.status === String(s.value) }">
+              {{ (query.status && Number(query.status) > s.value) ? '✓' : s.icon }}
+            </div>
+            <span class="flow-label" :class="{ active: query.status === String(s.value) || !query.status }">{{ s.label }}</span>
           </div>
-          <span class="flow-label" :class="{ active: i <= activeStatusIdx }">{{ s }}</span>
+          <div class="flow-line" v-if="i < statusFlow.length - 1"></div>
+        </template>
+        <div class="flow-divider"></div>
+        <div class="flow-step flow-step-cancel"
+             @click="query.status = '4'; query.current = 1; loadList()"
+             :class="{ current: query.status === '4' }">
+          <div class="flow-dot" :class="{ active: query.status === '4' }">{{ statusCancelled.icon }}</div>
+          <span class="flow-label" :class="{ active: query.status === '4' }">{{ statusCancelled.label }}</span>
         </div>
-        <div class="flow-line" v-for="i in statusFlow.length - 1" :key="'line-' + i"></div>
+        <div class="flow-divider"></div>
+        <div class="flow-step" @click="query.status = ''; query.current = 1; loadList()"
+             :class="{ clickable: true, current: !query.status }">
+          <div class="flow-dot flow-dot-all" :class="{ active: !query.status }">📊</div>
+          <span class="flow-label" :class="{ active: !query.status }">全部</span>
+        </div>
       </div>
     </div>
 
@@ -88,9 +104,9 @@
             <td>{{ formatTime(order.createTime) }}</td>
             <td class="action-btns">
               <button class="action-btn view" @click="openDetail(order)">查看</button>
-              <button class="action-btn edit" v-if="order.status !== 3 && order.status !== 4" @click="openProcess(order)">
-                {{ order.status === 1 ? '处理' : (order.status === 2 ? '确认交付' : '处理') }}
-              </button>
+              <button class="action-btn edit" v-if="order.status === 1" @click="openProcess(order)">处理</button>
+              <button class="action-btn delivery" v-if="order.status === 2" @click="openConfirmDelivery(order)">确认交付</button>
+              <button class="action-btn cancel" v-if="order.status === 1 || order.status === 2" @click="cancelOrder(order)">取消</button>
             </td>
           </tr>
           <tr v-if="!orderStore.list.length">
@@ -148,10 +164,9 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">设计师</label>
-              <select class="form-input" v-model="createForm.designerName">
-                <option value="">待分配</option>
-                <option>李明</option>
-                <option>王设计</option>
+              <select class="form-input" v-model="createForm.designerId" @change="onDesignerChangeCreate">
+                <option :value="null">待分配</option>
+                <option v-for="d in designerList" :key="d.id" :value="d.id">{{ d.realName || d.username }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -262,13 +277,21 @@
             <div style="margin-top:16px;">
               <div style="font-size:12px;color:#909399;margin-bottom:10px;">处理进度</div>
               <div class="status-flow" style="justify-content:flex-start;">
-                <div class="flow-step" v-for="(s, i) in statusFlow" :key="i">
-                  <div class="flow-dot" :class="{ completed: i < detailStatusIdx, active: i === detailStatusIdx }">
-                    {{ i < detailStatusIdx ? '✓' : i + 1 }}
+                <template v-for="(s, i) in statusFlow" :key="i">
+                  <div class="flow-step">
+                    <div class="flow-dot" :class="{ completed: i < detailStatusIdx, active: i === detailStatusIdx }">
+                      {{ i < detailStatusIdx ? '✓' : s.icon }}
+                    </div>
+                    <div class="flow-label" :class="{ active: i <= detailStatusIdx }">{{ s.label }}</div>
                   </div>
-                  <div class="flow-label" :class="{ active: i <= detailStatusIdx }">{{ s }}</div>
+                  <div class="flow-line" v-if="i < statusFlow.length - 1"></div>
+                </template>
+                <!-- 已取消状态（终止状态） -->
+                <div v-if="detailData?.status === 4" class="flow-divider"></div>
+                <div v-if="detailData?.status === 4" class="flow-step flow-step-cancel">
+                  <div class="flow-dot active">{{ statusCancelled.icon }}</div>
+                  <div class="flow-label active">{{ statusCancelled.label }}</div>
                 </div>
-                <div class="flow-line" v-for="i in statusFlow.length - 1" :key="'dline-' + i"></div>
               </div>
             </div>
           </div>
@@ -326,6 +349,7 @@
         <div class="modal-footer">
           <button v-if="detailData?.status === 1" class="btn btn-success" @click="openProcess(detailData)">⚡ 处理订单</button>
           <button v-if="detailData?.status === 2" class="btn btn-success" @click="openConfirmDelivery(detailData)">📦 确认交付</button>
+          <button v-if="detailData?.status === 1 || detailData?.status === 2" class="btn btn-danger" @click="cancelOrder(detailData)">❌ 取消订单</button>
           <button class="btn btn-default" @click="detailVisible = false">关闭</button>
         </div>
       </div>
@@ -347,10 +371,9 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">分配设计师 *</label>
-              <select class="form-input" v-model="processForm.designerName">
-                <option value="">请选择设计师</option>
-                <option>李明</option>
-                <option>王设计</option>
+              <select class="form-input" v-model="processForm.designerId" @change="onDesignerChangeProcess">
+                <option :value="null">请选择设计师</option>
+                <option v-for="d in designerList" :key="d.id" :value="d.id">{{ d.realName || d.username }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -535,6 +558,7 @@
 <script setup lang="ts">
 import { reactive, onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useOrderStore } from '@/stores/order'
 import { orderApi } from '@/api'
 import request from '@/api/request'
@@ -546,10 +570,15 @@ const loading = ref(false)
 const submitting = ref(false)
 
 // ===== 状态映射 =====
-const statusFlow = ['待确认', '进行中', '已完成', '已取消']
+const statusFlow = [
+  { label: '待确认', value: 1, icon: '📋' },
+  { label: '进行中', value: 2, icon: '⚙️' },
+  { label: '已完成', value: 3, icon: '✅' },
+]
+const statusCancelled = { label: '已取消', value: 4, icon: '❌' }
 const statusLabelMap: Record<number, string> = { 1: '待确认', 2: '进行中', 3: '已完成', 4: '已取消' }
 const statusKeyMap: Record<number, string> = { 1: 'pending', 2: 'designing', 3: 'completed', 4: 'cancelled' }
-const activeStatusIdx = ref(1) // 默认展示"进行中"
+const activeStatusIdx = ref(0) // 默认展示"待确认"（全部状态时）
 
 // ===== 搜索 =====
 const query = reactive({
@@ -583,6 +612,22 @@ function toggleSelectAll() { /* computed setter handles it */ }
 // ===== 客户列表（创建订单用） =====
 const customerList = ref<any[]>([])
 
+// ===== 设计师列表（创建订单/处理订单用，从数据库读取） =====
+const designerList = ref<any[]>([])
+
+async function loadDesigners() {
+  try {
+    const res: any = await request.get('/system/users/designer-list')
+    designerList.value = (res.data || []).map((u: any) => ({
+      id: u.id,
+      realName: u.realName || u.real_name,
+      username: u.username,
+    }))
+  } catch {
+    designerList.value = []
+  }
+}
+
 // ===== 弹窗控制 =====
 const createVisible = ref(false)
 const detailVisible = ref(false)
@@ -601,11 +646,17 @@ const createForm = reactive({
   title: '',
   orderType: 1,
   deliveryDate: '',
+  designerId: null as number | null,
   designerName: '',
   priority: 1,
   description: '',
   materials: [newMaterial()] as any[],
 })
+
+function onDesignerChangeCreate() {
+  const u = designerList.value.find((d: any) => d.id === createForm.designerId)
+  createForm.designerName = u ? (u.realName || u.username) : ''
+}
 
 function onCustomerChange() {
   const c = customerList.value.find((item: any) => item.id === createForm.customerId)
@@ -625,6 +676,7 @@ async function submitCreate() {
       title: createForm.title,
       orderType: createForm.orderType,
       deliveryDate: createForm.deliveryDate || null,
+      designerId: createForm.designerId || null,
       designerName: createForm.designerName || null,
       priority: createForm.priority,
       description: createForm.description,
@@ -663,11 +715,28 @@ async function openDetail(order: any) {
 
 // ===== 处理订单 =====
 const processData = ref<any>(null)
-const processForm = reactive({ designerName: '', deliveryDate: '', remark: '' })
+const processForm = reactive({ designerId: null as number | null, designerName: '', deliveryDate: '', remark: '' })
+
+function onDesignerChangeProcess() {
+  const u = designerList.value.find((d: any) => d.id === processForm.designerId)
+  processForm.designerName = u ? (u.realName || u.username) : ''
+}
 
 function openProcess(order: any) {
   processData.value = order
-  processForm.designerName = order.designerName || ''
+  // 如果订单已有设计师ID，优先用ID匹配；否则用名字反查
+  if (order.designerId) {
+    processForm.designerId = order.designerId
+    const u = designerList.value.find((d: any) => d.id === order.designerId)
+    processForm.designerName = u ? (u.realName || u.username) : (order.designerName || '')
+  } else if (order.designerName) {
+    const u = designerList.value.find((d: any) => (d.realName || d.username) === order.designerName)
+    processForm.designerId = u ? u.id : null
+    processForm.designerName = order.designerName
+  } else {
+    processForm.designerId = null
+    processForm.designerName = ''
+  }
   processForm.deliveryDate = order.deliveryDate || ''
   processForm.remark = ''
   detailVisible.value = false
@@ -675,14 +744,33 @@ function openProcess(order: any) {
 }
 
 async function submitProcess() {
-  if (!processForm.designerName) { alert('请选择设计师'); return }
+  if (!processForm.designerId) { alert('请选择设计师'); return }
   await orderApi.update(processData.value.id, {
     status: 2,
+    designerId: processForm.designerId,
     designerName: processForm.designerName,
     deliveryDate: processForm.deliveryDate || null,
   })
   processVisible.value = false
   loadList()
+}
+
+// ===== 取消订单 =====
+async function cancelOrder(order: any) {
+  if (!order || !order.id) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要取消订单 ${order.orderNo || order.id} 吗？取消后订单将标记为"已取消"，此操作不可撤销。`,
+      '取消订单',
+      { confirmButtonText: '确认取消', cancelButtonText: '再想想', type: 'warning' }
+    )
+    await orderApi.updateStatus(order.id, 4)
+    detailVisible.value = false
+    loadList()
+    ElMessage.success('订单已取消')
+  } catch {
+    // 用户取消或操作失败
+  }
 }
 
 // ===== 确认交付 =====
@@ -819,6 +907,7 @@ async function loadList() {
 
 onMounted(() => {
   loadList()
+  loadDesigners()
   // 加载客户列表供创建订单选择
   request.get('/customers', { params: { current: 1, size: 200 } })
     .then((res: any) => { customerList.value = res.data?.records || res.data || [] })
@@ -831,28 +920,47 @@ onMounted(() => {
 
 // 状态流程
 .status-flow {
-  display: flex; align-items: center; gap: 0; padding: 20px;
+  display: flex; align-items: flex-start; gap: 0; padding: 20px;
   flex-wrap: wrap;
 }
 .flow-step {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: default; user-select: none;
+  &.clickable { cursor: pointer; }
+  &.clickable:hover .flow-dot { transform: scale(1.1); }
+  &.current .flow-dot { box-shadow: 0 0 0 3px rgba(64,158,255,0.25); }
 }
 .flow-dot {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 40px; height: 40px; border-radius: 50%;
   background: #e4e7ed; color: #909399;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 600;
-  &.active { background: #409eff; color: #fff; }
+  font-size: 18px; font-weight: 600;
+  transition: all 0.25s;
+  &.active { background: #409eff; color: #fff; box-shadow: 0 2px 8px rgba(64,158,255,0.35); }
   &.completed { background: #67c23a; color: #fff; }
+  &.flow-dot-all { font-size: 20px; }
 }
 .flow-label {
-  font-size: 12px; color: #909399;
+  font-size: 12px; color: #909399; white-space: nowrap; padding: 0 4px;
   &.active { color: #409eff; font-weight: 600; }
 }
+.flow-step-cancel {
+  .flow-dot.active { background: #f56c6c; color: #fff; box-shadow: 0 2px 8px rgba(245,108,108,0.35); }
+  .flow-label.active { color: #f56c6c; }
+}
 .flow-line {
-  width: 60px; height: 2px; background: #e4e7ed; margin: 0 10px;
-  align-self: flex-start;
-  margin-top: 18px;
+  width: 50px; height: 2px; background: #e4e7ed; margin: 0 6px;
+  align-self: flex-start; margin-top: 19px;
+}
+.flow-divider {
+  width: 2px; height: 40px; background: #e4e7ed; margin: 0 12px;
+  align-self: flex-start; border-radius: 1px;
+}
+
+// 操作按钮补全
+.action-btn {
+  &.cancel { background: #fef0f0; color: #f56c6c; }
+  &.delivery { background: #f0f9eb; color: #67c23a; }
 }
 
 // 弹窗

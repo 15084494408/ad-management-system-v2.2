@@ -42,9 +42,10 @@
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="realName" label="真实姓名" width="110" />
         <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="roles" label="角色" min-width="150">
+        <el-table-column prop="roleIds" label="角色" min-width="150">
           <template #default="{ row }">
-            <el-tag v-for="r in (row.roles || [])" :key="r" size="small" type="primary" style="margin-right:4px;">{{ getRoleName(r) }}</el-tag>
+            <el-tag v-for="r in (row.roleIds || [])" :key="r" size="small" type="primary" style="margin-right:4px;">{{ getRoleName(r) }}</el-tag>
+            <span v-if="!row.roleIds || row.roleIds.length === 0" style="color:#c0c4cc;font-size:12px;">未分配</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
@@ -216,7 +217,7 @@ function exportData() {
     header: ['用户ID', '用户名', '真实姓名', '手机号', '角色', '状态', '最后登录'],
     data: tableData.value.map(row => [
       row.id, row.username, row.realName || '-', row.phone || '-',
-      (row.roles || []).map((r: any) => roleMap.value[Number(r)] || `角色${r}`).join(', '),
+      (row.roleIds || []).map((r: any) => roleMap.value[Number(r)] || `角色${r}`).join(', '),
       row.status === 1 ? '正常' : '禁用',
       (row.lastLoginTime || '').toString().slice(0, 16),
     ]),

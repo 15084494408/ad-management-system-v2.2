@@ -13,6 +13,8 @@ import com.enterprise.ad.module.material.entity.StockLog;
 import com.enterprise.ad.module.material.mapper.MaterialCategoryMapper;
 import com.enterprise.ad.module.material.mapper.MaterialMapper;
 import com.enterprise.ad.module.material.mapper.StockLogMapper;
+import com.enterprise.ad.module.finance.entity.FinanceRecord;
+import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,6 +40,7 @@ public class MaterialController {
     private final MaterialMapper materialMapper;
     private final MaterialCategoryMapper categoryMapper;
     private final StockLogMapper stockLogMapper;
+    private final FinanceRecordMapper financeRecordMapper;
 
     // ========== 物料分类 ==========
 
@@ -203,6 +206,22 @@ public class MaterialController {
         material.setStockQuantity(material.getStockQuantity() + quantity);
         material.setUpdateTime(LocalDateTime.now());
         materialMapper.updateById(material);
+
+        // 同步生成财务支出流水（采购入库 = 资金支出）
+        BigDecimal totalPrice = log.getTotalPrice();
+        if (totalPrice != null && totalPrice.compareTo(BigDecimal.ZERO) > 0) {
+            FinanceRecord finRecord = new FinanceRecord();
+            finRecord.setRecordNo("MAT" + System.currentTimeMillis());
+            finRecord.setType("expense");
+            finRecord.setCategory("物料采购");
+            finRecord.setAmount(totalPrice);
+            finRecord.setRelatedId(materialId);
+            finRecord.setRelatedName(material.getName());
+            finRecord.setRemark("入库 " + quantity + " 件，单价 " + material.getPrice());
+            finRecord.setCreateTime(LocalDateTime.now());
+            finRecord.setDeleted(0);
+            financeRecordMapper.insert(finRecord);
+        }
 
         // ★ 纸张分组：同步同组其他物料的库存（同一纸张类型+材质共享库存）
         syncPaperGroupStock(material, material.getStockQuantity());

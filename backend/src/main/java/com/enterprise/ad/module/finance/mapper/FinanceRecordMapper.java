@@ -22,8 +22,8 @@ public interface FinanceRecordMapper extends BaseMapper<FinanceRecord> {
     BigDecimal sumExpenseByRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
-     * 统一流水查询：聚合 fin_record(快速记账) + mem_member_transaction(会员充值/消费)
-     *               + ord_order(订单收款) + fac_factory_bill(工厂付款)
+     * 统一流水查询：聚合 fin_record(快速记账+订单收款) + mem_member_transaction(会员充值/消费)
+     *               + fac_factory_bill(工厂付款) + sq_income(设计广场收入)
      * 返回统一结构: source, recordNo, direction(income/expense), amount, category,
      *               relatedName, paymentMethod, remark, createTime
      */
@@ -101,42 +101,18 @@ public interface FinanceRecordMapper extends BaseMapper<FinanceRecord> {
 
             "  UNION ALL " +
 
-            "  -- 4. 订单收款 ord_order" +
-            "  SELECT " +
-            "    'order_income' AS source, " +
-            "    order_no AS record_no, " +
-            "    'income' AS direction, " +
-            "    total_amount AS amount, " +
-            "    CONCAT('订单-', order_type) AS category, " +
-            "    IFNULL(customer_name, '') AS related_name, " +
-            "    '' AS payment_method, " +
-            "    CONCAT('订单: ', title) AS remark, " +
-            "    create_time" +
-            "  FROM ord_order WHERE deleted = 0 AND status IN (2, 3) " +
-            "  <if test='startDate != null'>" +
-            "    AND create_time &gt;= #{startDate}" +
-            "  </if>" +
-            "  <if test='endDate != null'>" +
-            "    AND create_time &lt;= #{endDate}" +
-            "  </if>" +
-            "  <if test='direction != null and direction == \"income\"'>" +
-            "    AND 1=1 " +
-            "  </if>" +
-
-            "  UNION ALL " +
-
-            "  -- 5. 工厂付款 fac_factory_bill" +
+            "  -- 4. 工厂付款 fac_factory_bill（仅展示已结清/部分付款的账单）" +
             "  SELECT " +
             "    'factory_bill' AS source, " +
             "    bill_no AS record_no, " +
             "    'expense' AS direction, " +
-            "    total_amount AS amount, " +
+            "    IFNULL(paid_amount, 0) AS amount, " +
             "    '工厂账单' AS category, " +
             "    IFNULL(factory_name, '') AS related_name, " +
             "    '' AS payment_method, " +
             "    CONCAT('月份: ', month) AS remark, " +
             "    create_time" +
-            "  FROM fac_factory_bill WHERE deleted = 0 " +
+            "  FROM fac_factory_bill WHERE deleted = 0 AND IFNULL(paid_amount, 0) > 0 " +
             "  <if test='startDate != null'>" +
             "    AND create_time &gt;= #{startDate}" +
             "  </if>" +
@@ -144,6 +120,31 @@ public interface FinanceRecordMapper extends BaseMapper<FinanceRecord> {
             "    AND create_time &lt;= #{endDate}" +
             "  </if>" +
             "  <if test='direction != null and direction == \"expense\"'>" +
+            "    AND 1=1 " +
+            "  </if>" +
+
+            "  UNION ALL " +
+
+            "  -- 5. 设计广场收入 sq_income（已结算）" +
+            "  SELECT " +
+            "    'square_income' AS source, " +
+            "    CONCAT('SQ', id) AS record_no, " +
+            "    'income' AS direction, " +
+            "    IFNULL(quoted_price, 0) - IFNULL(actual_income, 0) AS amount, " +
+            "    '设计广场收入' AS category, " +
+            "    IFNULL(designer_name, '') AS related_name, " +
+            "    '' AS payment_method, " +
+            "    CONCAT('需求: ', IFNULL(title, '')) AS remark, " +
+            "    create_time" +
+            "  FROM sq_income WHERE deleted = 0 AND status = 2 " +
+            "    AND IFNULL(quoted_price, 0) - IFNULL(actual_income, 0) > 0 " +
+            "  <if test='startDate != null'>" +
+            "    AND create_time &gt;= #{startDate}" +
+            "  </if>" +
+            "  <if test='endDate != null'>" +
+            "    AND create_time &lt;= #{endDate}" +
+            "  </if>" +
+            "  <if test='direction != null and direction == \"income\"'>" +
             "    AND 1=1 " +
             "  </if>" +
 
@@ -178,15 +179,15 @@ public interface FinanceRecordMapper extends BaseMapper<FinanceRecord> {
             "  <if test='endDate != null'>AND create_time &lt;= #{endDate}</if>" +
             "  <if test='direction != null and direction == \"expense\"'>AND 1=1</if>" +
             "  UNION ALL " +
-            "  SELECT id FROM ord_order WHERE deleted = 0 AND status IN (2, 3) " +
-            "  <if test='startDate != null'>AND create_time &gt;= #{startDate}</if>" +
-            "  <if test='endDate != null'>AND create_time &lt;= #{endDate}</if>" +
-            "  <if test='direction != null and direction == \"income\"'>AND 1=1</if>" +
-            "  UNION ALL " +
-            "  SELECT id FROM fac_factory_bill WHERE deleted = 0 " +
+            "  SELECT id FROM fac_factory_bill WHERE deleted = 0 AND IFNULL(paid_amount, 0) > 0 " +
             "  <if test='startDate != null'>AND create_time &gt;= #{startDate}</if>" +
             "  <if test='endDate != null'>AND create_time &lt;= #{endDate}</if>" +
             "  <if test='direction != null and direction == \"expense\"'>AND 1=1</if>" +
+            "  UNION ALL " +
+            "  SELECT id FROM sq_income WHERE deleted = 0 AND status = 2 AND IFNULL(quoted_price, 0) - IFNULL(actual_income, 0) > 0 " +
+            "  <if test='startDate != null'>AND create_time &gt;= #{startDate}</if>" +
+            "  <if test='endDate != null'>AND create_time &lt;= #{endDate}</if>" +
+            "  <if test='direction != null and direction == \"income\"'>AND 1=1</if>" +
             ") all_count" +
             "</script>")
     long countAllFlow(

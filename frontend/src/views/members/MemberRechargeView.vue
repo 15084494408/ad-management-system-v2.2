@@ -86,7 +86,7 @@
           </tr>
           <tr v-for="r in list" :key="r.id">
             <td style="color:#c0c4cc;font-size:12px;font-variant-numeric:tabular-nums;">#{{ r.transactionNo || r.id }}</td>
-            <td style="font-weight:500;">{{ r.memberName || '会员ID:' + r.memberId }}</td>
+            <td style="font-weight:500;">{{ r.name || r.memberName || '会员ID:' + r.memberId }}</td>
             <td style="font-weight:600;color:#409eff;font-variant-numeric:tabular-nums;">¥{{ formatMoney(r.amount) }}</td>
             <td style="color:#909399;font-variant-numeric:tabular-nums;">¥{{ formatMoney(r.balanceBefore) }}</td>
             <td style="font-weight:700;color:#67c23a;font-variant-numeric:tabular-nums;">¥{{ formatMoney(r.balanceAfter) }}</td>
@@ -140,7 +140,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { memberApi } from '@/api'
+import { customerApi } from '@/api/modules/customer'
 import { exportToExcel } from '@/utils/excelExport'
 
 const list = ref<any[]>([])
@@ -190,7 +190,7 @@ async function submitRecharge() {
   if (!rechargeForm.amount || rechargeForm.amount <= 0) { ElMessage.warning('请输入有效的充值金额！'); return }
   try {
     const remark = rechargeForm.remark || `充值（${rechargeForm.method}）`
-    await memberApi.recharge(rechargeForm.memberId, { amount: rechargeForm.amount, remark })
+    await customerApi.recharge(rechargeForm.memberId, { amount: rechargeForm.amount, remark })
     ElMessage.success(`充值成功！到账金额 ¥${totalAmount.value}`)
     rechargeVisible.value = false
     load()
@@ -220,7 +220,7 @@ async function load() {
     if (searchForm.keyword) params.keyword = searchForm.keyword
     if (searchForm.startDate) params.startDate = searchForm.startDate
     if (searchForm.endDate) params.endDate = searchForm.endDate
-    const r = await memberApi.getRechargeRecords(params)
+    const r = await customerApi.getRechargeRecords(params)
     list.value = r.data?.records || r.data?.list || []
     total.value = r.data?.total || list.value.length
     stats.monthCount = total.value
@@ -232,7 +232,7 @@ async function load() {
 }
 
 async function loadMembers() {
-  try { const r = await memberApi.getList({ size: 999 }); memberList.value = r.data?.records || r.data?.list || [] } catch { memberList.value = [] }
+  try { const r = await customerApi.getMemberList({ size: 999 }); memberList.value = (r.data?.records || r.data?.list || []).map((m: any) => ({ ...m, memberName: m.name || m.customerName || m.memberName })) } catch { memberList.value = [] }
 }
 
 onMounted(() => { loadMembers(); load() })
