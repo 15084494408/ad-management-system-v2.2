@@ -53,6 +53,7 @@ public class MemberServiceImpl implements MemberService {
 
         // 记录流水
         MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(memberId);
         tx.setMemberId(memberId);
         tx.setType("recharge");
         tx.setAmount(amount);
@@ -88,6 +89,7 @@ public class MemberServiceImpl implements MemberService {
         BigDecimal after = updated != null && updated.getBalance() != null ? updated.getBalance() : BigDecimal.ZERO;
 
         MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(memberId);
         tx.setMemberId(memberId);
         tx.setType("consume");
         tx.setAmount(amount);

@@ -118,6 +118,7 @@ public class OrderController {
                 .and(w -> w
                     .eq(Order::getPaymentStatus, 1)  // 未付
                     .or().eq(Order::getPaymentStatus, 2)  // 部分付
+                    .or().isNull(Order::getPaymentStatus)  // 未设置也视为未付
                 )
                 .orderByAsc(Order::getPaymentStatus)  // 未付排前面
                 .orderByDesc(Order::getCreateTime)
@@ -368,6 +369,7 @@ public class OrderController {
         if (dto.getDeliveryAddress() != null) update.setDeliveryAddress(dto.getDeliveryAddress());
         if (dto.getDeliveryDate() != null) update.setDeliveryDate(dto.getDeliveryDate());
         if (dto.getDesignerId() != null) update.setDesignerId(dto.getDesignerId());
+        if (dto.getDesignerCommission() != null) update.setDesignerCommission(dto.getDesignerCommission());
         if (dto.getPriority() != null) update.setPriority(dto.getPriority());
         if (dto.getStatus() != null) update.setStatus(dto.getStatus());
         if (dto.getQuoteAmount() != null) update.setQuoteAmount(dto.getQuoteAmount());
@@ -475,9 +477,27 @@ public class OrderController {
         Order order = new Order();
         order.setId(id);
         order.setStatus(status);
-        // 状态改为已完成(3)时，同步支付状态为已付清(3)
+        // 状态改为已完成(3)时，校验必须先收齐款项
         if (status == 3) {
-            order.setPaymentStatus(3);
+            if (existing.getPaymentStatus() != null && existing.getPaymentStatus() >= 3) {
+                // 已付清或已抹零结清，正常完成
+                order.setPaymentStatus(existing.getPaymentStatus());
+            } else {
+                // 计算是否还有未收金额
+                BigDecimal unpaid = BigDecimal.ZERO;
+                if (existing.getTotalAmount() != null) {
+                    unpaid = existing.getTotalAmount()
+                        .subtract(existing.getPaidAmount() != null ? existing.getPaidAmount() : BigDecimal.ZERO)
+                        .subtract(existing.getRoundingAmount() != null ? existing.getRoundingAmount() : BigDecimal.ZERO)
+                        .subtract(existing.getDiscountAmount() != null ? existing.getDiscountAmount() : BigDecimal.ZERO)
+                        .max(BigDecimal.ZERO);
+                }
+                if (unpaid.compareTo(BigDecimal.ZERO) > 0) {
+                    return Result.fail(400, "订单尚有 ¥" + unpaid + " 未收齐，请先完成收款");
+                }
+                // 金额已收齐但支付状态未更新，自动设为已付清
+                order.setPaymentStatus(3);
+            }
         }
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
@@ -641,6 +661,7 @@ public class OrderController {
             ? updated.getBalance() : BigDecimal.ZERO;
 
         MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(memberId);
         tx.setMemberId(memberId);
         tx.setType(txType);
         tx.setAmount(deductAmount);

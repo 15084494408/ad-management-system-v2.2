@@ -596,17 +596,7 @@ const detailStatusIdx = computed(() => {
 })
 
 async function openDetail(order: any) {
-  detailTab.value = 'basic'
-  try {
-    const res = await orderApi.getDetail(order.id)
-    const d = res.data
-    detailData.value = d?.order || order
-    detailMaterials.value = d?.materials || []
-  } catch {
-    detailData.value = order
-    detailMaterials.value = []
-  }
-  detailVisible.value = true
+  router.push(`/orders/${order.id}`)
 }
 
 // ===== 处理订单 =====
@@ -619,24 +609,7 @@ function onDesignerChangeProcess() {
 }
 
 function openProcess(order: any) {
-  processData.value = order
-  // 如果订单已有设计师ID，优先用ID匹配；否则用名字反查
-  if (order.designerId) {
-    processForm.designerId = order.designerId
-    const u = designerList.value.find((d: any) => d.id === order.designerId)
-    processForm.designerName = u ? (u.realName || u.username) : (order.designerName || '')
-  } else if (order.designerName) {
-    const u = designerList.value.find((d: any) => (d.realName || d.username) === order.designerName)
-    processForm.designerId = u ? u.id : null
-    processForm.designerName = order.designerName
-  } else {
-    processForm.designerId = null
-    processForm.designerName = ''
-  }
-  processForm.deliveryDate = order.deliveryDate || ''
-  processForm.remark = ''
-  detailVisible.value = false
-  processVisible.value = true
+  router.push(`/orders/${order.id}`)
 }
 
 async function submitProcess() {

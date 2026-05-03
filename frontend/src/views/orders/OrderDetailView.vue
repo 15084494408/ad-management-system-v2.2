@@ -18,11 +18,16 @@
           <span class="status-tag" :class="'status-' + statusKeyMap[detailData.status]">
             {{ statusLabelMap[detailData.status] }}
           </span>
+          <!-- ⭐ 未收款醒目提示 -->
+          <span v-if="unpaidAmount > 0" class="status-tag status-unpaid-warn">
+            ⚠️ 未收款 ¥{{ formatMoney(unpaidAmount) }}
+          </span>
         </div>
         <div class="dh-actions">
           <button class="btn btn-default" @click="router.push('/orders')">← 返回列表</button>
           <button class="btn btn-success" v-if="detailData.status === 1" @click="processVisible = true">⚡ 处理订单</button>
-          <button class="btn btn-success" v-if="detailData.status === 2" @click="confirmDelivery">📦 确认交付</button>
+          <button class="btn btn-success" v-if="detailData.status === 2 && isPaymentComplete" @click="confirmDelivery">📦 确认交付</button>
+          <span v-if="detailData.status === 2 && !isPaymentComplete" class="delivery-hint">⚠️ 请先收款</span>
           <button class="btn btn-primary" @click="paymentVisible = true">💰 登记收款</button>
         </div>
       </div>
@@ -41,6 +46,16 @@
 
         <!-- 基本信息 -->
         <div v-if="activeTab === 'basic'" class="tab-content">
+          <!-- ⭐ 未收款横幅提示 -->
+          <div v-if="unpaidAmount > 0" class="payment-warn-banner">
+            <span class="pwb-icon">💰</span>
+            <span class="pwb-text">
+              此订单尚有 <strong>¥{{ formatMoney(unpaidAmount) }}</strong> 未收齐
+              <span v-if="detailData.paymentStatus === 1">（全部未付）</span>
+              <span v-else>（部分付款）</span>
+            </span>
+            <button class="pwb-btn" @click="openPayment">立即收款</button>
+          </div>
           <div class="info-grid">
             <div class="info-cell">
               <div class="info-label">订单编号</div>
@@ -97,6 +112,11 @@
                 <div class="flow-label" :class="{ active: i <= detailStatusIdx }">{{ s }}</div>
               </div>
               <div class="flow-line" v-for="i in statusFlow.length - 1" :key="'line-' + i"></div>
+            </div>
+            <!-- ⭐ 进行中但未收款的提示 -->
+            <div v-if="detailData.status === 2 && !isPaymentComplete" style="margin-top:12px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef0f0;border-radius:6px;font-size:13px;color:#f56c6c;">
+              <span>⚠️</span>
+              <span>进行中·<strong>未收款</strong> —— 请先完成收款后再确认交付</span>
             </div>
           </div>
         </div>
@@ -263,13 +283,20 @@
             <p style="color:#909399;font-size:13px;">订单 {{ detailData?.orderNo }} 将进入设计阶段</p>
           </div>
           <div class="form-row">
-            <div class="form-group">
+            <div class="form-group" style="flex:1;">
               <label class="form-label">分配设计师 *</label>
-              <select class="form-input" v-model="processForm.designerName">
-                <option value="">请选择</option><option>李明</option><option>王设计</option>
+              <select class="form-input" v-model="processForm.designerId">
+                <option :value="null">请选择</option>
+                <option v-for="d in designerList" :key="d.id" :value="d.id">{{ d.realName || d.username }}</option>
               </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="flex:1;">
+              <label class="form-label">交付日期</label>
+              <input type="date" class="form-input" v-model="processForm.deliveryDate">
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:12px;">
+            <div class="form-group" style="flex:1;">
               <label class="form-label">交付日期</label>
               <input type="date" class="form-input" v-model="processForm.deliveryDate">
             </div>
@@ -459,9 +486,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { orderApi, designFileApi } from '@/api'
+import { orderApi, designFileApi, designerApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 
@@ -505,13 +532,32 @@ const detailProfit = computed(() => {
 })
 
 const processVisible = ref(false)
-const processForm = reactive({ designerName: '', deliveryDate: '' })
+const processForm = reactive({
+  designerId: null as number | null,
+  deliveryDate: '',
+})
+const designerList = ref<any[]>([])
 const paymentVisible = ref(false)
 const paymentForm = reactive({ amount: 0, method: '微信', remark: '', writeOff: false })
 const remainingAmount = computed(() => {
   const total = detailData.value?.totalAmount || 0
   const paid = detailData.value?.paidAmount || 0
   return Math.max(total - paid, 0)
+})
+
+// 未收金额（抵扣抹零/优惠）
+const unpaidAmount = computed(() => {
+  const total = detailData.value?.totalAmount || 0
+  const paid = detailData.value?.paidAmount || 0
+  const rounding = detailData.value?.roundingAmount || 0
+  const discount = detailData.value?.discountAmount || 0
+  return Math.max(total - paid - rounding - discount, 0)
+})
+
+// 是否已收全款（可交付）
+const isPaymentComplete = computed(() => {
+  const ps = detailData.value?.paymentStatus
+  return ps === 3 || ps === 4 || unpaidAmount.value <= 0
 })
 
 // 物料成本编辑
@@ -717,9 +763,12 @@ async function loadDetail() {
 }
 
 async function submitProcess() {
-  if (!processForm.designerName) { alert('请选择设计师'); return }
+  if (!processForm.designerId) { alert('请选择设计师'); return }
+  const designer = designerList.value.find((d: any) => d.id === processForm.designerId)
   await orderApi.update(detailData.value.id, {
-    status: 2, designerName: processForm.designerName,
+    status: 2,
+    designerId: processForm.designerId,
+    designerName: designer?.realName || designer?.username || '',
     deliveryDate: processForm.deliveryDate || null,
   })
   processVisible.value = false; loadDetail()
@@ -742,12 +791,43 @@ function formatMoney(v: any) {
   if (v == null) return '0.00'
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
+
+// 打开收款弹窗
+function openPayment() {
+  paymentForm.amount = unpaidAmount.value
+  paymentVisible.value = true
+}
 function formatTime(t: any) {
   if (!t) return '-'
   return String(t).replace('T', ' ').slice(0, 16)
 }
 
-onMounted(loadDetail)
+// 打开处理订单弹窗时加载设计师列表
+watch(processVisible, async (v) => {
+  if (v) {
+    // 加载设计师列表
+    if (!designerList.value.length) {
+      try {
+        const res = await designerApi.getCommissionList()
+        designerList.value = Array.isArray(res.data) ? res.data : []
+      } catch { /* ignore */ }
+    }
+    // 默认选中当前订单的设计师
+    const currDesignerId = detailData.value?.designerId
+    if (currDesignerId && designerList.value.some((d: any) => d.id === currDesignerId)) {
+      processForm.designerId = currDesignerId
+    }
+  }
+})
+
+onMounted(() => {
+  // 数据加载完成后，如果自动弹出收款，这里通过 setTimeout 确保 DOM 更新
+  loadDetail().then(() => {
+    if (route.query.focus === 'payment' && unpaidAmount.value > 0) {
+      setTimeout(() => openPayment(), 300)
+    }
+  })
+})
 </script>
 
 <style scoped lang="scss">
@@ -756,9 +836,68 @@ onMounted(loadDetail)
 .detail-header {
   display: flex; align-items: center; justify-content: space-between;
 }
-.dh-left { display: flex; align-items: center; gap: 12px; }
+.dh-left { display: flex; align-items: center; gap: 8px; }
 .dh-no { font-size: 18px; font-weight: 700; }
-.dh-actions { display: flex; gap: 10px; }
+
+/* 未收款状态标签 */
+.status-unpaid-warn {
+  background: #fef0f0 !important;
+  color: #f56c6c !important;
+  border: 1px solid #fbc4c4 !important;
+  font-weight: 600;
+  animation: pulse-warn 2s ease-in-out infinite;
+}
+@keyframes pulse-warn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 108, 108, 0); }
+}
+
+/* 未收款横幅 */
+.payment-warn-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #fef0f0, #fff5f5);
+  border: 1px solid #fbc4c4;
+  border-left: 4px solid #f56c6c;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.pwb-icon { font-size: 20px; }
+.pwb-text {
+  flex: 1;
+  font-size: 13px;
+  color: #f56c6c;
+  strong { font-size: 16px; }
+}
+.pwb-btn {
+  padding: 6px 16px;
+  background: #f56c6c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  &:hover {
+    background: #e04040;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+  }
+}
+.dh-actions { display: flex; gap: 10px; align-items: center; }
+
+/* 交付按钮替代提示 */
+.delivery-hint {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 6px;
+  background: #fef0f0; color: #f56c6c;
+  font-size: 12px; font-weight: 500;
+  border: 1px solid #fbc4c4;
+  cursor: not-allowed;
+}
 
 .detail-tabs {
   display: flex; gap: 0; border-bottom: 1px solid #f0f0f0;
@@ -861,6 +1000,21 @@ onMounted(loadDetail)
   padding: 14px 24px; border-top: 1px solid #f0f0f0;
   display: flex; justify-content: flex-end; gap: 10px;
 }
+
+/* 开关样式 */
+.toggle-switch {
+  position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer;
+}
+.toggle-switch input { display: none; }
+.toggle-slider {
+  position: absolute; inset: 0; background: #dcdfe6; border-radius: 10px; transition: 0.3s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; height: 16px; width: 16px; left: 2px; bottom: 2px;
+  background: #fff; border-radius: 50%; transition: 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider { background: #409eff; }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
 
 // ===== 设计文件样式 =====
 .file-grid {

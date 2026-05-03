@@ -42,6 +42,7 @@ public class ConcurrencySafetyTest {
         order.setOrderNo("TEST-ATOMIC-001");
         order.setTotalAmount(new BigDecimal("1000.00"));
         order.setPaidAmount(BigDecimal.ZERO);
+        order.setTitle("测试订单-原子操作");
         order.setStatus(1);
         order.setPaymentStatus(1);
         order.setDeleted(0);
@@ -65,6 +66,7 @@ public class ConcurrencySafetyTest {
         order.setOrderNo("TEST-ATOMIC-002");
         order.setTotalAmount(new BigDecimal("1000.00"));
         order.setPaidAmount(BigDecimal.ZERO);
+        order.setTitle("测试订单-多次调用");
         order.setStatus(1);
         order.setPaymentStatus(1);
         order.setDeleted(0);
@@ -89,6 +91,7 @@ public class ConcurrencySafetyTest {
         order.setOrderNo("TEST-ATOMIC-003");
         order.setTotalAmount(new BigDecimal("1000.00"));
         order.setPaidAmount(new BigDecimal("800.00"));
+        order.setTitle("测试订单-抹零结清");
         order.setStatus(1);
         order.setPaymentStatus(2); // 部分付款
         order.setDeleted(0);

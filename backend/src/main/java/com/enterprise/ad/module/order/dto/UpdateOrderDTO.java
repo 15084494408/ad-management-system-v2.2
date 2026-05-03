@@ -49,6 +49,9 @@ public class UpdateOrderDTO {
     /** 设计师用户ID */
     private Long designerId;
 
+    /** 设计师提成金额（0=不启用） */
+    private BigDecimal designerCommission;
+
     /** 优先级：1普通 2紧急 3加急 */
     private Integer priority;
 

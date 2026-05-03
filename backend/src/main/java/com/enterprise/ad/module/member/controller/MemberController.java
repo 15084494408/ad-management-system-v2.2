@@ -242,6 +242,7 @@ public class MemberController {
         // 如果初始余额 > 0，自动生成一条充值记录
         if (member.getBalance() != null && member.getBalance().compareTo(BigDecimal.ZERO) > 0) {
             MemberTransaction tx = new MemberTransaction();
+            tx.setCustomerId(member.getId());
             tx.setMemberId(member.getId());
             tx.setType("recharge");
             tx.setAmount(member.getBalance());
@@ -304,6 +305,7 @@ public class MemberController {
         memberMapper.updateById(member);
 
         MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(id);
         tx.setMemberId(id);
         tx.setType("recharge");
         tx.setAmount(request.getAmount());
@@ -344,6 +346,7 @@ public class MemberController {
         memberMapper.updateById(member);
 
         MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(id);
         tx.setMemberId(id);
         tx.setType("consume");
         tx.setAmount(request.getAmount());

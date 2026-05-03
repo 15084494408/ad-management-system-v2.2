@@ -34,18 +34,6 @@
 
       <!-- ===== 左侧栏 ===== -->
       <div class="col-left">
-        <!-- KPI 卡片组 -->
-        <div class="kpi-grid">
-          <div class="kpi-card" v-for="kpi in kpiList" :key="kpi.label">
-            <div class="kpi-bg-icon">{{ kpi.icon }}</div>
-            <div class="kpi-content">
-              <div class="kpi-value" :style="{ color: kpi.color }">{{ kpi.value }}</div>
-              <div class="kpi-label">{{ kpi.label }}</div>
-            </div>
-            <div class="kpi-indicator" :style="{ background: kpi.color }"></div>
-          </div>
-        </div>
-
         <!-- 待收款订单 -->
         <div class="board-card pending-orders-card">
           <div class="card-title-bar">
@@ -74,6 +62,7 @@
                 <div class="po-status" :class="order.paymentStatus === 1 ? 'status-unpaid' : 'status-partial'">
                   {{ order.paymentStatus === 1 ? '未付' : '部分付' }}
                 </div>
+                <button class="po-action-btn" @click="quickCollect(order)">快速收款</button>
               </div>
             </div>
             <div v-if="!pendingPaymentOrders.length" class="empty-tip">🎉 所有订单已收款</div>
@@ -102,33 +91,36 @@
 
       <!-- ===== 中间区域 ===== -->
       <div class="col-center">
-        <!-- 环形总览 -->
-        <div class="board-card hub-card">
-          <div class="hub-content">
-            <div class="hub-ring">
-              <svg viewBox="0 0 200 200" class="hub-svg">
-                <!-- 外圈 -->
-                <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="8"/>
-                <!-- 进度弧 -->
-                <circle cx="100" cy="100" r="85" fill="none" :stroke="hubArc.color" stroke-width="8"
-                  :stroke-dasharray="hubArc.circum"
-                  :stroke-dashoffset="hubArc.offset"
-                  transform="rotate(-90, 100, 100)"
-                  stroke-linecap="round"/>
-                <!-- 内圈 -->
-                <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(0,212,255,0.05)" stroke-width="4"/>
+        <!-- 3 个大圆圈并排 -->
+        <div class="board-card">
+          <div class="big-ring-row">
+            <div class="big-ring-item" v-for="item in bigRingData" :key="item.label">
+              <svg viewBox="0 0 120 120" class="big-ring-svg">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+                <circle cx="60" cy="60" r="48" fill="none" :stroke="item.color" stroke-width="6"
+                  stroke-linecap="round"
+                  :stroke-dasharray="item.circum"
+                  :stroke-dashoffset="item.offset"
+                  transform="rotate(-90, 60, 60)"
+                  style="transition: all 1.2s ease;"/>
               </svg>
-              <div class="hub-center">
-                <div class="hub-main-value">{{ hubMainValue }}</div>
-                <div class="hub-main-label">{{ hubMainLabel }}</div>
+              <div class="big-ring-center">
+                <div class="big-ring-value" :style="{ color: item.color }">{{ item.value }}</div>
+                <div class="big-ring-label">{{ item.label }}</div>
               </div>
             </div>
-            <div class="hub-stats">
-              <div class="hub-stat" v-for="s in hubStats" :key="s.label">
-                <div class="hub-stat-value" :style="{ color: s.color }">{{ s.value }}</div>
-                <div class="hub-stat-label">{{ s.label }}</div>
-              </div>
+          </div>
+        </div>
+
+        <!-- KPI 卡片（3个大圆圈下面） -->
+        <div class="kpi-grid">
+          <div class="kpi-card" v-for="kpi in kpiList" :key="kpi.label">
+            <div class="kpi-bg-icon">{{ kpi.icon }}</div>
+            <div class="kpi-content">
+              <div class="kpi-value" :style="{ color: kpi.color }">{{ kpi.value }}</div>
+              <div class="kpi-label">{{ kpi.label }}</div>
             </div>
+            <div class="kpi-indicator" :style="{ background: kpi.color }"></div>
           </div>
         </div>
 
@@ -235,31 +227,30 @@
           </div>
         </div>
 
-        <!-- 未完成订单 TOP -->
-        <div class="board-card order-card-panel">
+        <!-- 客户消费排行 TOP10 -->
+        <div class="board-card top-customers-card">
           <div class="card-title-bar">
             <span class="card-title-dot"></span>
-            <span>待处理订单</span>
-            <span class="badge-warn" v-if="unfinishedOrders.length">{{ unfinishedOrders.length }} 笔</span>
+            <span>🏆 客户消费排行 TOP10</span>
           </div>
-          <div class="order-scroll-list">
+          <div class="top-customer-list">
             <div
-              v-for="order in unfinishedOrders.slice(0, 8)"
-              :key="order.id"
-              class="order-item"
+              v-for="(c, idx) in topCustomers"
+              :key="c.id"
+              class="top-customer-item"
             >
-              <div class="order-item-left">
-                <span class="order-no">{{ order.orderNo }}</span>
-                <span class="order-customer">{{ order.customerName }}</span>
+              <div class="tc-rank" :class="{ 'rank-gold': idx === 0, 'rank-silver': idx === 1, 'rank-bronze': idx === 2 }">{{ c.rank }}</div>
+              <div class="tc-avatar">{{ c.customerName?.charAt(0) || '?' }}</div>
+              <div class="tc-info">
+                <span class="tc-name">{{ c.customerName }}</span>
+                <span class="tc-orders">{{ c.orderCount }} 单</span>
               </div>
-              <div class="order-item-center">
-                <span class="order-amount">¥{{ formatMoney(order.totalAmount) }}</span>
-              </div>
-              <div class="order-item-right">
-                <span class="order-status-tag" :class="getStatusClass(order)">{{ getMainStatus(order) }}</span>
+              <div class="tc-amount">¥{{ formatMoney(c.totalAmount) }}</div>
+              <div class="tc-bar-track">
+                <div class="tc-bar-fill" :style="{ width: (c.totalAmount / maxTopAmount * 100) + '%' }"></div>
               </div>
             </div>
-            <div v-if="!unfinishedOrders.length" class="empty-tip">🎉 暂无待处理订单</div>
+            <div v-if="!topCustomers.length" class="empty-tip">暂无消费数据</div>
           </div>
         </div>
 
@@ -320,6 +311,7 @@ const kpiList = ref<any[]>([])
 const incomeTrend = ref<number[]>([])
 const incomeTrendAmounts = ref<number[]>([])
 const unfinishedOrders = ref<any[]>([])
+const topCustomers = ref<any[]>([])
 const recentRecords = ref<any[]>([])
 const orderDist = ref<any>({})
 const now = ref('')
@@ -329,14 +321,6 @@ const updateTime = ref('')
 const totalCustomers = ref(0)
 const todayStats = ref<any[]>([])
 const pendingPaymentOrders = ref<any[]>([])
-
-// 模拟今日数据（实际应从后端获取）
-const todayData = ref({
-  newOrders: 0,
-  todayIncome: 0,
-  todayExpense: 0,
-  todayTxCount: 0
-})
 
 // 渠道数据
 const channelData = ref<any[]>([
@@ -349,31 +333,25 @@ const channelData = ref<any[]>([
 // 客户类型分布
 const customerTypeData = ref<any[]>([])
 
-// 环形总览
-const hubArc = computed(() => {
-  const total = pieTotal.value || 1
-  const completed = orderDist.value.completed || 0
-  const pct = completed / total
-  const circum = 2 * Math.PI * 85
-  return {
-    color: '#00d4ff',
-    circum: `${circum * pct} ${circum}`,
-    offset: 0
-  }
+// 3 个大圆圈数据（本月收款、利润、本年收款）
+const bigRingData = computed(() => {
+  const items = [
+    { label: '本月收款', key: '本月收款', color: '#00d4ff' },
+    { label: '利润', key: '利润', color: '#7b2ff7' },
+    { label: '本年收款', key: '本年收款', color: '#ffa940' },
+  ]
+  const circum = 2 * Math.PI * 48
+  return items.map((item) => {
+    const kpi = kpiList.value.find(k => k.label === item.key)
+    const raw = kpi?.value || '¥0'
+    return {
+      ...item,
+      value: raw,
+      circum: `${circum * 0.78} ${circum}`,
+      offset: 0,
+    }
+  })
 })
-
-const hubMainValue = computed(() => {
-  return kpiList.value.find(k => k.label === '本月收款')?.value || '¥0' 
-})
-
-const hubMainLabel = computed(() => '本月收款')
-
-const hubStats = computed(() => [
-  { label: '本月订单', value: kpiList.value.find(k => k.label === '本月订单')?.value || '0', color: '#66bb6a' },
-  { label: '待收款', value: kpiList.value.find(k => k.label === '待收款')?.value || '¥0', color: '#ffa726' },
-  { label: '客户总数', value: totalCustomers.value + ' 个', color: '#ab47bc' },
-  { label: '利润率', value: kpiList.value.find(k => k.label === '利润率')?.value || '0%', color: '#00d4ff' },
-])
 
 // 饼图数据
 const pieSegments = computed(() => {
@@ -411,10 +389,21 @@ const pieTotal = computed(() => {
   return d.pending + d.processing + d.completed + d.cancelled || 0
 })
 
+// 客户排行最大值（用于进度条比例）
+const maxTopAmount = computed(() => {
+  if (!topCustomers.value.length) return 1
+  return Math.max(...topCustomers.value.map((c: any) => c.totalAmount || 0), 1)
+})
+
 // ── 工具函数 ──
 function formatMoney(v: any) {
   if (v == null) return '0.00'
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// 快速收款（跳转到订单详情页，带自动弹窗参数）
+function quickCollect(order: any) {
+  window.open(`/orders/${order.id}?focus=payment`, '_blank')
 }
 
 function getMainStatus(order: any) {
@@ -465,13 +454,14 @@ async function loadBoard() {
     const kpi = d.kpi || {}
     const profitRate = kpi.profitRate || 0
     const profitColor = profitRate > 0 ? '#00d4ff' : profitRate < 0 ? '#ff6b6b' : '#909399'
-
     kpiList.value = [
       { label: '本月收款', value: '¥' + formatMoney(kpi.thisMonthIncome), icon: '💰', color: '#00d4ff', bg: 'rgba(0,212,255,0.12)' },
       { label: '本月订单', value: (kpi.thisMonthOrders || 0) + ' 张', icon: '📋', color: '#66bb6a', bg: 'rgba(102,187,106,0.12)' },
       { label: '待收款', value: '¥' + formatMoney(kpi.unpaidAmount), icon: '⏳', color: '#ffa726', bg: 'rgba(255,167,38,0.12)' },
       { label: '客户总数', value: (d.totalCustomers || 0) + ' 个', icon: '👥', color: '#ab47bc', bg: 'rgba(171,71,188,0.12)' },
       { label: '利润率', value: profitRate + '%', icon: '📈', color: profitColor, bg: 'rgba(0,212,255,0.12)', trend: profitRate > 0 ? '↑ 盈利' : profitRate < 0 ? '↓ 亏损' : '', trendColor: profitRate > 0 ? '#66bb6a' : '#ff6b6b' },
+      { label: '利润', value: '¥' + formatMoney(d.kpi?.profitAmount || 0), icon: '💎', color: '#7b2ff7', bg: 'rgba(123,47,247,0.12)' },
+      { label: '本年收款', value: '¥' + formatMoney(d.kpi?.thisYearIncome || 0), icon: '📊', color: '#ffa940', bg: 'rgba(255,169,64,0.12)' },
     ]
 
     incomeTrend.value = d.incomeTrend || []
@@ -480,14 +470,27 @@ async function loadBoard() {
     recentRecords.value = d.recentRecords || []
     orderDist.value = d.orderStatusDist || {}
     totalCustomers.value = d.totalCustomers || 0
+    topCustomers.value = d.topCustomers || []
 
-    // 模拟今日数据（实际可从 /dashboard/stats 获取）
-    todayStats.value = [
-      { icon: '📦', label: '今日订单', value: todayData.value.newOrders + ' 单', color: '#42a5f5' },
-      { icon: '💵', label: '今日收入', value: '¥' + formatMoney(todayData.value.todayIncome), color: '#52c41a' },
-      { icon: '📤', label: '今日支出', value: '¥' + formatMoney(todayData.value.todayExpense), color: '#ff4d4f' },
-      { icon: '🔢', label: '今日流水', value: todayData.value.todayTxCount + ' 笔', color: '#722ed1' },
-    ]
+    // 从 /dashboard/stats 获取今日真实数据
+    try {
+      const statsRes = await request.get('/dashboard/stats')
+      const sd = statsRes.data || {}
+      todayStats.value = [
+        { icon: '📦', label: '今日订单', value: (sd.todayOrders || 0) + ' 单', color: '#42a5f5' },
+        { icon: '💵', label: '今日收入', value: '¥' + formatMoney(sd.todayRevenue || 0), color: '#52c41a' },
+        { icon: '📤', label: '今日支出', value: '¥' + formatMoney(sd.todayExpense || 0), color: '#ff4d4f' },
+        { icon: '🔢', label: '今日流水', value: (sd.todayTxCount || 0) + ' 笔', color: '#722ed1' },
+      ]
+    } catch (e) {
+      console.error('今日概况加载失败', e)
+      todayStats.value = [
+        { icon: '📦', label: '今日订单', value: '0 单', color: '#42a5f5' },
+        { icon: '💵', label: '今日收入', value: '¥0.00', color: '#52c41a' },
+        { icon: '📤', label: '今日支出', value: '¥0.00', color: '#ff4d4f' },
+        { icon: '🔢', label: '今日流水', value: '0 笔', color: '#722ed1' },
+      ]
+    }
 
     // 模拟渠道数据（实际可从后端获取）
     channelData.value = [
@@ -661,8 +664,8 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 280px 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 1.5fr 3fr 1.5fr;
+  gap: 20px;
   height: calc(100vh - 140px);
 }
 
@@ -684,20 +687,20 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
-/* ====== KPI 卡片 ====== */
+/* ====== KPI 卡片（一排放4个） ====== */
 .kpi-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 .kpi-card {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 10px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   position: relative;
   overflow: hidden;
   transition: all 0.3s;
@@ -708,11 +711,11 @@ onUnmounted(() => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 .kpi-bg-icon {
-  font-size: 24px;
-  opacity: 0.6;
+  font-size: 20px;
+  opacity: 0.5;
   position: absolute;
-  right: 10px;
-  top: 10px;
+  right: 8px;
+  top: 8px;
 }
 .kpi-content { flex: 1; }
 .kpi-value {
@@ -780,7 +783,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 167, 38, 0.2);
 }
 
-/* ====== 待收款订单 ====== */
+/* ====== 右侧 - 待收款订单 + 快速处理按钮 ====== */
 .pending-orders-card {
   flex: 1;
   display: flex;
@@ -832,8 +835,8 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 .pending-order-item:hover {
-  background: rgba(255, 107, 107, 0.06);
-  border-color: rgba(255, 107, 107, 0.15);
+  background: rgba(0, 212, 255, 0.06);
+  border-color: rgba(0, 212, 255, 0.15);
 }
 .po-left { display: flex; flex-direction: column; gap: 2px; }
 .po-customer {
@@ -846,7 +849,12 @@ onUnmounted(() => {
   font-family: 'Courier New', monospace;
   color: rgba(255, 255, 255, 0.35);
 }
-.po-right { text-align: right; }
+.po-right { 
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: right;
+}
 .po-amount {
   font-size: 15px;
   font-weight: 700;
@@ -869,6 +877,23 @@ onUnmounted(() => {
   background: rgba(255, 167, 38, 0.15);
   color: #ffa726;
   border: 1px solid rgba(255, 167, 38, 0.2);
+}
+/* 快速处理按钮 */
+.po-action-btn {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  background: rgba(0, 212, 255, 0.1);
+  color: #00d4ff;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.po-action-btn:hover {
+  background: rgba(0, 212, 255, 0.25);
+  border-color: #00d4ff;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
 }
 
 /* ====== 客户类型分布 ====== */
@@ -904,25 +929,24 @@ onUnmounted(() => {
   transition: width 1s ease;
 }
 
-/* ====== 中间 - 环形总览 ====== */
-.hub-card {
-  padding: 20px;
-}
-.hub-content {
+/* ====== 中间 - 3 个大圆圈（本月收款、利润、本年收款） ====== */
+.big-ring-row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 12px 0;
 }
-.hub-ring {
+.big-ring-item {
   position: relative;
-  width: 180px;
-  height: 180px;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
 }
-.hub-svg {
+.big-ring-svg {
   width: 100%;
   height: 100%;
 }
-.hub-center {
+.big-ring-center {
   position: absolute;
   inset: 0;
   display: flex;
@@ -930,38 +954,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
 }
-.hub-main-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #00d4ff;
-  font-family: 'Courier New', monospace;
-}
-.hub-main-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
-}
-.hub-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 20px;
-  margin-top: 20px;
-  width: 100%;
-}
-.hub-stat {
-  text-align: center;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-}
-.hub-stat-value {
-  font-size: 16px;
+.big-ring-value {
+  font-size: 18px;
   font-weight: 700;
   font-family: 'Courier New', monospace;
 }
-.hub-stat-label {
+.big-ring-label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
   margin-top: 3px;
 }
 
@@ -1155,7 +1155,118 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* ====== 右侧 - 订单列表 ====== */
+/* ====== 右侧 - 客户消费排行 TOP10 ====== */
+.top-customers-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 250px;
+}
+.top-customer-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+.top-customer-list::-webkit-scrollbar { width: 3px; }
+.top-customer-list::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 2px; }
+.top-customer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s;
+}
+.top-customer-item:hover {
+  background: rgba(0, 212, 255, 0.06);
+}
+.tc-rank {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+.tc-rank.rank-gold {
+  background: linear-gradient(135deg, #ffd700, #ffa500);
+  color: #1a1a2e;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+.tc-rank.rank-silver {
+  background: linear-gradient(135deg, #e8e8e8, #b0b0b0);
+  color: #1a1a2e;
+}
+.tc-rank.rank-bronze {
+  background: linear-gradient(135deg, #ffb08e, #cd7f32);
+  color: #1a1a2e;
+}
+.tc-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #00d4ff;
+  flex-shrink: 0;
+}
+.tc-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tc-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tc-orders {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+.tc-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd700;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.tc-bar-track {
+  width: 50px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tc-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00d4ff, #7b2ff7);
+  border-radius: 2px;
+  transition: width 0.8s ease;
+  min-width: 2px;
+}
+
+/* ====== 右侧 - 订单列表（保留旧样式兼容） ====== */
 .order-card-panel {
   flex: 1;
   display: flex;
@@ -1313,7 +1424,8 @@ onUnmounted(() => {
 /* ====== 响应式 ====== */
 @media (max-width: 1400px) {
   .main-content {
-    grid-template-columns: 260px 1fr 280px;
+    grid-template-columns: 1.5fr 3fr 1.5fr;
+    gap: 14px;
   }
 }
 @media (max-width: 1200px) {

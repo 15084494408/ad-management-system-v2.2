@@ -67,6 +67,9 @@
           <el-button type="primary" @click="loadData">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
         </el-form-item>
+        <el-form-item style="margin-left:auto;">
+          <el-button type="success" @click="filterMyCommission">👤 我的提成</el-button>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -205,10 +208,12 @@ import { ElMessage } from 'element-plus'
 import { Download, Plus } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { exportToExcel } from '@/utils/excelExport'
+import { useAuthStore } from '@/stores/auth'
 
 const viewMode = ref<'detail' | 'summary'>('summary')
 const loading = ref(false)
 const summaryLoading = ref(false)
+const authStore = useAuthStore()
 
 // 总览数据
 const overview = reactive({
@@ -314,6 +319,16 @@ function resetSearch() {
   pagination.current = 1
   if (viewMode.value === 'detail') loadData()
   else loadSummary()
+}
+
+/** 筛选当前登录设计师的提成 */
+function filterMyCommission() {
+  const user = authStore.userInfo
+  if (!user || !user.id) { ElMessage.warning('无法获取当前用户信息'); return }
+  searchForm.designerId = user.id
+  viewMode.value = 'detail'
+  pagination.current = 1
+  loadData()
 }
 
 function showAddDialog() {

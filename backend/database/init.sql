@@ -1,7 +1,6 @@
 -- =========================================================
 -- 企业广告管理系统 数据库初始化脚本（完整版）
 -- 数据库名: enterprise_ad
--- 执行前请先创建数据库: CREATE DATABASE enterprise_ad DEFAULT CHARSET utf8mb4;
 -- 版本: v3.2 (2026-05-03 物料不计库存支持)
 -- 变更:
 --   - [v3.2] mat_material 增加 no_stock 字段（外协/代工物料，不做库存管理）
@@ -29,6 +28,9 @@
 --   - [v3.1] 客户删除保护：有订单或有余额的会员禁止删除（后端+前端双重校验）
 -- =========================================================
 
+-- 重新创建数据库（每次执行从干净状态开始，彻底避免重复键问题）
+DROP DATABASE IF EXISTS enterprise_ad;
+CREATE DATABASE enterprise_ad DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE enterprise_ad;
 
 -- =========================================================
@@ -1091,8 +1093,8 @@ CREATE TABLE IF NOT EXISTS `designer_commission_config` (
 
 -- 注：sys_company 和 sys_user 的扩展字段已直接定义在 CREATE TABLE 中
 
--- sys_button 新增公司管理按钮
-INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (32, '设计师提成', 'designer:commission', 'button', 0, 32, 1, '2026-04-28 19:57:00', '2026-04-28 19:57:00', 0);
+-- sys_button 新增设计师提成按钮（id 由 AUTO_INCREMENT 自动分配，避免与主数据段冲突）
+INSERT INTO `sys_button` (`name`, `permission`, `type`, `parent_id`, `sort`, `status`) VALUES ('设计师提成', 'designer:commission', 'button', 0, 33, 1);
 
 -- =========================================================
 -- 待办工作台模块（2026-04-28 20:15）

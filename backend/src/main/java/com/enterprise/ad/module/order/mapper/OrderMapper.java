@@ -84,7 +84,7 @@ public interface OrderMapper extends BaseMapper<Order> {
      * 按创建时间倒序排列
      */
     @Select("SELECT * FROM ord_order " +
-            "WHERE deleted = 0 AND payment_status IN (1, 2) AND status != 4 " +
+            "WHERE deleted = 0 AND (payment_status IN (1, 2) OR payment_status IS NULL) AND status != 4 " +
             "ORDER BY create_time DESC")
     List<Order> selectPendingPayment();
 
@@ -94,7 +94,7 @@ public interface OrderMapper extends BaseMapper<Order> {
      */
     @Select("SELECT * FROM ord_order " +
             "WHERE deleted = 0 AND status IN (1, 2) " +
-            "ORDER BY (CASE WHEN payment_status IN (1, 2) THEN 0 ELSE 1 END), " +
+            "ORDER BY (CASE WHEN payment_status IN (1, 2) OR payment_status IS NULL THEN 0 ELSE 1 END), " +
             "status DESC, create_time DESC")
     List<Order> selectUnfinishedOrders();
 
@@ -102,7 +102,7 @@ public interface OrderMapper extends BaseMapper<Order> {
      * 统计待收款总额（未付清订单的 total_amount - paid_amount - rounding_amount 之和）
      */
     @Select("SELECT COALESCE(SUM(total_amount - paid_amount - IFNULL(rounding_amount, 0)), 0) " +
-            "FROM ord_order WHERE deleted = 0 AND payment_status IN (1, 2) AND status != 4")
+            "FROM ord_order WHERE deleted = 0 AND (payment_status IN (1, 2) OR payment_status IS NULL) AND status != 4")
     BigDecimal sumUnpaidAmount();
 
     /**

@@ -145,8 +145,12 @@ public class DashboardController {
                 .le(FinanceRecord::getCreateTime, todayEnd));
         BigDecimal todayFlow = todayRecords.stream()
             .map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal todayExpense = todayRecords.stream()
+            .filter(r -> "expense".equals(r.getType()))
+            .map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         stats.put("todayFlow", todayFlow);
         stats.put("todayTxCount", todayRecords.size());
+        stats.put("todayExpense", todayExpense);
 
         // 本周流水
         BigDecimal weekFlow = financeRecordMapper.selectList(
@@ -272,6 +276,22 @@ public class DashboardController {
                 .divide(thisMonthIncome, 1, RoundingMode.HALF_UP);
         }
 
+        // 利润金额
+        BigDecimal profitAmount = thisMonthIncome.subtract(orderCost).max(BigDecimal.ZERO);
+
+        // 本年收款
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
+        BigDecimal thisYearIncome = BigDecimal.ZERO;
+        List<FinanceRecord> yearIncomeList = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getType, "income")
+                .eq(FinanceRecord::getDeleted, 0)
+                .ge(FinanceRecord::getCreateTime, yearStart)
+                .le(FinanceRecord::getCreateTime, monthEnd));
+        for (FinanceRecord r : yearIncomeList) {
+            thisYearIncome = thisYearIncome.add(r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO);
+        }
+
         // 客户总数
         long totalCustomers = customerMapper.selectCount(
             new LambdaQueryWrapper<Customer>().eq(Customer::getDeleted, 0));
@@ -358,6 +378,8 @@ public class DashboardController {
         // 组装响应
         Map<String, Object> kpi = new LinkedHashMap<>();
         kpi.put("thisMonthIncome", thisMonthIncome);
+        kpi.put("thisYearIncome", thisYearIncome);
+        kpi.put("profitAmount", profitAmount);
         kpi.put("thisMonthOrders", thisMonthOrders);
         kpi.put("unpaidAmount", unpaidAmount);
         kpi.put("profitRate", profitRate);
@@ -370,6 +392,28 @@ public class DashboardController {
         result.put("unfinishedOrders", unfinishedOrders);
         result.put("recentRecords", recentRecords);
         result.put("orderStatusDist", orderDist);
+
+        // 客户消费排行 TOP10
+        List<Customer> topCustomers = customerMapper.selectList(
+            new LambdaQueryWrapper<Customer>()
+                .eq(Customer::getDeleted, 0)
+                .ne(Customer::getTotalAmount, BigDecimal.ZERO)
+                .isNotNull(Customer::getTotalAmount)
+                .orderByDesc(Customer::getTotalAmount)
+                .last("LIMIT 10"));
+        List<Map<String, Object>> topCustomerList = new ArrayList<>();
+        int rank = 1;
+        for (Customer c : topCustomers) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("rank", rank++);
+            item.put("id", c.getId());
+            item.put("customerName", c.getCustomerName());
+            item.put("totalAmount", c.getTotalAmount() != null ? c.getTotalAmount() : BigDecimal.ZERO);
+            item.put("orderCount", c.getOrderCount() != null ? c.getOrderCount() : 0);
+            item.put("level", c.getLevel() != null ? c.getLevel() : 1);
+            topCustomerList.add(item);
+        }
+        result.put("topCustomers", topCustomerList);
 
         return Result.ok(result);
     }
