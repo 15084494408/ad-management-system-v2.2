@@ -78,4 +78,48 @@ public interface OrderMapper extends BaseMapper<Order> {
                                     @Param("amount") BigDecimal amount,
                                     @Param("roundingAmount") BigDecimal roundingAmount,
                                     @Param("paymentStatus") Integer paymentStatus);
+
+    /**
+     * 查询未付清的订单（paymentStatus = 1未付 或 2部分付，且非取消状态）
+     * 按创建时间倒序排列
+     */
+    @Select("SELECT * FROM ord_order " +
+            "WHERE deleted = 0 AND payment_status IN (1, 2) AND status != 4 " +
+            "ORDER BY create_time DESC")
+    List<Order> selectPendingPayment();
+
+    /**
+     * 查询所有未完成订单（status = 1待处理 或 2进行中），用于工作台"未完成订单"展示
+     * 排序：未付清(payStatus 1,2)优先 → 进行中(2) → 待处理(1) → 创建时间倒序
+     */
+    @Select("SELECT * FROM ord_order " +
+            "WHERE deleted = 0 AND status IN (1, 2) " +
+            "ORDER BY (CASE WHEN payment_status IN (1, 2) THEN 0 ELSE 1 END), " +
+            "status DESC, create_time DESC")
+    List<Order> selectUnfinishedOrders();
+
+    /**
+     * 统计待收款总额（未付清订单的 total_amount - paid_amount - rounding_amount 之和）
+     */
+    @Select("SELECT COALESCE(SUM(total_amount - paid_amount - IFNULL(rounding_amount, 0)), 0) " +
+            "FROM ord_order WHERE deleted = 0 AND payment_status IN (1, 2) AND status != 4")
+    BigDecimal sumUnpaidAmount();
+
+    /**
+     * 统计会员余额总计（crm_customer 表中所有会员的 balance 之和）
+     */
+    @Select("SELECT COALESCE(SUM(balance), 0) FROM crm_customer WHERE deleted = 0 AND is_member = 1")
+    BigDecimal sumMemberBalance();
+
+    /**
+     * 统计本月订单数量
+     */
+    @Select("SELECT COUNT(*) FROM ord_order WHERE deleted = 0 AND create_time >= #{start} AND create_time <= #{end}")
+    Long countThisMonthOrders(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /**
+     * 统计指定时间范围内的订单总成本
+     */
+    @Select("SELECT COALESCE(SUM(total_cost), 0) FROM ord_order WHERE deleted = 0 AND status != 4 AND create_time >= #{start} AND create_time <= #{end}")
+    BigDecimal sumOrderCostByRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 会员流水表（充值/消费记录） */
 @Data
@@ -20,6 +21,7 @@ public class MemberTransaction {
     private Long orderId;           // 关联订单ID（消费时）
     private String remark;           // 备注
     private Long creatorId;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 

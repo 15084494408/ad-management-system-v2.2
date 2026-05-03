@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.enterprise.ad.module.system.user.service.SysButtonService;
 
 /**
  * 按钮权限管理
@@ -24,6 +25,7 @@ import java.util.List;
 public class SysButtonController {
 
     private final SysButtonMapper buttonMapper;
+    private final SysButtonService sysButtonService;
 
     @GetMapping
     @Operation(summary = "按钮列表（支持树形）")
@@ -35,7 +37,7 @@ public class SysButtonController {
             .like(name != null, SysButton::getName, name)
             .eq(status != null, SysButton::getStatus, status)
             .orderByAsc(SysButton::getSort);
-        List<SysButton> list = buttonMapper.selectList(qw);
+        List<SysButton> list = sysButtonService.list(qw);
         return Result.ok(list);
     }
 
@@ -46,7 +48,7 @@ public class SysButtonController {
         button.setUpdateTime(LocalDateTime.now());
         if (button.getStatus() == null) button.setStatus(1);
         if (button.getSort() == null) button.setSort(0);
-        buttonMapper.insert(button);
+        sysButtonService.save(button);
         return Result.ok(button.getId());
     }
 
@@ -74,7 +76,7 @@ public class SysButtonController {
     @Operation(summary = "删除按钮")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        buttonMapper.deleteById(id);
+        sysButtonService.removeById(id);
         return Result.ok();
     }
 }

@@ -44,11 +44,18 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
-              {{ row.enabled ? '启用' : '禁用' }}
-            </el-tag>
+            <el-switch
+              v-model="row.enabled"
+              :active-value="1"
+              :inactive-value="0"
+              inline-prompt
+              active-text="启用"
+              inactive-text="关闭"
+              style="--el-switch-on-color: #67c23a; --el-switch-off-color: #dcdfe6;"
+              @change="toggleEnabled(row)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="已分配订单" width="120" align="center">
@@ -63,7 +70,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column label="操作" width="200" fixed="right" align="center">
           <template #default="{ row }">
             <template v-if="editingId === row.designerId">
               <el-button type="primary" size="small" @click="saveRate(row)">保存</el-button>
@@ -141,13 +148,30 @@ async function saveRate(row: any) {
     await designerApi.configCommission({
       designerId: row.designerId,
       commissionRate: editingRate.value,
-      enabled: true
+      enabled: row.enabled === 1
     })
     ElMessage.success('提成比例已更新')
     editingId.value = null
     loadData()
   } catch {
     ElMessage.error('保存失败')
+  }
+}
+
+async function toggleEnabled(row: any) {
+  const newEnabled = row.enabled === 1
+  const action = newEnabled ? '启用' : '关闭'
+  try {
+    await designerApi.configCommission({
+      designerId: row.designerId,
+      commissionRate: Number(row.commissionRate),
+      enabled: newEnabled
+    })
+    ElMessage.success(`${action}成功`)
+    loadData()
+  } catch {
+    row.enabled = row.enabled === 1 ? 0 : 1  // 回滚
+    ElMessage.error(`${action}失败`)
   }
 }
 

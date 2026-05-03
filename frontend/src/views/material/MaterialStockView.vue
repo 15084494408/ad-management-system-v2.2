@@ -37,20 +37,31 @@
             <el-tag size="small" :type="row.pricingType === 1 ? 'warning' : ''">{{ row.pricingType === 1 ? '按面积' : '按数量' }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="noStock" label="库存模式" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.noStock === 1 ? '' : 'info'">{{ row.noStock === 1 ? '不计库存' : '管理库存' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="stockQuantity" label="库存数量" width="100">
-          <template #default="{ row }"><span :style="{color: row.stockQuantity <= row.warningQuantity?'#f56c6c':'inherit',fontWeight: row.stockQuantity <= row.warningQuantity?700:400}">{{ row.stockQuantity }}</span></template>
+          <template #default="{ row }">
+            <template v-if="row.noStock === 1"><span style="color:#909399;">—</span></template>
+            <template v-else><span :style="{color: row.stockQuantity <= row.warningQuantity?'#f56c6c':'inherit',fontWeight: row.stockQuantity <= row.warningQuantity?700:400}">{{ row.stockQuantity }}</span></template>
+          </template>
         </el-table-column>
         <el-table-column prop="warningQuantity" label="预警值" width="80" />
         <el-table-column prop="price" label="单价" width="110">
           <template #default="{ row }">¥{{ row.price?.toFixed(2) }}<span v-if="row.pricingType===1" style="color:#909399;font-size:12px;"> /㎡</span></template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
-          <template #default="{ row }"><el-tag :type="row.stockQuantity <= row.warningQuantity?'danger':'success'" size="small">{{ row.stockQuantity <= row.warningQuantity?'预警':'正常' }}</el-tag></template>
+          <template #default="{ row }">
+            <el-tag v-if="row.noStock === 1" type="info" size="small">外协</el-tag>
+            <el-tag v-else :type="row.stockQuantity <= row.warningQuantity?'danger':'success'" size="small">{{ row.stockQuantity <= row.warningQuantity?'预警':'正常' }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="success" size="small" @click="stockIn(row)">入库</el-button>
-            <el-button link type="warning" size="small" @click="stockOut(row)">出库</el-button>
+            <el-button v-if="row.noStock !== 1" link type="success" size="small" @click="stockIn(row)">入库</el-button>
+            <el-button v-if="row.noStock !== 1" link type="warning" size="small" @click="stockOut(row)">出库</el-button>
             <el-button link type="primary" size="small" @click="editRow(row)">编辑</el-button>
             <el-button link type="danger" size="small" @click="deleteRow(row)">删除</el-button>
           </template>
@@ -106,14 +117,19 @@
             <el-radio :label="1">按面积（㎡）</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="库存模式">
+          <el-switch v-model="editForm.noStock" :active-value="1" :inactive-value="0" active-text="不计库存（外协）" inactive-text="管理库存" />
+        </el-form-item>
         <el-form-item label="单位"><el-input v-model="editForm.unit" /></el-form-item>
         <el-form-item label="零售价">
           <el-input-number v-model="editForm.price" :min="0" :precision="2" style="width:100%;" />
           <span v-if="editForm.pricingType===1" style="margin-left:8px;color:#909399;font-size:12px;">元/㎡</span>
         </el-form-item>
         <el-form-item label="成本价"><el-input-number v-model="editForm.costPrice" :min="0" :precision="2" style="width:100%;" /></el-form-item>
+        <template v-if="editForm.noStock !== 1">
         <el-form-item label="库存数量"><el-input-number v-model="editForm.stockQuantity" :min="0" style="width:100%;" /></el-form-item>
         <el-form-item label="预警值"><el-input-number v-model="editForm.warningQuantity" :min="0" style="width:100%;" /></el-form-item>
+        </template>
       </el-form>
       <template #footer><el-button @click="showAdd=false">取消</el-button><el-button type="primary" @click="saveMaterial">保存</el-button></template>
     </el-dialog>
@@ -145,7 +161,7 @@ const tableData = ref<any[]>([])
 const categories = ref<any[]>([])
 const searchForm = reactive({ name: '', categoryId: null, warning: '' })
 const pagination = reactive({ page: 1, size: 20, total: 0 })
-const editForm = reactive<any>({ id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, stockQuantity: 0, warningQuantity: 10 })
+const editForm = reactive<any>({ id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, noStock: 0, stockQuantity: 0, warningQuantity: 10 })
 const stockForm = reactive<any>({ materialId: null, materialName: '', currentStock: 0, quantity: 1, remark: '' })
 
 // 纸张类型和材质选项
@@ -202,8 +218,8 @@ async function loadData() {
 }
 
 function resetSearch() { searchForm.name = ''; searchForm.categoryId = null; searchForm.warning = ''; loadData() }
-function addNew() { Object.assign(editForm, { id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, stockQuantity: 0, warningQuantity: 10 }); showAdd.value = true }
-function editRow(row: any) { Object.assign(editForm, { id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, stockQuantity: 0, warningQuantity: 10 }); Object.assign(editForm, row); showAdd.value = true }
+function addNew() { Object.assign(editForm, { id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, noStock: 0, stockQuantity: 0, warningQuantity: 10 }); showAdd.value = true }
+function editRow(row: any) { Object.assign(editForm, { id: null, name: '', categoryId: null, categoryName: '', paperType: '', paperSpec: '', paperGroup: '', colourType: 0, spec: '', unit: '', price: 0, costPrice: 0, pricingType: 0, noStock: 0, stockQuantity: 0, warningQuantity: 10 }); Object.assign(editForm, row); showAdd.value = true }
 function stockIn(row: any) { stockType.value = 'in'; Object.assign(stockForm, { materialId: row.id, materialName: row.name, currentStock: row.stockQuantity, quantity: 1, remark: '' }); showStock.value = true }
 function stockOut(row: any) { stockType.value = 'out'; Object.assign(stockForm, { materialId: row.id, materialName: row.name, currentStock: row.stockQuantity, quantity: 1, remark: '' }); showStock.value = true }
 async function submitStock() {
@@ -250,14 +266,16 @@ async function loadCategories() {
 function exportData() {
   exportToExcel({
     filename: '物料库存',
-    header: ['物料ID', '物料名称', '分类', '规格', '单位', '计价方式', '库存数量', '预警值', '单价', '成本价', '状态'],
+    header: ['物料ID', '物料名称', '分类', '规格', '单位', '计价方式', '库存模式', '库存数量', '预警值', '单价', '成本价', '状态'],
     data: tableData.value.map(row => [
       row.id, row.name, row.categoryName, row.spec, row.unit,
       row.pricingType === 1 ? '按面积' : '按数量',
-      row.stockQuantity, row.warningQuantity,
+      row.noStock === 1 ? '不计库存' : '管理库存',
+      row.noStock === 1 ? '—' : row.stockQuantity,
+      row.noStock === 1 ? '—' : row.warningQuantity,
       `¥${(row.price || 0).toFixed(2)}${row.pricingType === 1 ? '/㎡' : ''}`,
       `¥${(row.costPrice || 0).toFixed(2)}`,
-      row.stockQuantity <= row.warningQuantity ? '预警' : '正常',
+      row.noStock === 1 ? '外协' : (row.stockQuantity <= row.warningQuantity ? '预警' : '正常'),
     ]),
     infoRows: [[`导出时间：${new Date().toLocaleString()}`], [`共 ${tableData.value.length} 条记录`]],
   })

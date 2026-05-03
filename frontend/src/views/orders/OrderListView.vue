@@ -12,7 +12,6 @@
       <h1 class="page-title">📋 订单列表</h1>
       <div class="page-actions">
         <button class="btn btn-default" @click="exportVisible = true">⬇️ 导出</button>
-        <button class="btn btn-primary" @click="createVisible = true">+ 创建订单</button>
       </div>
     </div>
 
@@ -120,109 +119,6 @@
           <button class="page-btn" :disabled="query.current <= 1" @click="query.current--; loadList()">«</button>
           <button class="page-btn" v-for="p in pageNumbers" :key="p" :class="{ active: query.current === p }" @click="query.current = p; loadList()">{{ p }}</button>
           <button class="page-btn" :disabled="query.current >= totalPages" @click="query.current++; loadList()">»</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 创建订单弹窗 ===== -->
-    <div class="modal-overlay" v-if="createVisible" @click.self="createVisible = false">
-      <div class="modal-container" style="max-width:860px;">
-        <div class="modal-header">
-          <h3>📋 创建订单</h3>
-          <button class="modal-close" @click="createVisible = false">&times;</button>
-        </div>
-        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">客户名称 *</label>
-              <select class="form-input" v-model="createForm.customerId" @change="onCustomerChange">
-                <option value="">请选择客户</option>
-                <option v-for="c in customerList" :key="c.id" :value="c.id">{{ c.customerName }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">订单名称 *</label>
-              <input type="text" class="form-input" v-model="createForm.title" placeholder="请输入订单名称">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">订单类型</label>
-              <select class="form-input" v-model="createForm.orderType">
-                <option :value="1">图文打印</option>
-                <option :value="2">广告制作</option>
-                <option :value="3">设计服务</option>
-                <option :value="4">装订服务</option>
-                <option :value="5">其他</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">交付日期 *</label>
-              <input type="date" class="form-input" v-model="createForm.deliveryDate">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">设计师</label>
-              <select class="form-input" v-model="createForm.designerId" @change="onDesignerChangeCreate">
-                <option :value="null">待分配</option>
-                <option v-for="d in designerList" :key="d.id" :value="d.id">{{ d.realName || d.username }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">订单优先级</label>
-              <select class="form-input" v-model="createForm.priority">
-                <option :value="1">普通</option>
-                <option :value="2">紧急</option>
-                <option :value="3">加急</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row full">
-            <div class="form-group">
-              <label class="form-label">订单描述</label>
-              <textarea class="form-input" v-model="createForm.description" rows="3" placeholder="请详细描述订单需求..."></textarea>
-            </div>
-          </div>
-
-          <!-- 物料明细 -->
-          <div style="margin-top:16px;padding:15px;background:#fdf6ec;border-radius:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-              <span class="tag tag-warning" style="cursor:pointer;" @click="addMaterialRow">+ 添加物料明细</span>
-              <span style="font-size:12px;color:#909399;">共 {{ createForm.materials.length }} 项</span>
-            </div>
-            <table v-if="createForm.materials.length" style="font-size:13px;">
-              <thead>
-                <tr>
-                  <th style="width:28%;">物料名称</th>
-                  <th style="width:18%;">规格</th>
-                  <th style="width:12%;">数量</th>
-                  <th style="width:14%;">单价(¥)</th>
-                  <th style="width:14%;">小计</th>
-                  <th style="width:14%;">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(m, i) in createForm.materials" :key="i">
-                  <td><input type="text" class="form-input" style="font-size:12px;" v-model="m.materialName" placeholder="物料名称"></td>
-                  <td><input type="text" class="form-input" style="font-size:12px;" v-model="m.spec" placeholder="规格"></td>
-                  <td><input type="number" class="form-input" style="font-size:12px;" v-model.number="m.quantity" min="0" @input="calcMaterialSubtotal(m)"></td>
-                  <td><input type="number" class="form-input" style="font-size:12px;" v-model.number="m.unitPrice" min="0" step="0.01" @input="calcMaterialSubtotal(m)"></td>
-                  <td style="font-weight:600;color:#409eff;">¥{{ formatMoney(m.amount) }}</td>
-                  <td><button class="action-btn delete" @click="createForm.materials.splice(i, 1)">删除</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style="margin-top:16px;padding:15px;background:#f5f7fa;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span>订单总金额：</span>
-            <span style="font-size:20px;font-weight:700;color:#409eff;">¥ {{ formatMoney(createMaterialTotal) }}</span>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-default" @click="createVisible = false">取消</button>
-          <button class="btn btn-primary" @click="submitCreate" :disabled="submitting">💾 保存订单</button>
         </div>
       </div>
     </div>

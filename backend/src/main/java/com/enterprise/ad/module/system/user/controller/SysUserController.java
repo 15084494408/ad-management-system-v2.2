@@ -22,6 +22,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.enterprise.ad.module.system.user.service.SysUserService;
 
 @RestController
 @RequestMapping("/system/users")
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 public class SysUserController {
 
     private final SysUserMapper sysUserMapper;
+    private final SysUserService sysUserService;
     private final PasswordEncoder passwordEncoder;
 
     @GetMapping
@@ -64,7 +66,7 @@ public class SysUserController {
             qw.in(SysUser::getId, filteredUserIds);
         }
 
-        Page<SysUser> result = sysUserMapper.selectPage(page, qw);
+        Page<SysUser> result = sysUserService.page(page, qw);
 
         // 批量填充用户的角色ID列表
         List<SysUser> records = result.getRecords();
@@ -93,7 +95,7 @@ public class SysUserController {
     public Result<Void> create(@Valid @RequestBody CreateUserDTO dto) {
         // ★ 修复 P0-1: 使用 DTO 接收请求，避免前端传入非法字段
         // 检查用户名唯一
-        long count = sysUserMapper.selectCount(
+        long count = sysUserService.count(
             new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getUsername, dto.getUsername())
                 .eq(SysUser::getDeleted, 0));
@@ -114,7 +116,7 @@ public class SysUserController {
         user.setCreateTime(LocalDateTime.now());
         user.setDeleted(0);
 
-        sysUserMapper.insert(user);
+        sysUserService.save(user);
 
         // 分配角色
         if (dto.getRoleIds() != null && !dto.getRoleIds().isEmpty()) {
@@ -130,7 +132,7 @@ public class SysUserController {
     @Transactional
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody UpdateUserDTO dto) {
         // ★ 修复 P0-1: 使用 DTO 接收请求，避免前端传入非法字段
-        SysUser existing = sysUserMapper.selectById(id);
+        SysUser existing = sysUserService.getById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("用户不存在");
         }
@@ -163,7 +165,7 @@ public class SysUserController {
     @Operation(summary = "重置密码")
     public Result<Void> resetPassword(@PathVariable Long id) {
         // ★ 修复 P1-1: 添加存在性校验
-        SysUser existing = sysUserMapper.selectById(id);
+        SysUser existing = sysUserService.getById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("用户不存在");
         }
@@ -182,7 +184,7 @@ public class SysUserController {
     @Transactional
     public Result<Void> changeStatus(@PathVariable Long id, @RequestParam Integer status) {
         // ★ 修复 P1-1: 添加存在性校验
-        SysUser existing = sysUserMapper.selectById(id);
+        SysUser existing = sysUserService.getById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("用户不存在");
         }
@@ -199,7 +201,7 @@ public class SysUserController {
     @Operation(summary = "删除用户")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        sysUserMapper.deleteById(id);
+        sysUserService.removeById(id);
         return Result.ok();
     }
 

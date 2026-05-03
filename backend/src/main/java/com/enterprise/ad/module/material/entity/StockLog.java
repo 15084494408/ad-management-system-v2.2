@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("mat_stock_log")
@@ -21,6 +22,7 @@ public class StockLog {
     private String remark;         // 备注
     private Long operatorId;       // 操作人ID
     private String operatorName;   // 操作人
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

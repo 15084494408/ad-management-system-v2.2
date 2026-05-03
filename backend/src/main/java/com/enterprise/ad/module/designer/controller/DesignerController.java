@@ -3,7 +3,6 @@ package com.enterprise.ad.module.designer.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.system.user.entity.SysUser;
-import com.enterprise.ad.module.system.user.mapper.SysUserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import com.enterprise.ad.module.system.user.service.SysUserService;
 
 /**
  * 设计师专用接口 - 不需要权限验证
@@ -22,7 +22,7 @@ import java.util.List;
 @Tag(name = "设计师接口")
 public class DesignerController {
 
-    private final SysUserMapper sysUserMapper;
+    private final SysUserService sysUserService;
 
     @GetMapping
     @Operation(summary = "获取设计师列表")
@@ -34,7 +34,7 @@ public class DesignerController {
                .eq(SysUser::getStatus, 1)
                .orderByAsc(SysUser::getId);
 
-        List<SysUser> users = sysUserMapper.selectList(wrapper);
+        List<SysUser> users = sysUserService.list(wrapper);
 
         // 过滤：只返回用户名为设计相关的用户，或者通过角色判断
         // 这里简单返回所有正常用户，让前端自己筛选或者后端根据用户名包含"设计"来过滤

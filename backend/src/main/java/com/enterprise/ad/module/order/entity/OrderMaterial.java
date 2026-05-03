@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 订单物料明细 */
 @Data
@@ -20,6 +21,7 @@ public class OrderMaterial {
     private BigDecimal amount;      // 小计金额
     private String remark;
     private BigDecimal unitCost;   // 单位成本（管理员填写，财务/超管可见）
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

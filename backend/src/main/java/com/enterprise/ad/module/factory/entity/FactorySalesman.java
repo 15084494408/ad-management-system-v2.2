@@ -3,6 +3,7 @@ package com.enterprise.ad.module.factory.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /**
  * 工厂业务员表
@@ -22,7 +23,9 @@ public class FactorySalesman {
     private String factoryName;
     private Integer status;        // 状态：1启用 0禁用
     private String remark;         // 备注
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

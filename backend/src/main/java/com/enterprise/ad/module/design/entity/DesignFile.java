@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("des_file")
@@ -24,7 +25,9 @@ public class DesignFile {
     private String description;    // 文件描述
     private Integer status;        // 状态：1待审核 2通过 3驳回
     private String remark;        // 审核备注
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

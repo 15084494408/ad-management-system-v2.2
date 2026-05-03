@@ -49,4 +49,8 @@ export const orderApi = {
   getStatistics(params?: { period?: string; startDate?: string; endDate?: string }) {
     return request.get('/orders/statistics', { params })
   },
+  /** 未付清订单列表（待收款）— 对齐后端 GET /orders/pending-payment */
+  getPendingPayment() {
+    return request.get('/orders/pending-payment')
+  },
 }

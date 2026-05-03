@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 客户表 */
 @Data
@@ -41,7 +42,9 @@ public class Customer {
     private java.math.BigDecimal totalConsume;    // 累计消费（会员余额消费）
 
     private Long creatorId;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

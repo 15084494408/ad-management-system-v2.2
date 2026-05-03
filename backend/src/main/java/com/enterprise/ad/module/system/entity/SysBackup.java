@@ -3,6 +3,7 @@ package com.enterprise.ad.module.system.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /**
  * 数据备份记录表
@@ -20,7 +21,9 @@ public class SysBackup {
     private String remark;         // 备注
     private Long operatorId;       // 操作人ID
     private String operatorName;   // 操作人名称
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic
     private Integer deleted;

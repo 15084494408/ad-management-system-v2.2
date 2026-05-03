@@ -148,6 +148,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '财务报表' },
       },
       {
+        path: 'finance/flow',
+        name: 'FinanceFlow',
+        component: () => import('@/views/finance/FlowRecordView.vue'),
+        meta: { title: '财务流水' },
+      },
+      {
         path: 'finance/designer-commission',
         name: 'FinanceDesignerCommission',
         component: () => import('@/views/finance/DesignerCommissionView.vue'),

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 设计师提成表 */
 @Data
@@ -22,7 +23,9 @@ public class DesignerCommission {
     private LocalDateTime settleTime;    // 结算时间
     private String remark;           // 备注
     private Long creatorId;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 工厂账单明细（每日登记记录）— 支持多计价模式 */
 @Data
@@ -39,7 +40,9 @@ public class FactoryBillDetail {
     
     private String remark;          // 备注
     private Long creatorId;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic
     private Integer deleted;

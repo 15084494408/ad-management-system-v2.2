@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.enterprise.ad.module.system.log.service.OperationLogService;
 
 @RestController
 @RequestMapping("/system/logs")
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 public class OperationLogController {
 
     private final OperationLogMapper logMapper;
+    private final OperationLogService operationLogService;
 
     @GetMapping
     @Operation(summary = "日志列表（分页）")
@@ -47,14 +49,14 @@ public class OperationLogController {
             .le(endDateTime != null, OperationLog::getCreateTime, endDateTime)
             .orderByDesc(OperationLog::getCreateTime);
         
-        Page<OperationLog> result = logMapper.selectPage(page, qw);
+        Page<OperationLog> result = operationLogService.page(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "日志详情")
     public Result<OperationLog> getById(@PathVariable Long id) {
-        return Result.ok(logMapper.selectById(id));
+        return Result.ok(operationLogService.getById(id));
     }
 
     @GetMapping("/modules")

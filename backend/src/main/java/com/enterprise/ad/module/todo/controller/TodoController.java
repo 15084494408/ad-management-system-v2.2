@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.dto.StatusRequest;
 import com.enterprise.ad.module.todo.entity.TodoItem;
-import com.enterprise.ad.module.todo.mapper.TodoItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -17,13 +16,14 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.enterprise.ad.module.todo.service.TodoItemService;
 @RestController
 @RequestMapping("/todo")
 @RequiredArgsConstructor
 @Tag(name = "待办事项")
 public class TodoController {
 
-    private final TodoItemMapper todoMapper;
+    private final TodoItemService todoItemService;
 
     @GetMapping("/list")
     @Operation(summary = "待办列表")
@@ -34,7 +34,7 @@ public class TodoController {
             .eq(TodoItem::getDeleted, 0)
             .orderByDesc(TodoItem::getCreateTime);
 
-        List<TodoItem> items = todoMapper.selectList(qw);
+        List<TodoItem> items = todoItemService.list(qw);
 
         // 统计各状态数量
         Map<String, Long> statusCount = new HashMap<>();
@@ -83,7 +83,7 @@ public class TodoController {
         item.setCreateTime(LocalDateTime.now());
         item.setUpdateTime(LocalDateTime.now());
         item.setDeleted(0);
-        todoMapper.insert(item);
+        todoItemService.save(item);
         return Result.ok(item.getId());
     }
 
@@ -91,13 +91,13 @@ public class TodoController {
     @Operation(summary = "更新待办")
     @PreAuthorize("hasAuthority('order:edit')")
     public Result<Void> update(@PathVariable Long id, @RequestBody TodoItem item) {
-        TodoItem existing = todoMapper.selectById(id);
+        TodoItem existing = todoItemService.getById(id);
         if (existing == null || existing.getDeleted() == 1) {
             return Result.fail("待办不存在");
         }
         item.setId(id);
         item.setUpdateTime(LocalDateTime.now());
-        todoMapper.updateById(item);
+        todoItemService.updateById(item);
         return Result.ok();
     }
 
@@ -109,7 +109,7 @@ public class TodoController {
         item.setId(id);
         item.setStatus(body.getStatus());
         item.setUpdateTime(LocalDateTime.now());
-        todoMapper.updateById(item);
+        todoItemService.updateById(item);
         return Result.ok();
     }
 
@@ -117,7 +117,7 @@ public class TodoController {
     @Operation(summary = "删除待办")
     @PreAuthorize("hasAuthority('order:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        todoMapper.deleteById(id);
+        todoItemService.removeById(id);
         return Result.ok();
     }
 

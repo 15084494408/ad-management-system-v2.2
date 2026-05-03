@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("sq_requirement")
@@ -26,7 +27,9 @@ public class SquareRequirement {
     private Integer applyCount;     // 申请次数
     private Long designerId;       // 承接设计师ID
     private String designerName;   // 承接设计师名称
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

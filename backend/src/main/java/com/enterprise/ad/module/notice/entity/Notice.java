@@ -3,6 +3,7 @@ package com.enterprise.ad.module.notice.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("sys_notice")
@@ -18,7 +19,9 @@ public class Notice {
     private Integer isRead;      // 是否已读：0未读 1已读
     private Long readUserId;    // 读取用户ID
     private LocalDateTime readTime; // 读取时间
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 }

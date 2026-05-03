@@ -3,7 +3,6 @@ package com.enterprise.ad.module.system.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.system.entity.SysCompany;
-import com.enterprise.ad.module.system.mapper.SysCompanyMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.enterprise.ad.module.system.service.SysCompanyService;
 
 @RestController
 @RequestMapping("/system/companies")
@@ -19,13 +19,13 @@ import java.util.List;
 @Tag(name = "公司管理")
 public class CompanyController {
 
-    private final SysCompanyMapper companyMapper;
+    private final SysCompanyService sysCompanyService;
 
     @GetMapping
     @Operation(summary = "公司列表")
     @PreAuthorize("hasAuthority('system:config')")
     public Result<List<SysCompany>> list() {
-        List<SysCompany> list = companyMapper.selectList(
+        List<SysCompany> list = sysCompanyService.list(
             new LambdaQueryWrapper<SysCompany>()
                 .eq(SysCompany::getDeleted, 0)
                 .orderByDesc(SysCompany::getIsDefault)
@@ -48,7 +48,7 @@ public class CompanyController {
         if (company.getStatus() == null) company.setStatus(1);
         company.setCreateTime(LocalDateTime.now());
         company.setDeleted(0);
-        companyMapper.insert(company);
+        sysCompanyService.save(company);
         return Result.ok(company.getId());
     }
 
@@ -61,7 +61,7 @@ public class CompanyController {
             clearDefault();
         }
         company.setUpdateTime(LocalDateTime.now());
-        companyMapper.updateById(company);
+        sysCompanyService.updateById(company);
         return Result.ok();
     }
 
@@ -69,7 +69,7 @@ public class CompanyController {
     @Operation(summary = "删除公司")
     @PreAuthorize("hasAuthority('system:config')")
     public Result<Void> delete(@PathVariable Long id) {
-        companyMapper.deleteById(id);
+        sysCompanyService.removeById(id);
         return Result.ok();
     }
 
@@ -77,7 +77,7 @@ public class CompanyController {
         SysCompany update = new SysCompany();
         update.setIsDefault(0);
         update.setUpdateTime(LocalDateTime.now());
-        companyMapper.update(update,
+        sysCompanyService.update(update,
             new LambdaQueryWrapper<SysCompany>()
                 .eq(SysCompany::getIsDefault, 1)
                 .eq(SysCompany::getDeleted, 0)

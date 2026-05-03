@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 报价物料明细 */
 @Data
@@ -20,6 +21,7 @@ public class FinQuoteDetail {
     private BigDecimal amount;     // 小计金额
     private String remark;         // 备注
     private Integer isCustom;      // 是否手动物料(0=否,1=是)
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic
     private Integer deleted;

@@ -2,7 +2,7 @@
   <aside class="sidebar" :class="{ collapsed }">
     <nav class="menu">
       <div v-for="group in filteredMenuGroups" :key="group.title" class="menu-group">
-        <div class="menu-group-title" v-if="!collapsed">{{ group.title }}</div>
+        <div class="menu-group-title" v-if="!collapsed && group.title">{{ group.title }}</div>
         <template v-for="item in group.items" :key="item.path">
           <!-- 有子菜单 -->
           <div v-if="item.children && item.children.length" class="menu-item" :class="{ open: openMenus.includes(item.name) }">
@@ -58,15 +58,23 @@ function toggleMenu(name: string) {
 // 权限码 → 菜单映射
 const menuGroups = [
   {
-    title: '工作台',
+    title: '',  // 空标题，不显示分组
     items: [
+      // 1. 工作台
       { name: 'dashboard', path: '/dashboard', icon: '📊', label: '工作台', perm: 'dashboard:view' },
+      // 2. 待办工作台
       { path: '/todo', label: '📋 待办工作台', perm: 'order:list', badge: 'NEW' },
-    ],
-  },
-  {
-    title: '业务管理',
-    items: [
+      // 3. 订单管理
+      {
+        name: 'orders', icon: '📋', label: '订单管理', perm: 'order:list',
+        children: [
+          { path: '/orders', label: '订单列表', perm: 'order:list' },
+          { path: '/orders/create', label: '创建订单', perm: 'order:create' },
+          { path: '/orders/statistics', label: '订单统计', perm: 'order:list' },
+          { path: '/finance/quote', label: '订单报价', perm: 'finance:view' },
+        ],
+      },
+      // 4. 客户管理
       {
         name: 'customers', icon: '👥', label: '客户管理', perm: 'customer:list',
         children: [
@@ -76,6 +84,7 @@ const menuGroups = [
           { path: '/factory-bills', label: '工厂账单', perm: 'factory:list', badge: 'V2.1' },
         ],
       },
+      // 5. 会员管理
       {
         name: 'members', icon: '👑', label: '会员管理', perm: 'member:list',
         children: [
@@ -85,68 +94,19 @@ const menuGroups = [
           { path: '/members/levels', label: '会员等级', perm: 'member:list' },
         ],
       },
-      {
-        name: 'orders', icon: '📋', label: '订单管理', perm: 'order:list',
-        children: [
-          { path: '/orders', label: '订单列表', perm: 'order:list' },
-          { path: '/orders/create', label: '创建订单', perm: 'order:create' },
-          { path: '/orders/statistics', label: '订单统计', perm: 'order:list' },
-        ],
-      },
-      {
-        name: 'design', icon: '🎨', label: '设计文件', perm: 'design:file',
-        children: [
-          { path: '/design/files', label: '文件管理', perm: 'design:file' },
-          { path: '/design/upload', label: '文件上传', perm: 'design:file' },
-          { path: '/design/versions', label: '版本管理', perm: 'design:file' },
-        ],
-      },
-      {
-        name: 'material', icon: '📦', label: '物料管理', perm: 'material:view',
-        children: [
-          { path: '/materials', label: '物料库存', perm: 'material:view' },
-          { path: '/materials/types', label: '物料分类', perm: 'material:view' },
-          { path: '/materials/purchase', label: '采购管理', perm: 'material:view' },
-          { path: '/materials/warning', label: '库存预警', perm: 'material:view' },
-          { path: '/materials/overview', label: '📦 物料总览', perm: 'material:view' },
-        ],
-      },
-    ],
-  },
-  {
-    title: '设计广场',
-    items: [
-      {
-        name: 'square', icon: '🏪', label: '设计广场', perm: 'square:manage',
-        children: [
-          { path: '/square', label: '需求广场', perm: 'square:manage' },
-          { path: '/square/publish', label: '发布需求', perm: 'square:manage' },
-          { path: '/square/application', label: '我的接单', perm: 'square:manage' },
-          { path: '/square/income', label: '收入管理', perm: 'square:manage' },
-        ],
-      },
-    ],
-  },
-  {
-    title: '财务管理',
-    items: [
+      // 6. 财务结算
       {
         name: 'finance', icon: '💰', label: '财务结算', perm: 'finance:view',
         children: [
-          { path: '/finance/quote', label: '订单报价', perm: 'finance:view' },
-          { path: '/finance/receive', label: '收款管理', perm: 'finance:view' },
-          { path: '/finance/invoice', label: '发票管理', perm: 'finance:view' },
-          { path: '/finance/arap', label: '应收应付', perm: 'finance:view' },
-          { path: '/finance/report', label: '财务报表', perm: 'finance:view' },
-          { path: '/finance/commission-config', label: '👔 提成配置', perm: 'system:user' },
-          { path: '/finance/designer-commission', label: '💰 提成记录', perm: 'finance:view', badge: 'V2.3' },
+          { path: '/finance', label: '📊 财务概览', perm: 'finance:view' },
+          { path: '/finance/flow', label: '💵 财务流水', perm: 'finance:view', badge: '统一' },
+          { path: '/finance/arap', label: '📋 应收应付', perm: 'finance:view' },
+          { path: '/finance/invoice', label: '🧾 发票管理', perm: 'finance:view' },
+          { path: '/finance/report', label: '📈 财务报表', perm: 'finance:view' },
+          { path: '/finance/designer-commission', label: '👔 提成管理', perm: 'finance:view' },
         ],
       },
-    ],
-  },
-  {
-    title: '统计分析',
-    items: [
+      // 7. 统计分析
       {
         name: 'statistics', icon: '📈', label: '统计分析', perm: 'statistics:view',
         children: [
@@ -157,11 +117,37 @@ const menuGroups = [
           { path: '/statistics/flow', label: '流水统计', perm: 'statistics:view', badge: 'V2.2' },
         ],
       },
-    ],
-  },
-  {
-    title: '系统管理',
-    items: [
+      // 8. 设计文件
+      {
+        name: 'design', icon: '🎨', label: '设计文件', perm: 'design:file',
+        children: [
+          { path: '/design/files', label: '文件管理', perm: 'design:file' },
+          { path: '/design/upload', label: '文件上传', perm: 'design:file' },
+          { path: '/design/versions', label: '版本管理', perm: 'design:file' },
+        ],
+      },
+      // 9. 物料管理
+      {
+        name: 'material', icon: '📦', label: '物料管理', perm: 'material:view',
+        children: [
+          { path: '/materials', label: '物料库存', perm: 'material:view' },
+          { path: '/materials/types', label: '物料分类', perm: 'material:view' },
+          { path: '/materials/purchase', label: '采购管理', perm: 'material:view' },
+          { path: '/materials/warning', label: '库存预警', perm: 'material:view' },
+          { path: '/materials/overview', label: '📦 物料总览', perm: 'material:view' },
+        ],
+      },
+      // 10. 设计广场
+      {
+        name: 'square', icon: '🏪', label: '设计广场', perm: 'square:manage',
+        children: [
+          { path: '/square', label: '需求广场', perm: 'square:manage' },
+          { path: '/square/publish', label: '发布需求', perm: 'square:manage' },
+          { path: '/square/application', label: '我的接单', perm: 'square:manage' },
+          { path: '/square/income', label: '收入管理', perm: 'square:manage' },
+        ],
+      },
+      // 11. 系统管理
       {
         name: 'system', icon: '⚙️', label: '系统管理', perm: 'system:user',
         children: [

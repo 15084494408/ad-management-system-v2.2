@@ -32,6 +32,10 @@
         <div class="detail-tabs">
           <div class="detail-tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">📋 基本信息</div>
           <div class="detail-tab" :class="{ active: activeTab === 'material' }" @click="activeTab = 'material'">📦 物料明细</div>
+          <div class="detail-tab" :class="{ active: activeTab === 'design' }" @click="activeTab = 'design'">
+            🎨 设计文件
+            <span v-if="detailDesignFiles.length" class="tab-badge">{{ detailDesignFiles.length }}</span>
+          </div>
           <div class="detail-tab" :class="{ active: activeTab === 'finance' }" @click="activeTab = 'finance'">💰 财务信息</div>
         </div>
 
@@ -135,6 +139,67 @@
           <div v-if="detailMaterialTotal > 0" style="margin-top:14px;padding:12px 16px;background:#f0f9eb;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:13px;color:#606266;">物料合计：</span>
             <span style="font-size:18px;font-weight:700;color:#67c23a;">¥ {{ formatMoney(detailMaterialTotal) }}</span>
+          </div>
+        </div>
+
+        <!-- 设计文件 -->
+        <div v-if="activeTab === 'design'" class="tab-content">
+          <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#606266;">
+              共 {{ detailDesignFiles.length }} 个设计文件
+              <span v-if="detailDesignFiles.length > 0" style="margin-left:8px;color:#909399;">
+                ( 支持 .cdr .psd .ai .pdf .png .jpg 等格式 )
+              </span>
+            </span>
+            <button class="btn btn-primary" style="font-size:13px;padding:6px 16px;" @click="uploadVisible = true">+ 上传文件</button>
+          </div>
+
+          <!-- 文件网格 -->
+          <div v-if="detailDesignFiles.length" class="file-grid">
+            <div v-for="file in detailDesignFiles" :key="file.id" class="file-card" @click="previewFile(file)">
+              <!-- 缩略图/图标区域 -->
+              <div class="file-thumb" :class="'ext-' + getExtClass(file.extension)">
+                <template v-if="isImageFile(file.extension)">
+                  <img v-if="file.url" :src="file.url" class="file-thumb-img" loading="lazy" @error="handleImgError($event)" />
+                  <span v-else class="file-thumb-icon">{{ file.originalName }}</span>
+                </template>
+                <template v-else>
+                  <div class="file-thumb-icon-wrap">
+                    <span class="file-ext-label">{{ formatExt(file.extension) }}</span>
+                    <span class="file-app-label">{{ getAppName(file.extension) }}</span>
+                  </div>
+                </template>
+              </div>
+              <!-- 文件信息 -->
+              <div class="file-info">
+                <div class="file-name" :title="file.originalName">{{ file.originalName || file.name }}</div>
+                <div class="file-meta">
+                  <span class="file-version">V{{ file.version }}</span>
+                  <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                  <span class="file-uploader">{{ file.uploaderName }}</span>
+                </div>
+                <div class="file-meta" style="margin-top:2px;">
+                  <span class="file-status" :class="'file-status-' + file.status">
+                    {{ ['', '待审核', '已通过', '已驳回'][file.status] || '未知' }}
+                  </span>
+                  <span class="file-time">{{ formatTime(file.createTime) }}</span>
+                </div>
+              </div>
+              <!-- 操作按钮 -->
+              <div class="file-actions" @click.stop>
+                <button v-if="file.status === 2 && (file.url || file.name)" class="btn-icon" title="下载" @click="downloadFile(file)">📥</button>
+                <button v-if="file.status === 1" class="btn-icon" style="color:#67c23a;" title="通过" @click="approveFile(file)">✓</button>
+                <button v-if="file.status === 1" class="btn-icon" style="color:#f56c6c;" title="驳回" @click="rejectFile(file)">✗</button>
+                <button class="btn-icon" style="color:#909399;" title="删除" @click="deleteFile(file)">🗑</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else class="file-empty">
+            <div style="font-size:48px;margin-bottom:12px;">🎨</div>
+            <div style="font-size:14px;color:#909399;margin-bottom:6px;">暂无设计文件</div>
+            <div style="font-size:12px;color:#c0c4cc;">点击上方"上传文件"按钮，添加 CDR、PSD、AI 等设计源文件</div>
           </div>
         </div>
 
@@ -282,14 +347,123 @@
         </div>
       </div>
     </div>
+
+    <!-- 上传设计文件弹窗 -->
+    <div class="modal-overlay" v-if="uploadVisible" @click.self="uploadVisible = false">
+      <div class="modal-container" style="max-width:540px;">
+        <div class="modal-header">
+          <h3>🎨 上传设计文件</h3>
+          <button class="modal-close" @click="uploadVisible = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="upload-zone" :class="{ 'upload-dragover': isDragOver }"
+               @dragover.prevent="isDragOver = true"
+               @dragleave="isDragOver = false"
+               @drop.prevent="handleDrop">
+            <div style="font-size:36px;margin-bottom:8px;">📁</div>
+            <div style="font-size:14px;color:#606266;margin-bottom:4px;">拖拽文件到此处，或点击选择</div>
+            <div style="font-size:12px;color:#c0c4cc;">支持 CDR / PSD / AI / PDF / PNG / JPG / SVG / EPS / TIFF，单文件最大 200MB</div>
+            <input ref="fileInputRef" type="file" multiple accept=".cdr,.psd,.ai,.pdf,.png,.jpg,.jpeg,.svg,.eps,.tiff,.tif,.zip,.rar"
+                   style="display:none;" @change="handleFileSelect" />
+            <button class="btn btn-default" style="margin-top:12px;" @click="($refs.fileInputRef as HTMLInputElement)?.click()">选择文件</button>
+          </div>
+          <!-- 已选文件列表 -->
+          <div v-if="selectedFiles.length" style="margin-top:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;">已选择 {{ selectedFiles.length }} 个文件</div>
+            <div v-for="(f, i) in selectedFiles" :key="i" class="upload-file-item">
+              <span class="upload-file-ext" :class="'ext-' + getExtClass(getFileExt(f.name))">{{ formatExt(getFileExt(f.name)) }}</span>
+              <span class="upload-file-name" :title="f.name">{{ f.name }}</span>
+              <span class="upload-file-size">{{ formatFileSize(f.size) }}</span>
+              <button class="btn-icon btn-cancel" @click="selectedFiles.splice(i, 1)" style="font-size:14px;">&times;</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:16px;">
+            <label class="form-label">文件描述（可选）</label>
+            <textarea class="form-input" v-model="uploadDescription" rows="2" placeholder="例如：封面设计终稿"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" @click="uploadVisible = false">取消</button>
+          <button class="btn btn-primary" @click="submitUpload" :disabled="uploading">
+            {{ uploading ? '上传中...' : '开始上传' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 文件预览弹窗 -->
+    <div class="modal-overlay" v-if="previewVisible" @click.self="previewVisible = false">
+      <div class="modal-container" style="max-width:700px;">
+        <div class="modal-header">
+          <h3>{{ previewFileData?.originalName || '文件预览' }}</h3>
+          <button class="modal-close" @click="previewVisible = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- 图片预览 -->
+          <div v-if="previewFileData && isImageFile(previewFileData.extension) && previewFileData.url" class="preview-image-wrap">
+            <img :src="previewFileData.url" style="max-width:100%;max-height:60vh;border-radius:8px;" />
+          </div>
+          <!-- 非图片文件信息 -->
+          <div v-else class="preview-file-detail">
+            <div class="preview-file-icon-big" :class="'ext-' + getExtClass(previewFileData?.extension)">
+              {{ formatExt(previewFileData?.extension) }}
+            </div>
+            <div style="margin-top:16px;">
+              <div class="info-grid">
+                <div class="info-cell">
+                  <div class="info-label">文件名</div>
+                  <div class="info-value">{{ previewFileData?.originalName }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">类型</div>
+                  <div class="info-value">{{ formatExt(previewFileData?.extension) }} ({{ getAppName(previewFileData?.extension) }})</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">大小</div>
+                  <div class="info-value">{{ formatFileSize(previewFileData?.size) }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">版本</div>
+                  <div class="info-value">V{{ previewFileData?.version }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">上传人</div>
+                  <div class="info-value">{{ previewFileData?.uploaderName }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">上传时间</div>
+                  <div class="info-value">{{ formatTime(previewFileData?.createTime) }}</div>
+                </div>
+                <div class="info-cell" v-if="previewFileData?.description">
+                  <div class="info-label">描述</div>
+                  <div class="info-value">{{ previewFileData?.description }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="info-label">审核状态</div>
+                  <div><span class="file-status" :class="'file-status-' + previewFileData?.status">{{ ['', '待审核', '已通过', '已驳回'][previewFileData?.status] }}</span></div>
+                </div>
+              </div>
+            </div>
+            <div v-if="previewFileData?.remark" style="margin-top:12px;padding:10px;background:#fef0f0;border-radius:6px;font-size:13px;color:#f56c6c;">
+              <strong>驳回原因：</strong>{{ previewFileData.remark }}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button v-if="previewFileData?.url || previewFileData?.name" class="btn btn-default" @click="downloadFile(previewFileData!)">📥 下载文件</button>
+          <button class="btn btn-default" @click="previewVisible = false">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { orderApi } from '@/api'
+import { orderApi, designFileApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
@@ -313,6 +487,7 @@ const orderTypeMap: Record<number, string> = { 1: '图文打印', 2: '广告制�
 
 const detailData = ref<any>(null)
 const detailMaterials = ref<any[]>([])
+const detailDesignFiles = ref<any[]>([])
 const detailMaterialTotal = computed(() => detailMaterials.value.reduce((s: number, m: any) => s + ((m.quantity || 0) * (m.unitPrice || 0)), 0))
 const detailStatusIdx = computed(() => {
   const s = detailData.value?.status
@@ -343,6 +518,178 @@ const remainingAmount = computed(() => {
 const editingMaterialId = ref<number | null>(null)
 const editingCost = ref<number>(0)
 
+// ===== 设计文件相关 =====
+const uploadVisible = ref(false)
+const uploadDescription = ref('')
+const uploading = ref(false)
+const isDragOver = ref(false)
+const selectedFiles = ref<File[]>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+const previewVisible = ref(false)
+const previewFileData = ref<any>(null)
+
+// 文件扩展名分类
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp']
+
+function getFileExt(filename: string): string {
+  if (!filename) return ''
+  const idx = filename.lastIndexOf('.')
+  return idx >= 0 ? filename.substring(idx).toLowerCase() : ''
+}
+
+function formatExt(ext: string): string {
+  return (ext || '').replace('.', '').toUpperCase()
+}
+
+function getExtClass(ext: string): string {
+  const e = (ext || '').replace('.', '').toLowerCase()
+  const map: Record<string, string> = {
+    cdr: 'corel', ai: 'illustrator', psd: 'photoshop', pdf: 'pdf',
+    png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', svg: 'image', webp: 'image',
+    eps: 'eps', tiff: 'image', tif: 'image', zip: 'archive', rar: 'archive',
+    indd: 'indesign', idml: 'indesign', sketch: 'sketch',
+    txt: 'text', doc: 'word', docx: 'word', xls: 'excel', xlsx: 'excel',
+  }
+  return map[e] || 'default'
+}
+
+function getAppName(ext: string): string {
+  const e = (ext || '').replace('.', '').toLowerCase()
+  const map: Record<string, string> = {
+    cdr: 'CorelDRAW', ai: 'Illustrator', psd: 'Photoshop', pdf: 'PDF',
+    eps: 'Illustrator', tiff: 'TIFF', tif: 'TIFF',
+    indd: 'InDesign', idml: 'InDesign', sketch: 'Sketch',
+    zip: '压缩包', rar: '压缩包',
+  }
+  return map[e] || ''
+}
+
+function isImageFile(ext: string): boolean {
+  return IMAGE_EXTS.includes((ext || '').toLowerCase())
+}
+
+function handleImgError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
+  const parent = img.parentElement
+  if (parent) {
+    const span = document.createElement('span')
+    span.className = 'file-thumb-icon'
+    span.textContent = '加载失败'
+    parent.appendChild(span)
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (!bytes) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// 文件选择 & 拖拽
+function handleFileSelect(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files) {
+    selectedFiles.value.push(...Array.from(input.files))
+  }
+  input.value = ''  // 重置以允许重复选择同一文件
+}
+
+function handleDrop(e: DragEvent) {
+  isDragOver.value = false
+  if (e.dataTransfer?.files) {
+    selectedFiles.value.push(...Array.from(e.dataTransfer.files))
+  }
+}
+
+// 上传文件
+async function submitUpload() {
+  if (!selectedFiles.value.length) {
+    ElMessage.warning('请先选择要上传的文件')
+    return
+  }
+  uploading.value = true
+  const token = localStorage.getItem('token') || ''
+  let successCount = 0
+  let failCount = 0
+
+  for (const file of selectedFiles.value) {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('orderId', String(detailData.value.id))
+      if (uploadDescription.value) formData.append('description', uploadDescription.value)
+
+      const res = await fetch(designFileApi.uploadUrl, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      })
+      if (res.ok) successCount++
+      else failCount++
+    } catch {
+      failCount++
+    }
+  }
+
+  uploading.value = false
+  selectedFiles.value = []
+  uploadDescription.value = ''
+  uploadVisible.value = false
+
+  if (failCount === 0) {
+    ElMessage.success(`成功上传 ${successCount} 个文件`)
+  } else {
+    ElMessage.warning(`上传完成：${successCount} 成功，${failCount} 失败`)
+  }
+  loadDetail()
+}
+
+// 文件操作
+function previewFile(file: any) {
+  previewFileData.value = file
+  previewVisible.value = true
+}
+
+function downloadFile(file: any) {
+  const url = file.url || file.name
+  if (url) {
+    window.open(url.startsWith('http') ? url : '/api/design/file/download?path=' + encodeURIComponent(url))
+  } else {
+    ElMessage.warning('文件路径不可用')
+  }
+}
+
+async function approveFile(file: any) {
+  try {
+    await designFileApi.updateStatus(file.id, 2)
+    ElMessage.success('已通过审核')
+    loadDetail()
+  } catch { /* error handled by interceptor */ }
+}
+
+async function rejectFile(file: any) {
+  const remark = prompt('请输入驳回原因（可选）：')
+  if (remark === null) return  // 用户点了取消
+  try {
+    await designFileApi.updateStatus(file.id, 3, remark || '')
+    ElMessage.success('已驳回')
+    loadDetail()
+  } catch { /* error handled by interceptor */ }
+}
+
+async function deleteFile(file: any) {
+  if (!confirm(`确认删除文件 "${file.originalName || file.name}"？此操作不可恢复。`)) return
+  try {
+    await designFileApi.delete(file.id)
+    ElMessage.success('已删除')
+    loadDetail()
+  } catch { /* error handled by interceptor */ }
+}
+
 function startEditCost(m: any) {
   editingMaterialId.value = m.id
   editingCost.value = m.unitCost || 0
@@ -364,6 +711,7 @@ async function loadDetail() {
     const d = res.data
     detailData.value = d?.order || d
     detailMaterials.value = d?.materials || []
+    detailDesignFiles.value = d?.designFiles || []
   } catch { detailData.value = null }
   finally { loading.value = false }
 }
@@ -419,8 +767,13 @@ onMounted(loadDetail)
 .detail-tab {
   padding: 14px 20px; cursor: pointer; font-size: 13px; font-weight: 500;
   border-bottom: 2px solid transparent; color: #909399; transition: all 0.2s;
+  display: flex; align-items: center; gap: 6px;
   &:hover { color: #606266; }
   &.active { color: #409eff; border-bottom-color: #409eff; }
+}
+.tab-badge {
+  background: #409eff; color: #fff; font-size: 11px; padding: 1px 6px;
+  border-radius: 10px; font-weight: 600; line-height: 1.4;
 }
 .tab-content { padding: 20px; }
 
@@ -491,6 +844,7 @@ onMounted(loadDetail)
 .modal-container {
   background: #fff; border-radius: 12px; width: 90%;
   box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  max-height: 85vh; overflow-y: auto;
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -506,5 +860,151 @@ onMounted(loadDetail)
 .modal-footer {
   padding: 14px 24px; border-top: 1px solid #f0f0f0;
   display: flex; justify-content: flex-end; gap: 10px;
+}
+
+// ===== 设计文件样式 =====
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.file-card {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  &:hover {
+    border-color: #409eff;
+    box-shadow: 0 4px 16px rgba(64, 158, 255, 0.12);
+    transform: translateY(-2px);
+  }
+}
+
+.file-thumb {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  position: relative;
+  overflow: hidden;
+
+  // 扩展名颜色主题
+  &.ext-corel { background: linear-gradient(135deg, #1a8c2a 0%, #2dd44a 100%); }
+  &.ext-illustrator { background: linear-gradient(135deg, #ff9a00 0%, #ff6f00 100%); }
+  &.ext-photoshop { background: linear-gradient(135deg, #31a8ff 0%, #0078d4 100%); }
+  &.ext-pdf { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+  &.ext-indesign { background: linear-gradient(135deg, #ff3366 0%, #cc0033 100%); }
+  &.ext-eps { background: linear-gradient(135deg, #8e44ad 0%, #6c3483 100%); }
+  &.ext-image { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  &.ext-archive { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+  &.ext-sketch { background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%); }
+  &.ext-word { background: linear-gradient(135deg, #2b579a 0%, #1e3c72 100%); }
+  &.ext-excel { background: linear-gradient(135deg, #217346 0%, #185a34 100%); }
+}
+
+.file-thumb-img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+.file-thumb-icon {
+  color: #909399; font-size: 13px; text-align: center;
+}
+
+.file-thumb-icon-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.file-ext-label {
+  font-size: 28px; font-weight: 800; color: rgba(255,255,255,0.95);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  letter-spacing: 1px;
+}
+.file-app-label {
+  font-size: 11px; color: rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.15); padding: 2px 8px; border-radius: 4px;
+}
+
+.file-info {
+  padding: 10px 12px;
+}
+.file-name {
+  font-size: 13px; font-weight: 600; color: #303133;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.file-meta {
+  display: flex; gap: 8px; align-items: center; font-size: 11px; color: #909399;
+}
+.file-version {
+  background: #ecf5ff; color: #409eff; padding: 1px 5px; border-radius: 3px; font-weight: 600;
+}
+.file-status {
+  &.file-status-1 { color: #909399; }
+  &.file-status-2 { color: #67c23a; }
+  &.file-status-3 { color: #f56c6c; }
+}
+
+.file-actions {
+  display: flex; gap: 2px; justify-content: flex-end;
+  padding: 4px 8px; border-top: 1px solid #f5f5f5;
+  .btn-icon { font-size: 15px; padding: 2px 6px; }
+}
+
+.file-empty {
+  text-align: center; padding: 48px 20px;
+}
+
+// 上传区域
+.upload-zone {
+  border: 2px dashed #dcdfe6; border-radius: 10px; padding: 32px;
+  text-align: center; transition: all 0.25s;
+  &.upload-dragover {
+    border-color: #409eff; background: #ecf5ff;
+  }
+}
+.upload-file-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: #f5f7fa; border-radius: 6px; margin-bottom: 6px;
+}
+.upload-file-ext {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 24px; border-radius: 4px; font-size: 10px; font-weight: 800; color: #fff;
+  &.ext-corel { background: #1a8c2a; }
+  &.ext-illustrator { background: #ff9a00; }
+  &.ext-photoshop { background: #31a8ff; }
+  &.ext-pdf { background: #e74c3c; }
+  &.ext-image { background: #667eea; }
+  &.ext-archive { background: #f39c12; }
+}
+.upload-file-name {
+  flex: 1; font-size: 13px; color: #303133;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.upload-file-size {
+  font-size: 12px; color: #909399; flex-shrink: 0;
+}
+
+// 预览
+.preview-image-wrap {
+  text-align: center;
+}
+.preview-file-detail {
+  text-align: center;
+}
+.preview-file-icon-big {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100px; height: 100px; border-radius: 16px;
+  font-size: 32px; font-weight: 800; color: rgba(255,255,255,0.95);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  &.ext-corel { background: linear-gradient(135deg, #1a8c2a, #2dd44a); }
+  &.ext-illustrator { background: linear-gradient(135deg, #ff9a00, #ff6f00); }
+  &.ext-photoshop { background: linear-gradient(135deg, #31a8ff, #0078d4); }
+  &.ext-pdf { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+  &.ext-indesign { background: linear-gradient(135deg, #ff3366, #cc0033); }
+  &.ext-eps { background: linear-gradient(135deg, #8e44ad, #6c3483); }
+  &.ext-image { background: linear-gradient(135deg, #667eea, #764ba2); }
+  &.ext-archive { background: linear-gradient(135deg, #f39c12, #e67e22); }
 }
 </style>

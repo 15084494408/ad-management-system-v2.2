@@ -7,12 +7,12 @@ import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.dto.PaymentRequest;
 import com.enterprise.ad.common.dto.StatusRequest;
 import com.enterprise.ad.common.util.DateUtil;
+import com.enterprise.ad.common.util.OrderNoGenerator;
 import com.enterprise.ad.module.customer.entity.Customer;
 import com.enterprise.ad.module.customer.mapper.CustomerMapper;
 import com.enterprise.ad.module.designer.entity.DesignerCommissionConfig;
 import com.enterprise.ad.module.designer.mapper.DesignerCommissionConfigMapper;
-import com.enterprise.ad.module.finance.entity.FinanceRecord;
-import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
+import com.enterprise.ad.module.finance.service.FinanceRecordService;
 import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
@@ -30,7 +30,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,9 +41,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -60,12 +57,9 @@ public class OrderController {
     private final MemberTransactionMapper memberTransactionMapper;
     private final CustomerMapper customerMapper;
     private final DesignerCommissionConfigMapper commissionMapper;
-    private final FinanceRecordMapper financeRecordMapper;
+    private final FinanceRecordService financeRecordService;
+    private final OrderNoGenerator orderNoGenerator;
     private final SysUserMapper userMapper;
-    private final StringRedisTemplate redisTemplate;
-
-    // 订单编号前缀
-    private static final String ORDER_PREFIX = "DD";
 
     @GetMapping
     @Operation(summary = "订单列表（分页+条件筛选）")
@@ -107,6 +101,56 @@ public class OrderController {
             .orderByDesc(Order::getCreateTime);
         Page<Order> result = orderMapper.selectPage(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
+    }
+
+    /**
+     * 未付清订单列表（待收款）
+     * 前端路由: GET /orders/pending-payment
+     */
+    @GetMapping("/pending-payment")
+    @Operation(summary = "未付清订单列表（待收款）")
+    @PreAuthorize("hasAuthority('order:list')")
+    public Result<List<Map<String, Object>>> pendingPayment() {
+        List<Order> orders = orderMapper.selectList(
+            new LambdaQueryWrapper<Order>()
+                .eq(Order::getDeleted, 0)
+                .ne(Order::getStatus, 4)  // 排除已取消
+                .and(w -> w
+                    .eq(Order::getPaymentStatus, 1)  // 未付
+                    .or().eq(Order::getPaymentStatus, 2)  // 部分付
+                )
+                .orderByAsc(Order::getPaymentStatus)  // 未付排前面
+                .orderByDesc(Order::getCreateTime)
+        );
+
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (Order o : orders) {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", o.getId());
+            item.put("orderNo", o.getOrderNo());
+            item.put("customerName", o.getCustomerName());
+            item.put("title", o.getTitle());
+            item.put("totalAmount", o.getTotalAmount());
+            item.put("paidAmount", o.getPaidAmount());
+            item.put("roundingAmount", o.getRoundingAmount());
+            item.put("discountAmount", o.getDiscountAmount());
+            item.put("status", o.getStatus());
+            item.put("paymentStatus", o.getPaymentStatus());
+            // 计算待收金额
+            BigDecimal unpaid = BigDecimal.ZERO;
+            if (o.getTotalAmount() != null) {
+                unpaid = o.getTotalAmount()
+                    .subtract(o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO)
+                    .subtract(o.getRoundingAmount() != null ? o.getRoundingAmount() : BigDecimal.ZERO)
+                    .subtract(o.getDiscountAmount() != null ? o.getDiscountAmount() : BigDecimal.ZERO)
+                    .max(BigDecimal.ZERO);
+            }
+            item.put("unpaidAmount", unpaid);
+            item.put("memberDeductAmount", o.getMemberDeductAmount());
+            item.put("createTime", o.getCreateTime());
+            result.add(item);
+        }
+        return Result.ok(result);
     }
 
     /**
@@ -227,7 +271,7 @@ public class OrderController {
     @Transactional
     public Result<Long> create(@Valid @RequestBody CreateOrderDTO dto) {
         // ★ 修复 P0-1: 使用 DTO 接收请求，避免前端传入非法字段
-        String orderNo = generateOrderNo();
+        String orderNo = orderNoGenerator.generate();
 
         // 将 DTO 转换为 Entity
         Order order = new Order();
@@ -513,60 +557,12 @@ public class OrderController {
 
         // 同步生成财务收入流水
         if (amount.compareTo(BigDecimal.ZERO) > 0) {
-            FinanceRecord finRecord = new FinanceRecord();
-            finRecord.setRecordNo("ORD" + System.currentTimeMillis());
-            finRecord.setType("income");
-            finRecord.setCategory("订单收款");
-            finRecord.setAmount(amount);
-            finRecord.setRelatedId(id);
-            finRecord.setRelatedName(existing.getOrderNo());
-            finRecord.setRemark("订单: " + existing.getTitle() + " | 客户: " + existing.getCustomerName());
-            finRecord.setCreateTime(LocalDateTime.now());
-            finRecord.setDeleted(0);
-            financeRecordMapper.insert(finRecord);
+            financeRecordService.createIncome("ORD", "订单收款", amount, id,
+                existing.getOrderNo(), null,
+                "订单: " + existing.getTitle() + " | 客户: " + existing.getCustomerName());
         }
 
         return Result.ok();
-    }
-
-    /**
-     * ★ 修复 P1-6: 使用 Redis INCR 原子自增生成订单编号
-     * 替代原来的 JVM 级 ReentrantLock（多实例部署下会失效）
-     */
-    private String generateOrderNo() {
-        String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String redisKey = "order:no:seq:" + dateStr;
-        String prefix = ORDER_PREFIX + dateStr;
-
-        // Redis INCR 是原子操作，天然支持分布式
-        Long seq = redisTemplate.opsForValue().increment(redisKey);
-        if (seq != null && seq == 1) {
-            // 首次使用，设置 24 小时过期（当天有效）
-            redisTemplate.expire(redisKey, 24, TimeUnit.HOURS);
-        }
-
-        if (seq == null) {
-            // Redis 不可用时的降级方案
-            log.warn("Redis 不可用，降级使用数据库查询生成订单号");
-            return generateOrderNoFallback(prefix);
-        }
-
-        return prefix + String.format("%03d", seq);
-    }
-
-    /**
-     * Redis 不可用时的降级方案（保留原有逻辑作为兜底）
-     */
-    private String generateOrderNoFallback(String prefix) {
-        String maxNo = orderMapper.selectMaxOrderNo(prefix);
-        int seq = 1;
-        if (maxNo != null && maxNo.length() > prefix.length()) {
-            try {
-                seq = Integer.parseInt(maxNo.substring(prefix.length())) + 1;
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return prefix + String.format("%03d", seq);
     }
 
     /**
@@ -577,55 +573,52 @@ public class OrderController {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-
-        // 优先通过 customerId 扣减（新逻辑）
         if (customerId != null) {
-            Customer customer = customerMapper.selectById(customerId);
-            if (customer == null || customer.getIsMember() != 1 || customer.getBalance() == null || customer.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-                return;
-            }
+            deductFromCustomer(customerId, amount, orderId, orderNo, "consume",
+                "订单收款扣除预存：" + orderNo);
+            return;
+        }
+        if (memberId != null) {
+            deductFromMember(memberId, amount, orderId, orderNo, "consume",
+                "订单收款扣除预存：" + orderNo);
+        }
+    }
 
-            BigDecimal balance = customer.getBalance();
-            BigDecimal deductAmount = balance.compareTo(amount) >= 0 ? amount : balance;
-
-            if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                return;
-            }
-
-            int rows = customerMapper.deductBalance(customerId, deductAmount);
-            if (rows == 0) {
-                log.warn("客户 {} 会员余额扣除失败", customerId);
-                return;
-            }
-
-            // 回写订单的会员抵扣金额（累加）
-            if (orderId != null) {
-                orderMapper.updateMemberDeductAmount(orderId, deductAmount);
-            }
-
-            Customer updated = customerMapper.selectById(customerId);
-            BigDecimal newBalance = updated != null && updated.getBalance() != null
-                ? updated.getBalance() : BigDecimal.ZERO;
-
-            MemberTransaction tx = new MemberTransaction();
-            tx.setCustomerId(customerId);
-            tx.setMemberId(customerId); // 兼容旧表
-            tx.setType("consume");
-            tx.setAmount(deductAmount);
-            tx.setBalanceBefore(balance);
-            tx.setBalanceAfter(newBalance);
-            tx.setOrderId(orderId);
-            tx.setRemark("订单收款扣除预存：" + orderNo);
-            tx.setCreateTime(LocalDateTime.now());
-            memberTransactionMapper.insert(tx);
+    /**
+     * 通过客户(customer)扣除会员余额
+     */
+    private void deductFromCustomer(Long customerId, BigDecimal amount, Long orderId, String orderNo,
+                                     String txType, String remark) {
+        Customer customer = customerMapper.selectById(customerId);
+        if (customer == null || customer.getIsMember() != 1 || customer.getBalance() == null
+                || customer.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
 
-        // 回退：通过旧 memberId 扣减（兼容历史数据）
-        if (memberId == null) {
+        BigDecimal balance = customer.getBalance();
+        BigDecimal deductAmount = balance.compareTo(amount) >= 0 ? amount : balance;
+        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        int rows = customerMapper.deductBalance(customerId, deductAmount);
+        if (rows == 0) {
+            log.warn("客户 {} 会员余额扣除失败", customerId);
             return;
         }
 
+        updateOrderDeductAmount(orderId, deductAmount);
+
+        Customer updated = customerMapper.selectById(customerId);
+        BigDecimal newBalance = updated != null && updated.getBalance() != null
+            ? updated.getBalance() : BigDecimal.ZERO;
+
+        insertMemberTx(customerId, customerId, txType, deductAmount, balance, newBalance, orderId, remark);
+    }
+
+    /**
+     * 通过旧版 memberId 扣除会员余额（兼容历史数据）
+     */
+    private void deductFromMember(Long memberId, BigDecimal amount, Long orderId, String orderNo,
+                                   String txType, String remark) {
         Member member = memberMapper.selectById(memberId);
         if (member == null || member.getBalance() == null || member.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             return;
@@ -633,10 +626,7 @@ public class OrderController {
 
         BigDecimal balance = member.getBalance();
         BigDecimal deductAmount = balance.compareTo(amount) >= 0 ? amount : balance;
-
-        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
+        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) return;
 
         int rows = memberMapper.deductBalance(memberId, deductAmount);
         if (rows == 0) {
@@ -644,23 +634,44 @@ public class OrderController {
             return;
         }
 
-        // 回写订单的会员抵扣金额（累加）
-        if (orderId != null) {
-            orderMapper.updateMemberDeductAmount(orderId, deductAmount);
-        }
+        updateOrderDeductAmount(orderId, deductAmount);
 
-        Member updatedMember = memberMapper.selectById(memberId);
-        BigDecimal newBalance = updatedMember != null && updatedMember.getBalance() != null
-            ? updatedMember.getBalance() : BigDecimal.ZERO;
+        Member updated = memberMapper.selectById(memberId);
+        BigDecimal newBalance = updated != null && updated.getBalance() != null
+            ? updated.getBalance() : BigDecimal.ZERO;
 
         MemberTransaction tx = new MemberTransaction();
         tx.setMemberId(memberId);
-        tx.setType("consume");
+        tx.setType(txType);
         tx.setAmount(deductAmount);
         tx.setBalanceBefore(balance);
         tx.setBalanceAfter(newBalance);
         tx.setOrderId(orderId);
-        tx.setRemark("订单收款扣除预存：" + orderNo);
+        tx.setRemark(remark);
+        tx.setCreateTime(LocalDateTime.now());
+        memberTransactionMapper.insert(tx);
+    }
+
+    /** 回写订单的会员抵扣金额（累加） */
+    private void updateOrderDeductAmount(Long orderId, BigDecimal deductAmount) {
+        if (orderId != null) {
+            orderMapper.updateMemberDeductAmount(orderId, deductAmount);
+        }
+    }
+
+    /** 创建会员交易记录 */
+    private void insertMemberTx(Long customerId, Long memberId, String type,
+                                 BigDecimal amount, BigDecimal balanceBefore,
+                                 BigDecimal balanceAfter, Long orderId, String remark) {
+        MemberTransaction tx = new MemberTransaction();
+        tx.setCustomerId(customerId);
+        tx.setMemberId(memberId);
+        tx.setType(type);
+        tx.setAmount(amount);
+        tx.setBalanceBefore(balanceBefore);
+        tx.setBalanceAfter(balanceAfter);
+        tx.setOrderId(orderId);
+        tx.setRemark(remark);
         tx.setCreateTime(LocalDateTime.now());
         memberTransactionMapper.insert(tx);
     }
@@ -673,67 +684,54 @@ public class OrderController {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-
         if (customerId != null) {
-            Customer customer = customerMapper.selectById(customerId);
-            if (customer == null || customer.getIsMember() != 1) {
-                log.warn("退回余额失败：客户 {} 不是会员", customerId);
-                return;
-            }
+            refundToCustomer(customerId, amount, orderId, orderNo);
+            return;
+        }
+        if (memberId != null) {
+            refundToMember(memberId, amount, orderId, orderNo);
+        }
+    }
 
-            BigDecimal balance = customer.getBalance() != null ? customer.getBalance() : BigDecimal.ZERO;
-
-            // 原子增加余额，同时减少累计消费
-            int rows = customerMapper.addBalance(customerId, amount);
-            // 额外减少 total_consume（addBalance 只增加 total_recharge）
-            customerMapper.reduceConsume(customerId, amount);
-
-            Customer updated = customerMapper.selectById(customerId);
-            BigDecimal newBalance = updated != null && updated.getBalance() != null
-                ? updated.getBalance() : BigDecimal.ZERO;
-
-            MemberTransaction tx = new MemberTransaction();
-            tx.setCustomerId(customerId);
-            tx.setMemberId(customerId); // 兼容旧表
-            tx.setType("refund");
-            tx.setAmount(amount);
-            tx.setBalanceBefore(balance);
-            tx.setBalanceAfter(newBalance);
-            tx.setOrderId(orderId);
-            tx.setRemark("订单取消退回余额：" + orderNo);
-            tx.setCreateTime(LocalDateTime.now());
-            memberTransactionMapper.insert(tx);
-            log.info("订单 {} 取消，退回客户 {} 会员余额 ¥{}", orderNo, customerId, amount);
+    /** 退回余额到客户（新逻辑） */
+    private void refundToCustomer(Long customerId, BigDecimal amount, Long orderId, String orderNo) {
+        Customer customer = customerMapper.selectById(customerId);
+        if (customer == null || customer.getIsMember() != 1) {
+            log.warn("退回余额失败：客户 {} 不是会员", customerId);
             return;
         }
 
-        // 回退：通过旧 memberId 退回
-        if (memberId == null) {
-            return;
-        }
+        BigDecimal balance = customer.getBalance() != null ? customer.getBalance() : BigDecimal.ZERO;
 
+        customerMapper.addBalance(customerId, amount);
+        customerMapper.reduceConsume(customerId, amount);
+
+        Customer updated = customerMapper.selectById(customerId);
+        BigDecimal newBalance = updated != null && updated.getBalance() != null
+            ? updated.getBalance() : BigDecimal.ZERO;
+
+        insertMemberTx(customerId, customerId, "refund", amount, balance, newBalance, orderId,
+            "订单取消退回余额：" + orderNo);
+        log.info("订单 {} 取消，退回客户 {} 会员余额 ¥{}", orderNo, customerId, amount);
+    }
+
+    /** 退回余额到旧版会员（兼容） */
+    private void refundToMember(Long memberId, BigDecimal amount, Long orderId, String orderNo) {
         Member member = memberMapper.selectById(memberId);
         if (member == null) {
+            log.warn("退回余额失败：会员 {} 不存在", memberId);
             return;
         }
 
         BigDecimal balance = member.getBalance() != null ? member.getBalance() : BigDecimal.ZERO;
-        int rows = memberMapper.addBalance(memberId, amount);
+        memberMapper.addBalance(memberId, amount);
 
-        Member updatedMember = memberMapper.selectById(memberId);
-        BigDecimal newBalance = updatedMember != null && updatedMember.getBalance() != null
-            ? updatedMember.getBalance() : BigDecimal.ZERO;
+        Member updated = memberMapper.selectById(memberId);
+        BigDecimal newBalance = updated != null && updated.getBalance() != null
+            ? updated.getBalance() : BigDecimal.ZERO;
 
-        MemberTransaction tx = new MemberTransaction();
-        tx.setMemberId(memberId);
-        tx.setType("refund");
-        tx.setAmount(amount);
-        tx.setBalanceBefore(balance);
-        tx.setBalanceAfter(newBalance);
-        tx.setOrderId(orderId);
-        tx.setRemark("订单取消退回余额：" + orderNo);
-        tx.setCreateTime(LocalDateTime.now());
-        memberTransactionMapper.insert(tx);
+        insertMemberTx(null, memberId, "refund", amount, balance, newBalance, orderId,
+            "订单取消退回余额：" + orderNo);
         log.info("订单 {} 取消，退回会员 {} 余额 ¥{}", orderNo, memberId, amount);
     }
 

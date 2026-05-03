@@ -103,8 +103,14 @@ public class FinanceController {
         if (request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             return Result.fail(400, "金额必须大于0");
         }
+        FinanceRecord record = createFinanceRecord(request);
+        if (record == null) return Result.fail(500, "创建财务记录失败");
+        processRecordItems(request.getItems(), record);
+        return Result.ok(record.getId());
+    }
 
-        // 1. 创建财务流水
+    /** 创建财务流水主记录 */
+    private FinanceRecord createFinanceRecord(CreateRecordRequest request) {
         FinanceRecord record = new FinanceRecord();
         record.setRecordNo("FIN" + System.currentTimeMillis());
         record.setType(request.getType());
@@ -116,66 +122,77 @@ public class FinanceController {
         record.setCreateTime(LocalDateTime.now());
         record.setDeleted(0);
         financeRecordMapper.insert(record);
+        return record;
+    }
 
-        // 2. 处理物料明细（有明细时触发库存出库联动）
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
-            for (CreateRecordRequest.RecordItemRequest item : request.getItems()) {
-                // 保存明细记录
-                FinanceRecordItem recordItem = new FinanceRecordItem();
-                recordItem.setRecordId(record.getId());
-                recordItem.setMaterialId(item.getMaterialId());
-                recordItem.setMaterialName(item.getMaterialName());
-                recordItem.setPricingType(item.getPricingType() != null ? item.getPricingType() : 0);
-                recordItem.setQuantity(item.getQuantity());
-                recordItem.setWidth(item.getWidth());
-                recordItem.setHeight(item.getHeight());
-                recordItem.setArea(item.getArea());
-                recordItem.setUnitPrice(item.getUnitPrice());
-                recordItem.setTotalPrice(item.getTotalPrice());
-                recordItem.setCreateTime(LocalDateTime.now());
-                recordItem.setDeleted(0);
-                recordItemMapper.insert(recordItem);
-
-                // 3. 执行库存出库（扣减库存 + 记录日志 + 同组同步）
-                Material material = materialMapper.selectById(item.getMaterialId());
-                if (material != null && material.getDeleted() == 0) {
-                    // 计算出库数量：按数量直接用quantity，按面积取Math.ceil(area)
-                    int stockOutQty = (item.getQuantity() != null) ? item.getQuantity() : 0;
-                    if (item.getPricingType() != null && item.getPricingType() == 1 && item.getArea() != null) {
-                        stockOutQty = item.getArea().setScale(0, RoundingMode.CEILING).intValue();
-                    }
-
-                    if (stockOutQty > 0) {
-                        int beforeStock = material.getStockQuantity();
-                        int afterStock = beforeStock - stockOutQty;
-
-                        // 记录库存变动日志
-                        StockLog stockLog = new StockLog();
-                        stockLog.setMaterialId(material.getId());
-                        stockLog.setMaterialName(material.getName());
-                        stockLog.setChangeType(2); // 出库
-                        stockLog.setQuantity(-stockOutQty);
-                        stockLog.setBeforeStock(beforeStock);
-                        stockLog.setAfterStock(afterStock);
-                        stockLog.setUnitPrice(material.getPrice());
-                        stockLog.setTotalPrice(material.getPrice().multiply(new BigDecimal(stockOutQty)));
-                        stockLog.setRemark("快速记账关联出库：" + record.getRecordNo());
-                        stockLog.setCreateTime(LocalDateTime.now());
-                        stockLogMapper.insert(stockLog);
-
-                        // 更新库存
-                        material.setStockQuantity(afterStock);
-                        material.setUpdateTime(LocalDateTime.now());
-                        materialMapper.updateById(material);
-
-                        // 同步同纸张分组的其他物料
-                        syncPaperGroupStock(material, afterStock);
-                    }
-                }
-            }
+    /** 处理物料明细及库存出库联动 */
+    private void processRecordItems(List<CreateRecordRequest.RecordItemRequest> items, FinanceRecord record) {
+        if (items == null || items.isEmpty()) return;
+        for (CreateRecordRequest.RecordItemRequest item : items) {
+            saveRecordItem(item, record.getId());
+            processStockOut(item, record);
         }
+    }
 
-        return Result.ok(record.getId());
+    /** 保存物料明细 */
+    private void saveRecordItem(CreateRecordRequest.RecordItemRequest item, Long recordId) {
+        FinanceRecordItem recordItem = new FinanceRecordItem();
+        recordItem.setRecordId(recordId);
+        recordItem.setMaterialId(item.getMaterialId());
+        recordItem.setMaterialName(item.getMaterialName());
+        recordItem.setPricingType(item.getPricingType() != null ? item.getPricingType() : 0);
+        recordItem.setQuantity(item.getQuantity());
+        recordItem.setWidth(item.getWidth());
+        recordItem.setHeight(item.getHeight());
+        recordItem.setArea(item.getArea());
+        recordItem.setUnitPrice(item.getUnitPrice());
+        recordItem.setTotalPrice(item.getTotalPrice());
+        recordItem.setCreateTime(LocalDateTime.now());
+        recordItem.setDeleted(0);
+        recordItemMapper.insert(recordItem);
+    }
+
+    /** 执行库存出库 */
+    private void processStockOut(CreateRecordRequest.RecordItemRequest item, FinanceRecord record) {
+        Material material = materialMapper.selectById(item.getMaterialId());
+        if (material == null || material.getDeleted() != 0) return;
+
+        int qty = calcStockOutQty(item);
+        if (qty <= 0) return;
+
+        int before = material.getStockQuantity();
+        int after = before - qty;
+
+        logStockChange(material, qty, before, after, record);
+        material.setStockQuantity(after);
+        material.setUpdateTime(LocalDateTime.now());
+        materialMapper.updateById(material);
+        syncPaperGroupStock(material, after);
+    }
+
+    /** 计算出库数量 */
+    private int calcStockOutQty(CreateRecordRequest.RecordItemRequest item) {
+        if (item.getQuantity() != null && item.getQuantity() > 0) return item.getQuantity();
+        if (item.getPricingType() != null && item.getPricingType() == 1 && item.getArea() != null) {
+            return item.getArea().setScale(0, RoundingMode.CEILING).intValue();
+        }
+        return 0;
+    }
+
+    /** 记录库存变动日志 */
+    private void logStockChange(Material material, int qty, int before, int after, FinanceRecord record) {
+        StockLog log = new StockLog();
+        log.setMaterialId(material.getId());
+        log.setMaterialName(material.getName());
+        log.setChangeType(2);
+        log.setQuantity(-qty);
+        log.setBeforeStock(before);
+        log.setAfterStock(after);
+        log.setUnitPrice(material.getPrice());
+        log.setTotalPrice(material.getPrice().multiply(new BigDecimal(qty)));
+        log.setRemark("快速记账关联出库：" + record.getRecordNo());
+        log.setCreateTime(LocalDateTime.now());
+        stockLogMapper.insert(log);
     }
 
     @PutMapping("/records/{id}")
@@ -217,7 +234,7 @@ public class FinanceController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         LocalDate[] range = DateUtil.fillMonthRange(startDate, endDate);
 
-        Map<String, Object> data = buildSummaryData(startDate, endDate);
+        Map<String, Object> data = buildSummaryData(range[0], range[1]);
         return Result.ok(data);
     }
 

@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.system.entity.SysBackup;
-import com.enterprise.ad.module.system.mapper.SysBackupMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import com.enterprise.ad.module.system.service.SysBackupService;
 
 /**
  * 数据备份管理
@@ -30,7 +30,7 @@ import java.util.Map;
 @PreAuthorize("hasAuthority('system:backup')")
 public class DataBackupController {
 
-    private final SysBackupMapper backupMapper;
+    private final SysBackupService sysBackupService;
 
     @GetMapping("/list")
     @Operation(summary = "备份记录列表")
@@ -41,7 +41,7 @@ public class DataBackupController {
         LambdaQueryWrapper<SysBackup> qw = new LambdaQueryWrapper<SysBackup>()
             .eq(SysBackup::getDeleted, 0)
             .orderByDesc(SysBackup::getCreateTime);
-        Page<SysBackup> result = backupMapper.selectPage(page, qw);
+        Page<SysBackup> result = sysBackupService.page(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
     }
 
@@ -62,7 +62,7 @@ public class DataBackupController {
         backup.setOperatorName(username != null ? username : "system");
         backup.setCreateTime(LocalDateTime.now());
         backup.setUpdateTime(LocalDateTime.now());
-        backupMapper.insert(backup);
+        sysBackupService.save(backup);
 
         log.info("手动备份完成，操作人：{}", username);
         return Result.ok();
@@ -71,7 +71,7 @@ public class DataBackupController {
     @PostMapping("/restore/{id}")
     @Operation(summary = "恢复备份")
     public Result<Void> restore(@PathVariable Long id) {
-        SysBackup backup = backupMapper.selectById(id);
+        SysBackup backup = sysBackupService.getById(id);
         if (backup == null || backup.getDeleted() == 1) {
             return Result.fail("备份记录不存在");
         }
@@ -84,7 +84,7 @@ public class DataBackupController {
     @Operation(summary = "删除备份记录")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        backupMapper.deleteById(id);
+        sysBackupService.removeById(id);
         return Result.ok();
     }
 
@@ -99,10 +99,10 @@ public class DataBackupController {
     @GetMapping("/stats")
     @Operation(summary = "备份统计信息")
     public Result<Map<String, Object>> stats() {
-        long totalCount = backupMapper.selectCount(
+        long totalCount = sysBackupService.count(
             new LambdaQueryWrapper<SysBackup>().eq(SysBackup::getDeleted, 0));
 
-        List<SysBackup> latest = backupMapper.selectList(
+        List<SysBackup> latest = sysBackupService.list(
             new LambdaQueryWrapper<SysBackup>()
                 .eq(SysBackup::getDeleted, 0)
                 .orderByDesc(SysBackup::getCreateTime)

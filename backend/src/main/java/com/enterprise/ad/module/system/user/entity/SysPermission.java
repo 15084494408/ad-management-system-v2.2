@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /**
  * 系统权限实体（菜单 + 按钮/接口权限）
@@ -25,7 +26,9 @@ public class SysPermission {
     private Integer sort;             // 排序
     private Integer visible;           // 是否显示：0隐藏 1显示
     private Integer status;           // 状态：0禁用 1正常
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
     @TableLogic

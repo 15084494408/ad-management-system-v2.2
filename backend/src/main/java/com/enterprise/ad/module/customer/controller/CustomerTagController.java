@@ -3,7 +3,6 @@ package com.enterprise.ad.module.customer.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.customer.entity.CustomerTag;
-import com.enterprise.ad.module.customer.mapper.CustomerTagMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.enterprise.ad.module.customer.service.CustomerTagService;
 
 /**
  * 客户标签管理
@@ -27,13 +27,13 @@ import java.util.List;
 @Tag(name = "客户标签")
 public class CustomerTagController {
 
-    private final CustomerTagMapper customerTagMapper;
+    private final CustomerTagService customerTagService;
 
     @GetMapping
     @Operation(summary = "标签列表")
     @PreAuthorize("hasAuthority('customer:list')")
     public Result<List<CustomerTag>> list() {
-        List<CustomerTag> tags = customerTagMapper.selectList(
+        List<CustomerTag> tags = customerTagService.list(
             new LambdaQueryWrapper<CustomerTag>()
                 .eq(CustomerTag::getDeleted, 0)
                 .orderByAsc(CustomerTag::getSort)
@@ -48,7 +48,7 @@ public class CustomerTagController {
         tag.setCreateTime(LocalDateTime.now());
         tag.setUpdateTime(LocalDateTime.now());
         if (tag.getStatus() == null) tag.setStatus(1);
-        customerTagMapper.insert(tag);
+        customerTagService.save(tag);
         return Result.ok(tag.getId());
     }
 
@@ -58,7 +58,7 @@ public class CustomerTagController {
     public Result<Void> update(@PathVariable Long id, @RequestBody CustomerTag tag) {
         tag.setId(id);
         tag.setUpdateTime(LocalDateTime.now());
-        customerTagMapper.updateById(tag);
+        customerTagService.updateById(tag);
         return Result.ok();
     }
 
@@ -67,7 +67,7 @@ public class CustomerTagController {
     @PreAuthorize("hasAuthority('customer:delete')")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        customerTagMapper.deleteById(id);
+        customerTagService.removeById(id);
         return Result.ok();
     }
 }

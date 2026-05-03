@@ -1,127 +1,120 @@
 <template>
   <div class="page-container">
-    <!-- 面包屑 -->
     <div class="breadcrumb">
       <span class="breadcrumb-item" @click="router.push('/dashboard')">首页</span>
       <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-item active">每日流水</span>
+      <span class="breadcrumb-item active">财务流水</span>
     </div>
 
-    <!-- 页面标题 -->
     <div class="page-header">
-      <h1 class="page-title">💵 流水记录 <span class="v2-badge">V2.2</span></h1>
+      <h1 class="page-title">💵 财务流水 <span class="v2-badge">统一</span></h1>
       <div class="page-actions">
-        <button class="btn btn-default" @click="exportData">⬇️ 导出</button>
-        <button class="btn btn-primary" @click="showQuickRecord">+ 新增流水</button>
+        <button class="btn btn-default" @click="showFilter = !showFilter">
+          {{ showFilter ? '收起筛选' : '🔍 筛选' }}
+        </button>
+        <button class="btn btn-primary" @click="router.push('/finance')">⚡ 快速记账</button>
       </div>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
+    <!-- 顶部统计 -->
+    <div class="stat-grid" style="margin-bottom:16px;">
       <div class="stat-card">
-        <div class="stat-icon green">📈</div>
+        <div class="stat-icon" style="background:rgba(0,212,255,0.12)">💰</div>
         <div class="stat-info">
-          <h3>¥{{ stats.totalIncome?.toLocaleString() || '0.00' }}</h3>
-          <p>总收入</p>
+          <div class="stat-value" style="color:#00d4ff;">¥{{ formatMoney(stats.income) }}</div>
+          <div class="stat-label">收入合计</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon red">📉</div>
+        <div class="stat-icon" style="background:rgba(255,107,107,0.12)">💸</div>
         <div class="stat-info">
-          <h3>¥{{ stats.totalExpense?.toLocaleString() || '0.00' }}</h3>
-          <p>总支出</p>
+          <div class="stat-value" style="color:#ff6b6b;">¥{{ formatMoney(stats.expense) }}</div>
+          <div class="stat-label">支出合计</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon blue">📊</div>
+        <div class="stat-icon" style="background:rgba(102,187,106,0.12)">📊</div>
         <div class="stat-info">
-          <h3>¥{{ stats.netAmount?.toLocaleString() || '0.00' }}</h3>
-          <p>净流水</p>
+          <div class="stat-value" :style="{ color: netProfit >= 0 ? '#66bb6a' : '#ff6b6b' }">
+            ¥{{ formatMoney(netProfit) }}
+          </div>
+          <div class="stat-label">净收支</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon purple">🏆</div>
+        <div class="stat-icon" style="background:rgba(171,71,188,0.12)">📋</div>
         <div class="stat-info">
-          <h3>{{ total || 0 }}</h3>
-          <p>总笔数</p>
+          <div class="stat-value" style="color:#ab47bc;">{{ totalRecords }}</div>
+          <div class="stat-label">总笔数</div>
         </div>
       </div>
     </div>
 
-    <!-- 搜索栏 -->
-    <div class="search-form">
+    <!-- 筛选栏 -->
+    <div class="search-form" v-if="showFilter">
       <div class="form-group">
-        <label>日期范围</label>
-        <input type="date" v-model="searchForm.startDate" class="form-control">
-      </div>
-      <div class="form-group">
-        <label>至</label>
-        <input type="date" v-model="searchForm.endDate" class="form-control">
+        <label>时间范围</label>
+        <div style="display:flex;gap:8px;">
+          <input type="date" v-model="query.startDate" class="form-control">
+          <span style="line-height:36px;color:#909399;">至</span>
+          <input type="date" v-model="query.endDate" class="form-control">
+        </div>
       </div>
       <div class="form-group">
         <label>收支方向</label>
-        <select v-model="searchForm.direction" class="form-control">
+        <select v-model="query.direction" class="form-control">
           <option value="">全部</option>
-          <option value="income">仅收入</option>
-          <option value="expense">仅支出</option>
+          <option value="income">收入</option>
+          <option value="expense">支出</option>
         </select>
       </div>
       <div class="form-group" style="align-self:flex-end;">
-        <button class="btn btn-primary" @click="currentPage=1; loadData()">🔍 搜索</button>
+        <button class="btn btn-primary" @click="loadData">🔍 查询</button>
+        <button class="btn btn-default" style="margin-left:8px;" @click="resetFilter">重置</button>
       </div>
     </div>
 
-    <!-- 表格 -->
+    <!-- 流水表格 -->
     <div class="card">
       <table class="data-table">
         <thead>
           <tr>
-            <th>编号</th>
-            <th>金额</th>
-            <th>方向</th>
             <th>来源</th>
-            <th>分类</th>
-            <th>关联对象</th>
-            <th>支付方式</th>
-            <th>备注</th>
+            <th>编号</th>
+            <th>类别</th>
+            <th>金额</th>
+            <th>关联</th>
             <th>时间</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="record in tableData" :key="record.record_no + record.create_time">
-            <td style="font-size:12px;color:#606266;">{{ record.record_no || '-' }}</td>
-            <td :class="record.direction === 'income' ? 'income-amount' : 'expense-amount'">
-              {{ record.direction === 'income' ? '+' : '-' }}¥{{ Number(record.amount).toLocaleString() }}
-            </td>
+          <tr v-for="r in records" :key="r.recordNo + r.createTime">
             <td>
-              <span class="tag" :class="record.direction === 'income' ? 'tag-success' : 'tag-danger'">
-                {{ record.direction === 'income' ? '收入' : '支出' }}
+              <span class="source-tag" :class="'src-' + (r.source || 'quick')">
+                {{ sourceLabel(r.source) }}
               </span>
             </td>
+            <td class="mono">{{ r.recordNo }}</td>
+            <td>{{ r.category }}</td>
             <td>
-              <span class="tag" :class="'tag-' + getSourceTag(record.source)">{{ getSourceLabel(record.source) }}</span>
+              <span :style="{ color: r.direction === 'income' ? '#00d4ff' : '#ff6b6b', fontWeight: 600 }">
+                {{ r.direction === 'income' ? '+' : '-' }}¥{{ formatMoney(r.amount) }}
+              </span>
             </td>
-            <td>{{ record.category || '-' }}</td>
-            <td>{{ record.related_name || '-' }}</td>
-            <td>
-              <span class="tag" :class="'tag-' + getPaymentTag(record.payment_method)">{{ getPaymentLabel(record.payment_method) }}</span>
-            </td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="record.remark">
-              {{ record.remark || '-' }}
-            </td>
-            <td style="font-size:12px;color:#909399;">{{ formatTime(record.create_time) }}</td>
+            <td>{{ r.relatedName || '-' }}</td>
+            <td class="mono">{{ formatTime(r.createTime) }}</td>
           </tr>
-          <tr v-if="!tableData.length">
-            <td colspan="9" style="text-align:center;padding:40px;color:#909399;">暂无流水记录</td>
+          <tr v-if="!records.length && !loading">
+            <td colspan="6" style="text-align:center;padding:40px;color:#909399;">暂无流水数据</td>
           </tr>
         </tbody>
       </table>
-      <div class="pagination">
-        <div class="pagination-info">共 {{ total }} 笔记录</div>
+      <div class="pagination" v-if="totalRecords > 0">
+        <div class="pagination-info">共 {{ totalRecords }} 条</div>
         <div class="pagination-buttons">
-          <button class="page-btn" :disabled="currentPage <= 1" @click="currentPage--; loadData()">«</button>
-          <button class="page-btn" v-for="p in pageNumbers" :key="p" :class="{ active: currentPage === p }" @click="currentPage = p; loadData()">{{ p }}</button>
-          <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++; loadData()">»</button>
+          <button class="page-btn" :disabled="query.page <= 1" @click="query.page--; loadData()">«</button>
+          <button class="page-btn" v-for="p in pageNumbers" :key="p" :class="{ active: query.page === p }" @click="query.page = p; loadData()">{{ p }}</button>
+          <button class="page-btn" :disabled="query.page >= totalPages" @click="query.page++; loadData()">»</button>
         </div>
       </div>
     </div>
@@ -131,149 +124,127 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { financeApi } from '@/api/modules/finance'
-import { ElMessage } from 'element-plus'
-import { exportToExcel } from '@/utils/excelExport'
+import request from '@/api/request'
 
 const router = useRouter()
-
-const total = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const tableData = ref<any[]>([])
 const loading = ref(false)
-const stats = ref<any>({})
+const records = ref<any[]>([])
+const stats = reactive({ income: 0, expense: 0 })
+const totalRecords = ref(0)
+const showFilter = ref(false)
 
-const searchForm = reactive({
+const query = reactive({
   startDate: '',
   endDate: '',
-  direction: ''
+  direction: '',
+  page: 1,
+  size: 20,
 })
 
-const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
+const totalPages = computed(() => Math.max(1, Math.ceil(totalRecords.value / query.size)))
 const pageNumbers = computed(() => {
-  const pages: number[] = []
-  const start = Math.max(1, currentPage.value - 2)
-  const end = Math.min(totalPages.value, start + 4)
-  for (let i = start; i <= end; i++) pages.push(i)
-  return pages
+  const p: number[] = []
+  const s = Math.max(1, query.page - 2)
+  const e = Math.min(totalPages.value, s + 4)
+  for (let i = s; i <= e; i++) p.push(i)
+  return p
 })
 
-function getSourceLabel(source: string): string {
+const netProfit = computed(() => stats.income - stats.expense)
+
+function sourceLabel(src: string) {
   const map: Record<string, string> = {
-    quick_record: '快速记账',
-    member_recharge: '会员充值',
-    member_consume: '会员消费',
-    order_income: '订单收款',
-    factory_bill: '工厂付款'
+    quick_record: '记账', member_recharge: '充值', member_consume: '消费',
+    factory_bill: '工厂', square_income: '广场',
   }
-  return map[source] || source
+  return map[src] || src || '记账'
 }
 
-function getSourceTag(source: string): string {
-  const map: Record<string, string> = {
-    quick_record: 'primary',
-    member_recharge: 'success',
-    member_consume: 'danger',
-    order_income: 'success',
-    factory_bill: 'warning'
-  }
-  return map[source] || 'default'
+function formatMoney(v: any) {
+  if (v == null) return '0.00'
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function getPaymentLabel(method: string): string {
-  const map: Record<string, string> = {
-    cash: '现金', wechat: '微信', alipay: '支付宝', bank: '银行卡', transfer: '银行转账'
-  }
-  return map[method] || method || '-'
+function formatTime(t: any) {
+  if (!t) return '-'
+  return String(t).replace('T', ' ').slice(0, 16)
 }
 
-function getPaymentTag(method: string): string {
-  const map: Record<string, string> = {
-    cash: 'warning', wechat: 'success', alipay: 'primary', bank: 'default', transfer: 'default'
-  }
-  return map[method] || 'default'
-}
-
-function formatTime(time: string): string {
-  if (!time) return '-'
-  return time.replace('T', ' ').substring(0, 19)
+function resetFilter() {
+  query.startDate = ''
+  query.endDate = ''
+  query.direction = ''
+  query.page = 1
+  loadData()
 }
 
 async function loadData() {
   loading.value = true
   try {
-    const params: Record<string, any> = {
-      current: currentPage.value,
-      size: pageSize.value
-    }
-    if (searchForm.startDate) params.startDate = searchForm.startDate
-    if (searchForm.endDate) params.endDate = searchForm.endDate
-    if (searchForm.direction) params.direction = searchForm.direction
+    const params: any = { page: query.page, size: query.size }
+    if (query.startDate) params.startDate = query.startDate + ' 00:00:00'
+    if (query.endDate) params.endDate = query.endDate + ' 23:59:59'
+    if (query.direction) params.direction = query.direction
 
-    const res = await financeApi.getAllFlow(params)
-    if (res.code === 200) {
-      tableData.value = res.data?.records || []
-      total.value = res.data?.total || 0
-    }
+    const res = await request.get('/finance/all-flow', { params })
+    const d = res.data || {}
+    records.value = d.records || []
+    totalRecords.value = d.total || 0
 
-    // 同时加载统计数据
-    const summaryParams: Record<string, any> = {}
-    if (searchForm.startDate) summaryParams.startDate = searchForm.startDate
-    if (searchForm.endDate) summaryParams.endDate = searchForm.endDate
-    const summaryRes = await financeApi.getOverview(summaryParams)
-    if (summaryRes.code === 200) {
-      stats.value = summaryRes.data || {}
-    }
-  } catch (e) {
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
-  }
+    // 计算收发合计
+    let inc = 0, exp = 0
+    ;(d.records || []).forEach((r: any) => {
+      const amt = Number(r.amount) || 0
+      if (r.direction === 'income') inc += amt
+      else exp += amt
+    })
+    stats.income = inc
+    stats.expense = exp
+  } catch { records.value = []; totalRecords.value = 0 }
+  finally { loading.value = false }
 }
 
-function showQuickRecord() {
-  window.dispatchEvent(new CustomEvent('show-quick-account'))
-}
-
-// ── 导出流水记录 ──
-function exportData() {
-  if (!tableData.value.length) { ElMessage.warning('暂无数据可导出'); return }
-  exportToExcel({
-    filename: '流水记录',
-    header: ['编号', '金额(¥)', '方向', '来源', '分类', '关联对象', '支付方式', '备注', '时间'],
-    data: tableData.value.map(r => [
-      r.record_no || '-',
-      (r.direction === 'income' ? '+' : '-') + Number(r.amount || 0).toLocaleString(),
-      r.direction === 'income' ? '收入' : '支出',
-      getSourceLabel(r.source),
-      r.category || '-',
-      r.related_name || '-',
-      getPaymentLabel(r.payment_method),
-      r.remark || '-',
-      formatTime(r.create_time),
-    ]),
-  })
-}
-
-onMounted(() => {
-  loadData()
-})
+onMounted(loadData)
 </script>
 
-<style scoped lang="scss">
-.page-container { padding: 20px 24px; }
-
-.income-amount { color: #67c23a; font-weight: 600; }
-.expense-amount { color: #f56c6c; font-weight: 600; }
-
-.tag {
-  display: inline-block; padding: 3px 8px; border-radius: 4px;
-  font-size: 11px; margin-right: 5px; white-space: nowrap;
+<style scoped>
+.v2-badge {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; font-size: 10px; padding: 2px 8px;
+  border-radius: 4px; margin-left: 8px; vertical-align: middle;
 }
-.tag-primary { background: #ecf5ff; color: #409eff; }
-.tag-success { background: #f0f9eb; color: #67c23a; }
-.tag-warning { background: #fdf6ec; color: #e6a23c; }
-.tag-danger { background: #fef0f0; color: #f56c6c; }
-.tag-default { background: #f4f4f5; color: #909399; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stat-card {
+  background: #fff; border-radius: 10px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.stat-icon {
+  width: 46px; height: 46px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.stat-value { font-size: 22px; font-weight: 700; font-family: 'Courier New', monospace; }
+.stat-label { font-size: 12px; color: #909399; margin-top: 2px; }
+.search-form {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;
+  background: #fafbfc; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px;
+}
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; color: #606266; font-weight: 500; }
+.form-control {
+  height: 36px; border: 1px solid #dcdfe6; border-radius: 6px;
+  padding: 0 12px; font-size: 13px; outline: none;
+}
+.form-control:focus { border-color: #409eff; }
+.source-tag {
+  display: inline-block; font-size: 11px; padding: 2px 8px;
+  border-radius: 4px; font-weight: 600;
+}
+.src-quick_record { background: #ecf5ff; color: #409eff; }
+.src-member_recharge { background: #fdf6ec; color: #e6a23c; }
+.src-member_consume { background: #fef0f0; color: #f56c6c; }
+.src-factory_bill { background: #f0f9eb; color: #67c23a; }
+.src-square_income { background: #f3e5f5; color: #9c27b0; }
+.mono { font-family: 'Courier New', monospace; font-size: 12px; color: #606266; }
 </style>

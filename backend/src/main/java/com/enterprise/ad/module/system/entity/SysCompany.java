@@ -3,6 +3,7 @@ package com.enterprise.ad.module.system.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /**
  * 公司信息表（支持多公司）
@@ -23,7 +24,9 @@ public class SysCompany {
     private String logoUrl;       // Logo URL
     private Integer isDefault;    // 是否默认公司(1=是)
     private Integer status;       // 状态:0=禁用,1=启用
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic
     private Integer deleted;

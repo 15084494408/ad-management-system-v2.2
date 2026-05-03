@@ -11,6 +11,7 @@ import com.enterprise.ad.security.JwtUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements com.enterprise.ad.module.auth.service.AuthService {
 
     private final AuthenticationManager authenticationManager;
@@ -147,7 +149,8 @@ public class AuthServiceImpl implements com.enterprise.ad.module.auth.service.Au
         // 写入缓存（5分钟）
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(userInfo), 5, TimeUnit.MINUTES);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("用户信息缓存写入失败: {}", e.getMessage());
         }
 
         return userInfo;

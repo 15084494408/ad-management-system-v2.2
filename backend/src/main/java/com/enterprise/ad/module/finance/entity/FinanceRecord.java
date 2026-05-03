@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 财务流水表 */
 @Data
@@ -20,6 +21,7 @@ public class FinanceRecord {
     private String paymentMethod;  // 支付方式：现金/转账/微信/支付宝
     private String remark;          // 备注
     private Long creatorId;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

@@ -3,6 +3,7 @@ package com.enterprise.ad.module.design.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("des_file_version")
@@ -17,6 +18,7 @@ public class FileVersion {
     private String changeDesc;    // 变更说明
     private Long operatorId;      // 操作人ID
     private String operatorName;  // 操作人
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 订单主表 */
 @Data
@@ -43,7 +44,9 @@ public class Order {
     private String invoiceType;      // 开票类型
     private String remark;            // 备注
     private Long creatorId;          // 创建人ID
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic private Integer deleted;
 

@@ -3,6 +3,7 @@ package com.enterprise.ad.module.customer.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 /** 客户标签表 */
 @Data
@@ -16,7 +17,9 @@ public class CustomerTag {
     private String description; // 标签说明
     private Integer sort;       // 排序
     private Integer status;     // 状态 1正常 0禁用
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     @TableLogic
     private Integer deleted;

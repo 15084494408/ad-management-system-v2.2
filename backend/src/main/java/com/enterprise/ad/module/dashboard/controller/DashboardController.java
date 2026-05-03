@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 仪表盘（数据统计）
@@ -232,5 +233,144 @@ public class DashboardController {
             trend.add(item);
         }
         return Result.ok(trend);
+    }
+
+    @GetMapping("/board")
+    @Operation(summary = "数据看板聚合接口（科技风大屏）")
+    @PreAuthorize("hasAuthority('dashboard:view')")
+    public Result<Map<String, Object>> getBoard() {
+        LocalDate today = LocalDate.now();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = today.atTime(23, 59, 59);
+
+        // KPI 数据
+        BigDecimal thisMonthIncome = BigDecimal.ZERO;
+        List<FinanceRecord> monthIncomeList = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getType, "income")
+                .eq(FinanceRecord::getDeleted, 0)
+                .ge(FinanceRecord::getCreateTime, monthStart)
+                .le(FinanceRecord::getCreateTime, monthEnd));
+        for (FinanceRecord r : monthIncomeList) {
+            thisMonthIncome = thisMonthIncome.add(r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO);
+        }
+
+        Long thisMonthOrders = orderMapper.countThisMonthOrders(monthStart, monthEnd);
+        if (thisMonthOrders == null) thisMonthOrders = 0L;
+
+        BigDecimal unpaidAmount = orderMapper.sumUnpaidAmount();
+        if (unpaidAmount == null) unpaidAmount = BigDecimal.ZERO;
+
+        BigDecimal orderCost = orderMapper.sumOrderCostByRange(monthStart, monthEnd);
+        if (orderCost == null) orderCost = BigDecimal.ZERO;
+
+        // 利润率 = (收入 - 订单总成本) / 收入 × 100%
+        BigDecimal profitRate = BigDecimal.ZERO;
+        if (thisMonthIncome.compareTo(BigDecimal.ZERO) > 0) {
+            profitRate = thisMonthIncome.subtract(orderCost)
+                .multiply(new BigDecimal("100"))
+                .divide(thisMonthIncome, 1, RoundingMode.HALF_UP);
+        }
+
+        // 客户总数
+        long totalCustomers = customerMapper.selectCount(
+            new LambdaQueryWrapper<Customer>().eq(Customer::getDeleted, 0));
+
+        // 30天收款趋势
+        List<Map<String, Object>> dailyIncome = financeRecordMapper.selectDailyIncomeLast30Days();
+        List<Integer> incomeTrend = new ArrayList<>();
+        List<BigDecimal> incomeTrendAmounts = new ArrayList<>();
+        if (dailyIncome != null) {
+            for (Map<String, Object> row : dailyIncome) {
+                Object count = row.get("count");
+                Object amount = row.get("amount");
+                incomeTrend.add(count instanceof Number ? ((Number) count).intValue() : 0);
+                incomeTrendAmounts.add(amount instanceof BigDecimal ? (BigDecimal) amount
+                    : amount instanceof Number ? BigDecimal.valueOf(((Number) amount).doubleValue())
+                    : BigDecimal.ZERO);
+            }
+        }
+
+        // 未完成订单（status=1待处理, 2进行中），含收款状态
+        List<Order> unfinishedList = orderMapper.selectList(
+            new LambdaQueryWrapper<Order>()
+                .eq(Order::getDeleted, 0)
+                .in(Order::getStatus, 1, 2)
+                .orderByAsc(Order::getStatus)
+                .last("LIMIT 20"));
+        List<Map<String, Object>> unfinishedOrders = new ArrayList<>();
+        for (Order o : unfinishedList) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", o.getId());
+            item.put("orderNo", o.getOrderNo());
+            item.put("customerName", o.getCustomerName());
+            item.put("title", o.getTitle());
+            item.put("totalAmount", o.getTotalAmount());
+            item.put("paidAmount", o.getPaidAmount());
+            item.put("status", o.getStatus());
+            BigDecimal unpaid = BigDecimal.ZERO;
+            if (o.getTotalAmount() != null) {
+                unpaid = o.getTotalAmount()
+                    .subtract(o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO)
+                    .subtract(o.getRoundingAmount() != null ? o.getRoundingAmount() : BigDecimal.ZERO)
+                    .subtract(o.getDiscountAmount() != null ? o.getDiscountAmount() : BigDecimal.ZERO)
+                    .max(BigDecimal.ZERO);
+            }
+            item.put("unpaidAmount", unpaid);
+            item.put("paymentStatus", o.getPaymentStatus());
+            unfinishedOrders.add(item);
+        }
+
+        // 最近10条流水
+        List<FinanceRecord> records = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getDeleted, 0)
+                .orderByDesc(FinanceRecord::getCreateTime)
+                .last("LIMIT 10"));
+        List<Map<String, Object>> recentRecords = new ArrayList<>();
+        for (FinanceRecord r : records) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", r.getId());
+            item.put("recordNo", r.getRecordNo());
+            item.put("type", r.getType());
+            item.put("category", r.getCategory());
+            item.put("amount", r.getAmount());
+            item.put("relatedName", r.getRelatedName());
+            item.put("createTime", r.getCreateTime());
+            recentRecords.add(item);
+        }
+
+        // 订单状态分布
+        long pendingCount = orderMapper.selectCount(
+            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0).eq(Order::getStatus, 1));
+        long processingCount = orderMapper.selectCount(
+            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0).eq(Order::getStatus, 2));
+        long completedCount = orderMapper.selectCount(
+            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0).eq(Order::getStatus, 3));
+        long cancelledCount = orderMapper.selectCount(
+            new LambdaQueryWrapper<Order>().eq(Order::getDeleted, 0).eq(Order::getStatus, 4));
+        Map<String, Object> orderDist = new LinkedHashMap<>();
+        orderDist.put("pending", pendingCount);
+        orderDist.put("processing", processingCount);
+        orderDist.put("completed", completedCount);
+        orderDist.put("cancelled", cancelledCount);
+
+        // 组装响应
+        Map<String, Object> kpi = new LinkedHashMap<>();
+        kpi.put("thisMonthIncome", thisMonthIncome);
+        kpi.put("thisMonthOrders", thisMonthOrders);
+        kpi.put("unpaidAmount", unpaidAmount);
+        kpi.put("profitRate", profitRate);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("kpi", kpi);
+        result.put("totalCustomers", totalCustomers);
+        result.put("incomeTrend", incomeTrend);
+        result.put("incomeTrendAmounts", incomeTrendAmounts);
+        result.put("unfinishedOrders", unfinishedOrders);
+        result.put("recentRecords", recentRecords);
+        result.put("orderStatusDist", orderDist);
+
+        return Result.ok(result);
     }
 }

@@ -3,6 +3,7 @@ package com.enterprise.ad.module.system.dict.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("sys_dict_item")
@@ -15,6 +16,7 @@ public class DataDictItem {
     private Integer sortOrder;   // 排序
     private Integer status;      // 状态
     private String remark;       // 备注
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

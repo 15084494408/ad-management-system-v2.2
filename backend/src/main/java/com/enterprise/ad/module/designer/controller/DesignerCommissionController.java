@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.dto.CommissionConfigRequest;
 import com.enterprise.ad.module.designer.entity.DesignerCommissionConfig;
-import com.enterprise.ad.module.designer.mapper.DesignerCommissionConfigMapper;
 import com.enterprise.ad.module.system.user.entity.SysUser;
 import com.enterprise.ad.module.system.user.mapper.SysUserMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.enterprise.ad.module.designer.service.DesignerCommissionConfigService;
 
 @RestController("designerCommissionConfigController")
 @RequestMapping("/designer/commission")
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 @Tag(name = "设计师提成管理")
 public class DesignerCommissionController {
 
-    private final DesignerCommissionConfigMapper commissionMapper;
+    private final DesignerCommissionConfigService designerCommissionConfigService;
     private final SysUserMapper userMapper;
 
     @GetMapping("/list")
@@ -40,7 +40,7 @@ public class DesignerCommissionController {
         List<SysUser> designers = userMapper.selectDesignerUsers();
 
         // 获取已配置提成的设计师
-        List<DesignerCommissionConfig> configs = commissionMapper.selectList(
+        List<DesignerCommissionConfig> configs = designerCommissionConfigService.list(
             new LambdaQueryWrapper<DesignerCommissionConfig>()
                 .eq(DesignerCommissionConfig::getDeleted, 0)
         );
@@ -80,7 +80,7 @@ public class DesignerCommissionController {
             return Result.fail("设计师不存在");
         }
 
-        DesignerCommissionConfig config = commissionMapper.selectOne(
+        DesignerCommissionConfig config = designerCommissionConfigService.getOne(
             new LambdaQueryWrapper<DesignerCommissionConfig>()
                 .eq(DesignerCommissionConfig::getDesignerId, designerId)
                 .eq(DesignerCommissionConfig::getDeleted, 0)
@@ -92,7 +92,7 @@ public class DesignerCommissionController {
             config.setEnabled(enabled ? 1 : 0);
             config.setDesignerName(designer.getRealName() != null ? designer.getRealName() : designer.getUsername());
             config.setUpdatedTime(LocalDateTime.now());
-            commissionMapper.updateById(config);
+            designerCommissionConfigService.updateById(config);
         } else {
             // 新增
             config = new DesignerCommissionConfig();
@@ -102,7 +102,7 @@ public class DesignerCommissionController {
             config.setEnabled(enabled ? 1 : 0);
             config.setCreateTime(LocalDateTime.now());
             config.setDeleted(0);
-            commissionMapper.insert(config);
+            designerCommissionConfigService.save(config);
         }
         return Result.ok();
     }
@@ -110,7 +110,7 @@ public class DesignerCommissionController {
     @GetMapping("/rate/{designerId}")
     @Operation(summary = "获取设计师提成比例（供订单计算用）")
     public Result<BigDecimal> getRate(@PathVariable Long designerId) {
-        DesignerCommissionConfig config = commissionMapper.selectOne(
+        DesignerCommissionConfig config = designerCommissionConfigService.getOne(
             new LambdaQueryWrapper<DesignerCommissionConfig>()
                 .eq(DesignerCommissionConfig::getDesignerId, designerId)
                 .eq(DesignerCommissionConfig::getEnabled, 1)

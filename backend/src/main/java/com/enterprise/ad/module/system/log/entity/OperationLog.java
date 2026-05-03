@@ -3,6 +3,7 @@ package com.enterprise.ad.module.system.log.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 
 @Data
 @TableName("sys_operation_log")
@@ -22,6 +23,7 @@ public class OperationLog {
     private String userAgent;     // UserAgent
     private Integer status;       // 状态：1成功 0失败
     private Long duration;        // 执行时长(ms)
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableLogic private Integer deleted;
 }

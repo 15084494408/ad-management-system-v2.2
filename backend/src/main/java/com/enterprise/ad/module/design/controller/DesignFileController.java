@@ -6,7 +6,6 @@ import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.module.design.entity.DesignFile;
 import com.enterprise.ad.module.design.entity.FileVersion;
-import com.enterprise.ad.module.design.mapper.DesignFileMapper;
 import com.enterprise.ad.module.design.mapper.FileVersionMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +25,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import com.enterprise.ad.module.design.service.DesignFileService;
+import com.enterprise.ad.module.design.service.FileVersionService;
 
 @Slf4j
 @RestController
@@ -35,8 +36,9 @@ import java.util.UUID;
 @PreAuthorize("hasAuthority('design:file')")
 public class DesignFileController {
 
-    private final DesignFileMapper fileMapper;
+    private final DesignFileService designFileService;
     private final FileVersionMapper versionMapper;
+    private final FileVersionService fileVersionService;
 
     @Value("${file.upload-dir:uploads/design}")
     private String uploadDir;
@@ -56,21 +58,21 @@ public class DesignFileController {
             .eq(status != null, DesignFile::getStatus, status)
             .like(name != null, DesignFile::getName, name)
             .orderByDesc(DesignFile::getCreateTime);
-        Page<DesignFile> result = fileMapper.selectPage(page, qw);
+        Page<DesignFile> result = designFileService.page(page, qw);
         return Result.ok(PageResult.of(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords()));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "文件详情")
     public Result<DesignFile> getById(@PathVariable Long id) {
-        DesignFile file = fileMapper.selectById(id);
+        DesignFile file = designFileService.getById(id);
         return Result.ok(file);
     }
 
     @GetMapping("/{id}/versions")
     @Operation(summary = "文件版本历史")
     public Result<List<FileVersion>> versions(@PathVariable Long id) {
-        List<FileVersion> versions = versionMapper.selectList(
+        List<FileVersion> versions = fileVersionService.list(
             new LambdaQueryWrapper<FileVersion>()
                 .eq(FileVersion::getFileId, id)
                 .orderByDesc(FileVersion::getVersion)
@@ -108,7 +110,7 @@ public class DesignFileController {
         designFile.setDescription(description);
         designFile.setStatus(1);
         designFile.setCreateTime(LocalDateTime.now());
-        fileMapper.insert(designFile);
+        designFileService.save(designFile);
 
         // 记录版本
         FileVersion version = new FileVersion();
@@ -118,7 +120,7 @@ public class DesignFileController {
         version.setChangeDesc("初始版本");
         version.setOperatorName(username != null ? username : "unknown");
         version.setCreateTime(LocalDateTime.now());
-        versionMapper.insert(version);
+        fileVersionService.save(version);
 
         return Result.ok(designFile);
     }
@@ -137,7 +139,7 @@ public class DesignFileController {
         // ★ 修复：实际保存文件
         String savedPath = saveFile(file);
 
-        DesignFile fileEntity = fileMapper.selectById(id);
+        DesignFile fileEntity = designFileService.getById(id);
         if (fileEntity == null || fileEntity.getDeleted() == 1) {
             return Result.fail(400, "文件不存在");
         }
@@ -147,7 +149,7 @@ public class DesignFileController {
         fileEntity.setName(savedPath);  // 更新为新版本路径
         fileEntity.setSize(file.getSize());
         fileEntity.setUpdateTime(LocalDateTime.now());
-        fileMapper.updateById(fileEntity);
+        designFileService.updateById(fileEntity);
 
         // 记录版本
         FileVersion version = new FileVersion();
@@ -157,7 +159,7 @@ public class DesignFileController {
         version.setChangeDesc(changeDesc);
         version.setOperatorName(username != null ? username : "unknown");
         version.setCreateTime(LocalDateTime.now());
-        versionMapper.insert(version);
+        fileVersionService.save(version);
 
         return Result.ok(fileEntity);
     }
@@ -167,7 +169,7 @@ public class DesignFileController {
     public Result<Void> update(@PathVariable Long id, @RequestBody DesignFile file) {
         file.setId(id);
         file.setUpdateTime(LocalDateTime.now());
-        fileMapper.updateById(file);
+        designFileService.updateById(file);
         return Result.ok();
     }
 
@@ -179,7 +181,7 @@ public class DesignFileController {
         file.setStatus(status);
         file.setRemark(remark);
         file.setUpdateTime(LocalDateTime.now());
-        fileMapper.updateById(file);
+        designFileService.updateById(file);
         return Result.ok();
     }
 
@@ -187,7 +189,7 @@ public class DesignFileController {
     @Operation(summary = "删除文件")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
-        fileMapper.deleteById(id);
+        designFileService.removeById(id);
         return Result.ok();
     }
 

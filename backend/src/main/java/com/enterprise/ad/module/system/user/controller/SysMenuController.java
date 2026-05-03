@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.enterprise.ad.module.system.user.service.SysPermissionService;
 
 /**
  * 动态菜单API（前端根据此数据动态渲染侧边栏）
@@ -24,6 +25,7 @@ import java.util.List;
 public class SysMenuController {
 
     private final SysPermissionMapper sysPermissionMapper;
+    private final SysPermissionService sysPermissionService;
     private final JwtUtil jwtUtil;
 
     @GetMapping
@@ -43,7 +45,7 @@ public class SysMenuController {
     @GetMapping("/all")
     @Operation(summary = "获取所有菜单（系统配置用）")
     public Result<List<SysPermission>> getAllMenus() {
-        List<SysPermission> list = sysPermissionMapper.selectList(
+        List<SysPermission> list = sysPermissionService.list(
             new LambdaQueryWrapper<SysPermission>()
                 .eq(SysPermission::getDeleted, 0)
                 .orderByAsc(SysPermission::getSort)
