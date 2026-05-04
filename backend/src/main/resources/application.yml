@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: enterprise-ad-system
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3306/enterprise_ad?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    hikari:
+      maximum-pool-size: 50       # 10000用户，50连接池够用
+      minimum-idle: 10
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1800000
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # ★ 修复 P2-6: 生产环境必须设置Redis密码，避免未授权访问
+      # 开发环境留空，生产环境通过环境变量 REDIS_PASSWORD 设置
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 5
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.enterprise.ad.module.*.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    # ★ 修复 P2-5: 生产环境应关闭SQL日志输出，避免性能损耗
+    # 开发环境可改为 org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+jwt:
+  # ★ 修复 P2-7: 生产环境必须通过环境变量 JWT_SECRET 设置强密钥，禁止硬编码
+  secret: ${JWT_SECRET:dev-only-secret-must-be-at-least-32-bytes-long-for-hmac-sha256!}
+  expiration: 86400000      # 24小时（毫秒）
+  header: Authorization
+  prefix: Bearer
+
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+logging:
+  level:
+    com.enterprise.ad: debug
+    org.springframework.security: info
