@@ -114,7 +114,7 @@
         </div>
         <div class="amount-item">
           <span class="amount-label">待收金额</span>
-          <span class="amount-value danger">¥{{ formatMoney((stats.totalAmount || 0) - (stats.paidAmount || 0)) }}</span>
+          <span class="amount-value danger">¥{{ formatMoney(Math.max((stats.unpaidAmount ?? (stats.totalAmount || 0) - (stats.paidAmount || 0)), 0)) }}</span>
         </div>
         <div class="amount-item" v-if="stats.cancelledCount > 0">
           <span class="amount-label">已取消订单</span>
@@ -249,7 +249,7 @@ function doExport() {
     ['完成率', `${stats.completionRate || 0}%`],
     ['订单总额（不含已取消）', `¥${formatMoney(stats.totalAmount)}`],
     ['已收金额', `¥${formatMoney(stats.paidAmount)}`],
-    ['待收金额', `¥${formatMoney((stats.totalAmount || 0) - (stats.paidAmount || 0))}`],
+    ['待收金额', `¥${formatMoney(Math.max((stats.unpaidAmount ?? (stats.totalAmount || 0) - (stats.paidAmount || 0)), 0))}`],
     ['已取消订单', `${stats.cancelledCount || 0} 笔（金额已排除）`],
   ]
 

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.annotation.OperationLog;
 import com.enterprise.ad.common.dto.QuoteStatusRequest;
 import com.enterprise.ad.common.util.CsvExportUtil;
 import com.enterprise.ad.common.util.DateUtil;
@@ -102,6 +103,7 @@ public class FinanceController {
 
     @PostMapping("/records")
     @Operation(summary = "新增财务记录（快速记账，支持物料明细+库存联动）")
+    @OperationLog(value = "快速记账", module = "财务管理")
     @PreAuthorize("hasAuthority('finance:edit')")
     @Transactional
     public Result<Long> createRecord(@Valid @RequestBody CreateRecordRequest request) {
@@ -200,8 +202,9 @@ public class FinanceController {
         stockLogMapper.insert(log);
     }
 
+    @Deprecated // [P2-01] 前端未调用此接口，编辑财务记录后只能删重建
     @PutMapping("/records/{id}")
-    @Operation(summary = "更新财务记录")
+    @Operation(summary = "更新财务记录（已弃用）")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Void> updateRecord(@PathVariable Long id, @Valid @RequestBody FinanceRecord record) {
         record.setId(id);
@@ -214,6 +217,7 @@ public class FinanceController {
 
     @DeleteMapping("/records/{id}")
     @Operation(summary = "删除财务记录")
+    @OperationLog(value = "删除财务记录", module = "财务管理")
     @PreAuthorize("hasAuthority('finance:edit')")
     public Result<Void> deleteRecord(@PathVariable Long id) {
         financeRecordMapper.deleteById(id);
@@ -233,11 +237,8 @@ public class FinanceController {
         // 本月收入
         BigDecimal thisMonthIncome = financeRecordMapper.sumIncomeByRange(monthStart, monthEnd);
         
-        // 待收款 = 所有订单已付总金额 - 订单总额
-        BigDecimal totalOrderAmount = orderMapper.sumAllTotalAmount();
-        BigDecimal totalPaidAmount = orderMapper.sumAllPaidAmount();
-        BigDecimal unpaidAmount = totalOrderAmount.subtract(totalPaidAmount);
-        if (unpaidAmount.compareTo(BigDecimal.ZERO) < 0) unpaidAmount = BigDecimal.ZERO;
+        // 待收款 = 所有未付清订单的（总额 - 已付 - 抹零）
+        BigDecimal unpaidAmount = orderMapper.sumUnpaidAmount();
         
         // 会员余额总计
         BigDecimal memberBalance = customerMapper.selectList(
@@ -302,8 +303,9 @@ public class FinanceController {
         return Result.ok(data);
     }
 
+    @Deprecated // [P2-01] 前端未调用此接口，概览数据由 /overview 和 /board 提供
     @GetMapping("/summary")
-    @Operation(summary = "收支统计摘要")
+    @Operation(summary = "收支统计摘要（已弃用）")
     @PreAuthorize("hasAuthority('finance:view')")
     public Result<Map<String, Object>> getSummary(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,

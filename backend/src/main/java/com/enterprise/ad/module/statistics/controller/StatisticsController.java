@@ -70,7 +70,7 @@ public class StatisticsController {
             "totalOrders", orders.size(),
             "totalAmount", totalAmount,
             "paidAmount", paidAmount,
-            "unpaidAmount", totalAmount.subtract(paidAmount),
+            "unpaidAmount", totalAmount.subtract(paidAmount).max(BigDecimal.ZERO),
             "pendingCount", pendingCount,
             "processingCount", processingCount,
             "completedCount", completedCount,
@@ -197,8 +197,9 @@ public class StatisticsController {
         return Result.ok(result);
     }
 
+    @Deprecated // [P2-01] 前端未调用此接口
     @GetMapping("/revenue/by-type")
-    @Operation(summary = "营收构成（按类型）")
+    @Operation(summary = "营收构成（已弃用）")
     public Result<List<Map<String, Object>>> revenueByType(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {

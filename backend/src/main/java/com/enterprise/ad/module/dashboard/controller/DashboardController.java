@@ -10,7 +10,9 @@ import com.enterprise.ad.module.finance.mapper.FinanceRecordMapper;
 import com.enterprise.ad.module.material.entity.Material;
 import com.enterprise.ad.module.material.mapper.MaterialMapper;
 import com.enterprise.ad.module.member.entity.Member;
+import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
+import com.enterprise.ad.module.member.mapper.MemberTransactionMapper;
 import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +44,7 @@ public class DashboardController {
     private final OrderMapper orderMapper;
     private final CustomerMapper customerMapper;
     private final MemberMapper memberMapper;
+    private final MemberTransactionMapper memberTransactionMapper;
     private final FinanceRecordMapper financeRecordMapper;
     private final MaterialMapper materialMapper;
 
@@ -65,11 +68,12 @@ public class DashboardController {
                 .le(Order::getCreateTime, todayEnd));
         stats.put("todayOrders", todayOrders);
 
-        // 今日营收 = 今日财务流水（收入类，已包含订单收款和快速记账，避免双重计算）
+        // 今日营收 = 今日财务流水（收入类，排除会员充值，避免预收款虚增收入）
         BigDecimal todayRevenue = financeRecordMapper.selectList(
             new LambdaQueryWrapper<FinanceRecord>()
                 .eq(FinanceRecord::getDeleted, 0)
                 .eq(FinanceRecord::getType, "income")
+                .ne(FinanceRecord::getCategory, "会员充值")
                 .ge(FinanceRecord::getCreateTime, todayStart)
                 .le(FinanceRecord::getCreateTime, todayEnd)
         ).stream().map(FinanceRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -203,8 +207,9 @@ public class DashboardController {
         return Result.ok(stats);
     }
 
+    @Deprecated // [P2-01] 前端未调用此接口，大屏使用 /board 聚合接口
     @GetMapping("/charts/orderTrend")
-    @Operation(summary = "订单趋势图（近7天每日订单量）")
+    @Operation(summary = "订单趋势图（已弃用）")
     @PreAuthorize("hasAuthority('dashboard:view')")
     public Result<List<Map<String, Object>>> getOrderTrend() {
         List<Map<String, Object>> trend = new ArrayList<>();
@@ -234,14 +239,40 @@ public class DashboardController {
 
         // KPI 数据
         BigDecimal thisMonthIncome = BigDecimal.ZERO;
+        // ★ 收入 = 排除会员充值（预收款不算利润）
         List<FinanceRecord> monthIncomeList = financeRecordMapper.selectList(
             new LambdaQueryWrapper<FinanceRecord>()
                 .eq(FinanceRecord::getType, "income")
+                .ne(FinanceRecord::getCategory, "会员充值") // 排除充值
                 .eq(FinanceRecord::getDeleted, 0)
                 .ge(FinanceRecord::getCreateTime, monthStart)
                 .le(FinanceRecord::getCreateTime, monthEnd));
         for (FinanceRecord r : monthIncomeList) {
             thisMonthIncome = thisMonthIncome.add(r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO);
+        }
+
+        // ★ 本月会员充值（直接查 mem_member_transaction 源头数据，避免 fin_record 手动记账重复）
+        BigDecimal thisMonthRecharge = BigDecimal.ZERO;
+        List<MemberTransaction> monthRechargeList = memberTransactionMapper.selectList(
+            new LambdaQueryWrapper<MemberTransaction>()
+                .eq(MemberTransaction::getType, "recharge")
+                .eq(MemberTransaction::getDeleted, 0)
+                .ge(MemberTransaction::getCreateTime, monthStart)
+                .le(MemberTransaction::getCreateTime, monthEnd));
+        for (MemberTransaction t : monthRechargeList) {
+            thisMonthRecharge = thisMonthRecharge.add(t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO);
+        }
+
+        // ★ 本月支出（含设计师提成等所有 expense）
+        BigDecimal thisMonthExpense = BigDecimal.ZERO;
+        List<FinanceRecord> monthExpenseList = financeRecordMapper.selectList(
+            new LambdaQueryWrapper<FinanceRecord>()
+                .eq(FinanceRecord::getType, "expense")
+                .eq(FinanceRecord::getDeleted, 0)
+                .ge(FinanceRecord::getCreateTime, monthStart)
+                .le(FinanceRecord::getCreateTime, monthEnd));
+        for (FinanceRecord r : monthExpenseList) {
+            thisMonthExpense = thisMonthExpense.add(r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO);
         }
 
         Long thisMonthOrders = orderMapper.countThisMonthOrders(monthStart, monthEnd);
@@ -253,23 +284,24 @@ public class DashboardController {
         BigDecimal orderCost = orderMapper.sumOrderCostByRange(monthStart, monthEnd);
         if (orderCost == null) orderCost = BigDecimal.ZERO;
 
-        // 利润率 = (收入 - 订单总成本) / 收入 × 100%
+        // 利润率 = (收入 - 订单总成本 - 其他支出) / 收入 × 100%
         BigDecimal profitRate = BigDecimal.ZERO;
         if (thisMonthIncome.compareTo(BigDecimal.ZERO) > 0) {
-            profitRate = thisMonthIncome.subtract(orderCost)
+            profitRate = thisMonthIncome.subtract(orderCost).subtract(thisMonthExpense)
                 .multiply(new BigDecimal("100"))
                 .divide(thisMonthIncome, 1, RoundingMode.HALF_UP);
         }
 
-        // 利润金额
-        BigDecimal profitAmount = thisMonthIncome.subtract(orderCost).max(BigDecimal.ZERO);
+        // 利润金额 = 收入 - 成本 - 支出（含设计师提成等）
+        BigDecimal profitAmount = thisMonthIncome.subtract(orderCost).subtract(thisMonthExpense).max(BigDecimal.ZERO);
 
-        // 本年收款
+        // 本年收款（★ P1-13 修复：排除会员充值，与本月收入保持一致）
         LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
         BigDecimal thisYearIncome = BigDecimal.ZERO;
         List<FinanceRecord> yearIncomeList = financeRecordMapper.selectList(
             new LambdaQueryWrapper<FinanceRecord>()
                 .eq(FinanceRecord::getType, "income")
+                .ne(FinanceRecord::getCategory, "会员充值") // ★ 排除充值
                 .eq(FinanceRecord::getDeleted, 0)
                 .ge(FinanceRecord::getCreateTime, yearStart)
                 .le(FinanceRecord::getCreateTime, monthEnd));
@@ -363,7 +395,9 @@ public class DashboardController {
         // 组装响应
         Map<String, Object> kpi = new LinkedHashMap<>();
         kpi.put("thisMonthIncome", thisMonthIncome);
+        kpi.put("thisMonthRecharge", thisMonthRecharge); // ★ 本月会员充值
         kpi.put("thisYearIncome", thisYearIncome);
+        kpi.put("thisMonthExpense", thisMonthExpense); // ★ 本月支出（含设计师提成）
         kpi.put("profitAmount", profitAmount);
         kpi.put("thisMonthOrders", thisMonthOrders);
         kpi.put("unpaidAmount", unpaidAmount);

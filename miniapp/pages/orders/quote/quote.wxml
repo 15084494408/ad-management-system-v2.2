@@ -1,0 +1,83 @@
+<view class="page-container">
+  <!-- 选择客户 -->
+  <view class="card">
+    <view class="section-title">客户信息</view>
+    <t-cell title="选择客户" arrow hover value="{{selectedCustomer ? selectedCustomer.name : '请选择'}}" bindtap="pickCustomer" />
+  </view>
+
+  <!-- 报价模式切换 -->
+  <t-tabs value="{{quoteMode}}" bind:change="onQuoteModeChange">
+    <t-tab-panel label="标签印刷" value="label" />
+    <t-tab-panel label="打印报价" value="print" />
+  </t-tabs>
+
+  <!-- 标签印刷 -->
+  <block wx:if="{{quoteMode === 'label'}}">
+    <view class="card">
+      <view class="section-title">纸张选择</view>
+      <t-input label="纸张类型" placeholder="如：铜版纸-128g" value="{{label.paperType}}" bind:change="onLabelChange" data-field="paperType" />
+      <t-input label="纸张单价" placeholder="元/平方米" type="digit" value="{{label.paperPrice}}" bind:change="onLabelChange" data-field="paperPrice" />
+    </view>
+    <view class="card">
+      <view class="section-title">标签参数</view>
+      <t-input label="标签长度" placeholder="mm" type="digit" value="{{label.length}}" bind:change="onLabelChange" data-field="length" />
+      <t-input label="标签宽度" placeholder="mm" type="digit" value="{{label.width}}" bind:change="onLabelChange" data-field="width" />
+      <t-input label="纸张数量" placeholder="张" type="number" value="{{label.sheets}}" bind:change="onLabelChange" data-field="sheets" />
+      <t-input label="标签总个数" placeholder="个" type="number" value="{{label.totalLabels}}" bind:change="onLabelChange" data-field="totalLabels" />
+    </view>
+    <view class="card">
+      <view class="section-title">费用参数</view>
+      <t-input label="印刷费/张" placeholder="元" type="digit" value="{{label.printPrice}}" bind:change="onLabelChange" data-field="printPrice" />
+      <t-input label="划线费/张" placeholder="元" type="digit" value="{{label.linePrice}}" bind:change="onLabelChange" data-field="linePrice" />
+      <t-input label="份数" placeholder="份" type="number" value="{{label.copies}}" bind:change="onLabelChange" data-field="copies" />
+      <t-input label="报价比例" placeholder="%" type="digit" value="{{label.ratio}}" bind:change="onLabelChange" data-field="ratio" />
+    </view>
+    <t-button theme="primary" block bindtap="calcLabel">计算标签报价</t-button>
+    <view class="card result" wx:if="{{labelResult}}">
+      <view class="section-title">报价结果</view>
+      <view class="result-row"><text>纸张成本</text><text>{{labelResult.paperCost}} 元</text></view>
+      <view class="result-row"><text>印刷费</text><text>{{labelResult.printCost}} 元</text></view>
+      <view class="result-row" wx:if="{{labelResult.lineCost > 0}}"><text>划线费</text><text>{{labelResult.lineCost}} 元</text></view>
+      <view class="result-row total"><text>小计</text><text>{{labelResult.total}} 元</text></view>
+    </view>
+  </block>
+
+  <!-- 打印报价 -->
+  <block wx:if="{{quoteMode === 'print'}}">
+    <view class="card">
+      <view class="section-title">文件信息</view>
+      <t-input label="文件名" placeholder="选填" value="{{print.fileName}}" bind:change="onPrintChange" data-field="fileName" />
+      <t-input label="总页数" placeholder="页" type="number" value="{{print.totalPages}}" bind:change="onPrintChange" data-field="totalPages" />
+      <t-input label="黑白页数" placeholder="页" type="number" value="{{print.blackPages}}" bind:change="onPrintChange" data-field="blackPages" />
+      <t-input label="彩色页数" placeholder="页" type="number" value="{{print.colorPages}}" bind:change="onPrintChange" data-field="colorPages" />
+    </view>
+    <view class="card">
+      <view class="section-title">份数设置</view>
+      <t-input label="黑白份数" placeholder="全部按黑白印" type="number" value="{{print.bwCopies}}" bind:change="onPrintChange" data-field="bwCopies" />
+      <t-input label="彩色份数" placeholder="仅彩色页彩印" type="number" value="{{print.colorCopies}}" bind:change="onPrintChange" data-field="colorCopies" />
+    </view>
+    <t-button theme="primary" block bindtap="calcPrint">计算打印报价</t-button>
+    <view class="card result" wx:if="{{printResult}}">
+      <view class="section-title">报价结果</view>
+      <view class="result-row" wx:if="{{printResult.bwCost > 0}}"><text>黑白费用</text><text>{{printResult.bwCost}} 元 ({{printResult.totalBw}}张 x {{printResult.bwUnitPrice}})</text></view>
+      <view class="result-row" wx:if="{{printResult.colorCost > 0}}"><text>彩色费用</text><text>{{printResult.colorCost}} 元 ({{printResult.totalColor}}张 x {{printResult.colorUnitPrice}})</text></view>
+      <view class="result-row total"><text>小计</text><text>{{printResult.total}} 元</text></view>
+    </view>
+  </block>
+
+  <!-- 订单信息 -->
+  <view class="card" wx:if="{{labelResult || printResult}}">
+    <view class="section-title">订单信息</view>
+    <t-input label="备注" placeholder="选填" value="{{remark}}" bind:change="onRemarkChange" />
+    <t-input label="优惠金额" placeholder="0" type="digit" value="{{discountAmount}}" bind:change="onDiscountChange" />
+    <view class="summary-row total">
+      <text>订单总额</text>
+      <text class="total-value">¥{{finalAmount}}</text>
+    </view>
+  </view>
+
+  <!-- 提交 -->
+  <view class="submit-area safe-bottom" wx:if="{{labelResult || printResult}}">
+    <t-button theme="primary" block size="large" loading="{{submitting}}" bindtap="submit">提交订单</t-button>
+  </view>
+</view>

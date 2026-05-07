@@ -10,6 +10,16 @@ public interface AuthService {
     LoginResponse login(LoginRequest request);
 
     /**
+     * 微信小程序登录
+     */
+    LoginResponse wxLogin(String code);
+
+    /**
+     * 绑定微信openid（已登录用户）
+     */
+    void bindWxOpenid(Long userId, String code);
+
+    /**
      * 用户登出
      */
     void logout(String token);

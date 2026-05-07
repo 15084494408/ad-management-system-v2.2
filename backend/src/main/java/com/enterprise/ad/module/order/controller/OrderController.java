@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.annotation.OperationLog;
+import com.enterprise.ad.common.exception.BusinessException;
 import com.enterprise.ad.common.dto.PaymentRequest;
 import com.enterprise.ad.common.dto.StatusRequest;
 import com.enterprise.ad.common.util.DateUtil;
@@ -283,6 +285,7 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "新建订单")
+    @OperationLog(value = "新建订单", module = "订单管理")
     @PreAuthorize("hasAuthority('order:create')")
     @Transactional
     public Result<Long> create(@Valid @RequestBody CreateOrderDTO dto) {
@@ -356,6 +359,7 @@ public class OrderController {
 
     @PutMapping("/{id}")
     @Operation(summary = "更新订单")
+    @OperationLog(value = "更新订单", module = "订单管理")
     @PreAuthorize("hasAuthority('order:edit')")
     @Transactional
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody UpdateOrderDTO dto) {
@@ -410,8 +414,30 @@ public class OrderController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除订单")
+    @OperationLog(value = "删除订单", module = "订单管理")
     @PreAuthorize("hasAuthority('order:delete')")
     public Result<Void> delete(@PathVariable Long id) {
+        // ★ P1-11 修复：添加状态保护，已完成的订单不允许直接删除（需先取消）
+        Order existing = orderMapper.selectById(id);
+        if (existing == null || existing.getDeleted() == 1) {
+            return Result.fail("订单不存在");
+        }
+        if (existing.getStatus() == 3) {
+            return Result.fail("已完成的订单不允许直接删除，请先取消订单");
+        }
+        if (existing.getStatus() == 2) {
+            return Result.fail("进行中的订单不允许直接删除，请先取消订单");
+        }
+        // 有未收款的订单不允许删除（避免财务数据断裂）
+        BigDecimal unpaid = (existing.getTotalAmount() != null ? existing.getTotalAmount() : BigDecimal.ZERO)
+            .subtract(existing.getPaidAmount() != null ? existing.getPaidAmount() : BigDecimal.ZERO)
+            .subtract(existing.getRoundingAmount() != null ? existing.getRoundingAmount() : BigDecimal.ZERO)
+            .subtract(existing.getDiscountAmount() != null ? existing.getDiscountAmount() : BigDecimal.ZERO)
+            .max(BigDecimal.ZERO);
+        if (unpaid.compareTo(BigDecimal.ZERO) > 0) {
+            return Result.fail("订单尚有 ¥" + unpaid.toPlainString() + " 未收款，请先完成收款后再操作");
+        }
+
         orderMapper.deleteById(id);
         return Result.ok();
     }
@@ -499,6 +525,7 @@ public class OrderController {
                 order.setPaymentStatus(existing.getPaymentStatus());
             } else {
                 // 计算是否还有未收金额
+                // ★ totalAmount 为物料原价，需减去 discount（统一在展示层/业务层处理优惠）
                 BigDecimal unpaid = BigDecimal.ZERO;
                 if (existing.getTotalAmount() != null) {
                     unpaid = existing.getTotalAmount()
@@ -541,6 +568,7 @@ public class OrderController {
      */
     @PostMapping("/{id}/payment")
     @Operation(summary = "登记收款")
+    @OperationLog(value = "登记收款", module = "订单管理")
     @PreAuthorize("hasAuthority('order:edit')")
     @Transactional
     public Result<Void> addPayment(@PathVariable Long id, @Valid @RequestBody PaymentRequest paymentReq) {
@@ -554,8 +582,8 @@ public class OrderController {
         BigDecimal currentPaid = existing.getPaidAmount() != null ? existing.getPaidAmount() : BigDecimal.ZERO;
         BigDecimal total = existing.getTotalAmount() != null ? existing.getTotalAmount() : BigDecimal.ZERO;
 
-        // 扣除会员预存余额
-        deductMemberBalance(existing.getCustomerId(), existing.getMemberId(), amount, id, existing.getOrderNo());
+        // 扣除会员预存余额，获取实际扣除金额
+        BigDecimal memberDeducted = deductMemberBalance(existing.getCustomerId(), existing.getMemberId(), amount, id, existing.getOrderNo());
 
         // ★ 使用数据库原子操作更新已付金额（修复 P0-2 并发安全问题）
         int rows;
@@ -580,8 +608,9 @@ public class OrderController {
             Order latest = orderMapper.selectById(id);
             if (latest != null) {
                 BigDecimal newPaid = latest.getPaidAmount();
+                // ★ actualTotal = totalAmount - rounding（rounding 为正数表示减免）
                 BigDecimal existingRounding = latest.getRoundingAmount() != null ? latest.getRoundingAmount() : BigDecimal.ZERO;
-                BigDecimal actualTotal = total.add(existingRounding);
+                BigDecimal actualTotal = total.subtract(existingRounding);
                 Integer newStatus = newPaid.compareTo(actualTotal) >= 0 ? 3 : (newPaid.compareTo(BigDecimal.ZERO) > 0 ? 2 : 1);
                 Order statusUpdate = new Order();
                 statusUpdate.setId(id);
@@ -590,9 +619,11 @@ public class OrderController {
             }
         }
 
-        // 同步生成财务收入流水
-        if (amount.compareTo(BigDecimal.ZERO) > 0) {
-            financeRecordService.createIncome("ORD", "订单收款", amount, id,
+        // ★ 修复 P0-财务：同步生成财务收入流水，仅记录实际现金收款部分
+        // （会员抵扣部分已在充值时记入 fin_record，此处不再重复记录）
+        BigDecimal cashAmount = amount.subtract(memberDeducted);
+        if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
+            financeRecordService.createIncome("ORD", "订单收款", cashAmount, id,
                 existing.getOrderNo(), null,
                 "订单: " + existing.getTitle() + " | 客户: " + existing.getCustomerName());
         }
@@ -604,72 +635,80 @@ public class OrderController {
      * ★ 扣除会员预存余额（兼容旧 memberId 和新 customerId）
      * 优先使用 customerId（从 crm_customer 表操作），回退到旧 memberId
      */
-    private void deductMemberBalance(Long customerId, Long memberId, BigDecimal amount, Long orderId, String orderNo) {
+    private BigDecimal deductMemberBalance(Long customerId, Long memberId, BigDecimal amount, Long orderId, String orderNo) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+            return BigDecimal.ZERO;
         }
         if (customerId != null) {
-            deductFromCustomer(customerId, amount, orderId, orderNo, "consume",
+            return deductFromCustomer(customerId, amount, orderId, orderNo, "consume",
                 "订单收款扣除预存：" + orderNo);
-            return;
         }
         if (memberId != null) {
-            deductFromMember(memberId, amount, orderId, orderNo, "consume",
+            return deductFromMember(memberId, amount, orderId, orderNo, "consume",
                 "订单收款扣除预存：" + orderNo);
         }
+        return BigDecimal.ZERO;
     }
 
     /**
      * 通过客户(customer)扣除会员余额
      */
-    private void deductFromCustomer(Long customerId, BigDecimal amount, Long orderId, String orderNo,
-                                     String txType, String remark) {
+    private BigDecimal deductFromCustomer(Long customerId, BigDecimal amount, Long orderId, String orderNo,
+                                           String txType, String remark) {
         Customer customer = customerMapper.selectById(customerId);
-        if (customer == null || customer.getIsMember() != 1 || customer.getBalance() == null
+        if (customer == null || customer.getIsMember() != 1
+                || customer.getBalance() == null
                 || customer.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+            return BigDecimal.ZERO;
         }
 
         BigDecimal balance = customer.getBalance();
-        BigDecimal deductAmount = balance.compareTo(amount) >= 0 ? amount : balance;
-        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) return;
-
-        int rows = customerMapper.deductBalance(customerId, deductAmount);
-        if (rows == 0) {
-            log.warn("客户 {} 会员余额扣除失败", customerId);
-            return;
+        // ★ 修复 P0-会员：余额不足时抛出异常而非静默部分扣除
+        if (balance.compareTo(amount) < 0) {
+            throw new BusinessException(400,
+                "会员余额不足，当前余额 ¥" + balance.toPlainString()
+                + "，无法抵扣 ¥" + amount.toPlainString());
         }
 
-        updateOrderDeductAmount(orderId, deductAmount);
+        int rows = customerMapper.deductBalance(customerId, amount);
+        if (rows == 0) {
+            throw new BusinessException(400, "会员余额不足或已被扣减");
+        }
+
+        updateOrderDeductAmount(orderId, amount);
 
         Customer updated = customerMapper.selectById(customerId);
         BigDecimal newBalance = updated != null && updated.getBalance() != null
             ? updated.getBalance() : BigDecimal.ZERO;
 
-        insertMemberTx(customerId, customerId, txType, deductAmount, balance, newBalance, orderId, remark);
+        insertMemberTx(customerId, customerId, txType, amount, balance, newBalance, orderId, remark);
+        return amount;
     }
 
     /**
      * 通过旧版 memberId 扣除会员余额（兼容历史数据）
      */
-    private void deductFromMember(Long memberId, BigDecimal amount, Long orderId, String orderNo,
-                                   String txType, String remark) {
+    private BigDecimal deductFromMember(Long memberId, BigDecimal amount, Long orderId, String orderNo,
+                                         String txType, String remark) {
         Member member = memberMapper.selectById(memberId);
         if (member == null || member.getBalance() == null || member.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+            return BigDecimal.ZERO;
         }
 
         BigDecimal balance = member.getBalance();
-        BigDecimal deductAmount = balance.compareTo(amount) >= 0 ? amount : balance;
-        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) return;
-
-        int rows = memberMapper.deductBalance(memberId, deductAmount);
-        if (rows == 0) {
-            log.warn("会员 {} 余额扣除失败，余额可能已被其他操作扣减", memberId);
-            return;
+        // ★ 修复 P0-会员：余额不足时抛出异常而非静默部分扣除
+        if (balance.compareTo(amount) < 0) {
+            throw new BusinessException(400,
+                "会员余额不足，当前余额 ¥" + balance.toPlainString()
+                + "，无法抵扣 ¥" + amount.toPlainString());
         }
 
-        updateOrderDeductAmount(orderId, deductAmount);
+        int rows = memberMapper.deductBalance(memberId, amount);
+        if (rows == 0) {
+            throw new BusinessException(400, "会员余额不足或已被扣减");
+        }
+
+        updateOrderDeductAmount(orderId, amount);
 
         Member updated = memberMapper.selectById(memberId);
         BigDecimal newBalance = updated != null && updated.getBalance() != null
@@ -679,13 +718,14 @@ public class OrderController {
         tx.setCustomerId(memberId);
         tx.setMemberId(memberId);
         tx.setType(txType);
-        tx.setAmount(deductAmount);
+        tx.setAmount(amount);
         tx.setBalanceBefore(balance);
         tx.setBalanceAfter(newBalance);
         tx.setOrderId(orderId);
         tx.setRemark(remark);
         tx.setCreateTime(LocalDateTime.now());
         memberTransactionMapper.insert(tx);
+        return amount;
     }
 
     /** 回写订单的会员抵扣金额（累加） */
@@ -739,8 +779,13 @@ public class OrderController {
 
         BigDecimal balance = customer.getBalance() != null ? customer.getBalance() : BigDecimal.ZERO;
 
-        customerMapper.addBalance(customerId, amount);
-        customerMapper.reduceConsume(customerId, amount);
+        // ★ 修复 P1-金额：使用 refundBalance 而非 addBalance+reduceConsume，
+        // 避免错误累加 total_recharge（退款不是充值，不应增加总充值金额）
+        int rows = customerMapper.refundBalance(customerId, amount);
+        if (rows == 0) {
+            log.warn("退回余额失败：客户 {} 退款 SQL 未生效", customerId);
+            return;
+        }
 
         Customer updated = customerMapper.selectById(customerId);
         BigDecimal newBalance = updated != null && updated.getBalance() != null
@@ -780,7 +825,7 @@ public class OrderController {
                 .eq(OrderMaterial::getOrderId, orderId)
                 .eq(OrderMaterial::getDeleted, 0)
         );
-        BigDecimal total = materials.stream()
+        BigDecimal materialSum = materials.stream()
             .map(m -> m.getQuantity() != null && m.getUnitPrice() != null
                 ? m.getQuantity().multiply(m.getUnitPrice())
                 : BigDecimal.ZERO)
@@ -793,9 +838,16 @@ public class OrderController {
                 : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // ★ 修复 P1-金额：totalAmount = 物料合计（不减去 discountAmount）
+        // discountAmount 作为独立优惠字段，在计算待收金额时统一扣除（避免双重扣除）
+        BigDecimal totalAmount = materialSum;
+        if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            totalAmount = BigDecimal.ZERO;
+        }
+
         Order update = new Order();
         update.setId(orderId);
-        update.setTotalAmount(total);
+        update.setTotalAmount(totalAmount);
         update.setTotalCost(totalCost);
         update.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(update);

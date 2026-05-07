@@ -142,6 +142,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '新建报价' },
       },
       {
+        path: 'finance/print-quote',
+        name: 'PrintQuote',
+        component: () => import('@/views/finance/PrintQuoteView.vue'),
+        meta: { title: '印刷报价计算器' },
+      },
+      {
         path: 'finance/report',
         name: 'FinanceReport',
         component: () => import('@/views/finance/FinanceReportView.vue'),
@@ -158,6 +164,12 @@ const routes: RouteRecordRaw[] = [
         name: 'FinanceDesignerCommission',
         component: () => import('@/views/finance/DesignerCommissionView.vue'),
         meta: { title: '设计师提成' },
+      },
+      {
+        path: 'finance/salary',
+        name: 'FinanceSalary',
+        component: () => import('@/views/finance/SalaryView.vue'),
+        meta: { title: '工资管理' },
       },
 
       // ── 系统管理 ──

@@ -1,0 +1,56 @@
+<view class="page-container">
+  <t-search placeholder="搜索客户名称/电话" value="{{keyword}}" bind:change="onSearch" bind:submit="doSearch" shape="round" />
+
+  <!-- 筛选标签 -->
+  <view class="filter-bar">
+    <view class="filter-tag {{activeType === 'all' ? 'active' : ''}}" bindtap="filterType" data-type="all">全部</view>
+    <view class="filter-tag {{activeType === 'normal' ? 'active' : ''}}" bindtap="filterType" data-type="normal">普通客户</view>
+    <view class="filter-tag {{activeType === 'member' ? 'active' : ''}}" bindtap="filterType" data-type="member">会员</view>
+  </view>
+
+  <view class="customer-list">
+    <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+      <t-loading loading theme="circular" size="40rpx" />
+    </view>
+    <view wx:elif="{{customers.length === 0}}" style="text-align:center;padding:100rpx 0;color:#999;font-size:26rpx">暂无客户</view>
+
+    <view class="customer-card" wx:for="{{customers}}" wx:key="id">
+      <!-- 左侧点击查看详情 -->
+      <view class="card-main" bindtap="goDetail" data-id="{{item.id}}">
+        <view class="customer-header">
+          <view class="customer-avatar" style="background:{{item.memberBadge ? '#e6a23c' : '#667eea'}}">{{item.displayName[0] || '?'}}</view>
+          <view class="customer-info">
+            <view class="name-row">
+              <text class="customer-name">{{item.displayName}}</text>
+              <t-tag wx:if="{{item.memberBadge}}" size="small" variant="light" theme="warning">{{item.memberLevelName || '会员'}}</t-tag>
+            </view>
+            <text class="customer-phone">{{item.phone || '暂无电话'}}</text>
+          </view>
+          <view class="customer-tags">
+            <t-tag size="small" variant="light" theme="{{item.customerType === 2 ? 'primary' : item.customerType === 3 ? 'warning' : 'default'}}">{{item.typeName}}</t-tag>
+          </view>
+        </view>
+        <view class="customer-footer">
+          <text class="customer-address" wx:if="{{item.address}}">{{item.address}}</text>
+          <text class="customer-balance" wx:if="{{item.memberBadge}}">余额: ¥{{item.balance || '0.00'}}</text>
+        </view>
+      </view>
+      <!-- 右侧操作按钮 -->
+      <view class="card-actions">
+        <view class="action-btn" bindtap="callPhone" data-phone="{{item.phone}}" wx:if="{{item.phone}}">
+          <t-icon name="call" size="32rpx" color="#0052D9" />
+        </view>
+        <view class="action-btn" bindtap="showActions" data-id="{{item.id}}" data-name="{{item.displayName}}" data-retail="{{item.customerType === 3 ? 1 : 0}}">
+          <t-icon name="ellipsis" size="32rpx" color="#666" />
+        </view>
+      </view>
+    </view>
+
+    <view class="load-more" wx:if="{{customers.length > 0}}">
+      <text wx:if="{{loadingMore}}">加载中...</text>
+      <text wx:elif="{{noMore}}">没有更多了</text>
+    </view>
+  </view>
+
+  <t-fab icon="add" bind:click="addCustomer" class="fab-btn" />
+</view>

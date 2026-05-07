@@ -1,0 +1,89 @@
+.page-container {
+  padding: 0 24rpx 120rpx;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+.search-bar {
+  padding: 16rpx 0 8rpx;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f5f7fa;
+}
+.order-tabs {
+  background: #f5f7fa;
+  margin-bottom: 8rpx;
+  position: sticky;
+  top: 100rpx;
+  z-index: 10;
+}
+
+/* 订单卡片 */
+.order-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+.order-no {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #333;
+}
+.card-body { }
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+.card-row:last-child { margin-bottom: 0; }
+.label {
+  font-size: 26rpx;
+  color: #999;
+}
+.value {
+  font-size: 26rpx;
+  color: #333;
+}
+.value.amount {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.value.unpaid {
+  color: #E34D59;
+  font-weight: 500;
+}
+.value.time {
+  font-size: 24rpx;
+  color: #bbb;
+}
+
+.load-more {
+  text-align: center;
+  padding: 32rpx 0;
+  font-size: 24rpx;
+  color: #ccc;
+}
+
+.fab-btn {
+  position: fixed;
+  right: 32rpx;
+  bottom: 120rpx;
+}

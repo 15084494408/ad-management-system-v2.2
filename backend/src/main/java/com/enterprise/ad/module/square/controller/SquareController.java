@@ -36,6 +36,7 @@ public class SquareController {
 
     @GetMapping("/requirement")
     @Operation(summary = "需求列表（分页）")
+    @PreAuthorize("isAuthenticated()")
     public Result<PageResult<SquareRequirement>> listRequirements(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "20") long size,
@@ -57,6 +58,7 @@ public class SquareController {
 
     @GetMapping("/requirement/{id}")
     @Operation(summary = "需求详情")
+    @PreAuthorize("isAuthenticated()")
     public Result<SquareRequirement> getRequirement(@PathVariable Long id) {
         SquareRequirement req = requirementMapper.selectById(id);
         if (req != null) {
@@ -68,6 +70,7 @@ public class SquareController {
 
     @PostMapping("/requirement")
     @Operation(summary = "发布需求")
+    @PreAuthorize("isAuthenticated()")
     public Result<Void> createRequirement(@RequestBody SquareRequirement req, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息
         Long userId = WebUtil.getCurrentUserId(request);
@@ -85,6 +88,7 @@ public class SquareController {
 
     @PutMapping("/requirement/{id}")
     @Operation(summary = "更新需求")
+    @PreAuthorize("hasAuthority('square:manage')")
     public Result<Void> updateRequirement(@PathVariable Long id, @RequestBody SquareRequirement req) {
         req.setId(id);
         req.setUpdateTime(LocalDateTime.now());
@@ -94,6 +98,7 @@ public class SquareController {
 
     @DeleteMapping("/requirement/{id}")
     @Operation(summary = "删除需求")
+    @PreAuthorize("hasAuthority('square:manage')")
     public Result<Void> deleteRequirement(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         requirementMapper.deleteById(id);
@@ -104,6 +109,7 @@ public class SquareController {
 
     @GetMapping("/my-apply")
     @Operation(summary = "我的申请列表")
+    @PreAuthorize("isAuthenticated()")
     public Result<PageResult<SquareApplication>> myApplications(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "20") long size,
@@ -124,6 +130,7 @@ public class SquareController {
 
     @GetMapping("/requirement/{id}/applications")
     @Operation(summary = "需求申请列表")
+    @PreAuthorize("isAuthenticated()")
     public Result<?> getApplications(@PathVariable Long id) {
         return Result.ok(applicationMapper.selectList(
             new LambdaQueryWrapper<SquareApplication>()
@@ -135,6 +142,7 @@ public class SquareController {
 
     @PostMapping("/apply")
     @Operation(summary = "申请接单")
+    @PreAuthorize("isAuthenticated()")
     @Transactional
     public Result<Void> apply(@RequestBody SquareApplication app, HttpServletRequest request) {
         Long userId = WebUtil.getCurrentUserId(request);
@@ -207,6 +215,7 @@ public class SquareController {
 
     @GetMapping("/income")
     @Operation(summary = "收入列表")
+    @PreAuthorize("isAuthenticated()")
     public Result<PageResult<SquareIncome>> listIncome(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "20") long size,
@@ -226,6 +235,7 @@ public class SquareController {
 
     @GetMapping("/income/summary")
     @Operation(summary = "收入汇总")
+    @PreAuthorize("isAuthenticated()")
     public Result<?> incomeSummary(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
 
@@ -286,6 +296,7 @@ public class SquareController {
 
     @GetMapping("/income/export")
     @Operation(summary = "导出收入统计")
+    @PreAuthorize("hasAuthority('square:manage')")
     public void exportIncome(HttpServletResponse response) {
         response.setStatus(HttpServletResponse.SC_OK);
     }

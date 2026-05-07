@@ -58,6 +58,17 @@ public interface CustomerMapper extends BaseMapper<Customer> {
     int reduceConsume(@Param("customerId") Long customerId, @Param("amount") BigDecimal amount);
 
     /**
+     * ★ 退款退回余额（仅增加 balance 并减少 total_consume，不修改 total_recharge）
+     * 与 addBalance 不同，退款不应增加总充值金额
+     */
+    @Update("UPDATE crm_customer SET " +
+            "balance = balance + #{amount}, " +
+            "total_consume = GREATEST(IFNULL(total_consume, 0) - #{amount}, 0), " +
+            "update_time = NOW() " +
+            "WHERE id = #{customerId} AND is_member = 1 AND deleted = 0")
+    int refundBalance(@Param("customerId") Long customerId, @Param("amount") BigDecimal amount);
+
+    /**
      * 查询会员流水记录，自动关联客户名称
      */
     @Select("<script>" +

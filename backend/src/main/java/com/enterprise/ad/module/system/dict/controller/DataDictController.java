@@ -98,6 +98,21 @@ public class DataDictController {
         return Result.ok();
     }
 
+    /**
+     * P1-01 修复：更新字典状态（启用/禁用）
+     * 前端 SystemDictView.vue:176 调用 PUT /system/dict/{id}/status
+     */
+    @PutMapping("/{id}/status")
+    @Operation(summary = "更新字典状态（启用/禁用）")
+    public Result<Void> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
+        DataDict dict = new DataDict();
+        dict.setId(id);
+        dict.setStatus(status);
+        dict.setUpdateTime(LocalDateTime.now());
+        dictMapper.updateById(dict);
+        return Result.ok();
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "删除字典")
     public Result<Void> delete(@PathVariable Long id) {

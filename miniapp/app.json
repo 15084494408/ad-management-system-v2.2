@@ -1,0 +1,82 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/orders/orders",
+    "pages/orders/create/create",
+    "pages/orders/detail/detail",
+    "pages/orders/quote/quote",
+    "pages/customer/customer",
+    "pages/customer/create/create",
+    "pages/customer/detail/detail",
+    "pages/customer/recharge/recharge",
+    "pages/customer/bills/customer-bills",
+    "pages/customer/bills/factory-bills",
+    "pages/customer/bills/bill-detail",
+    "pages/member/member",
+    "pages/member/transactions",
+    "pages/material/material",
+    "pages/material/material-edit",
+    "pages/material/category",
+    "pages/material/stock-in",
+    "pages/material/stock-out",
+    "pages/material/stock-log",
+    "pages/system/users",
+    "pages/system/user-edit",
+    "pages/system/company",
+    "pages/todo/todo",
+    "pages/quote/quote",
+    "pages/messages/messages",
+    "pages/profile/profile",
+    "pages/login/login"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#667eea",
+    "navigationBarTitleText": "广告管理系统",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F5F5F5",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#667eea",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "工作台",
+        "iconPath": "images/tab-home.png",
+        "selectedIconPath": "images/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/orders/orders",
+        "text": "订单",
+        "iconPath": "images/tab-order.png",
+        "selectedIconPath": "images/tab-order-active.png"
+      },
+      {
+        "pagePath": "pages/customer/customer",
+        "text": "客户",
+        "iconPath": "images/tab-customer.png",
+        "selectedIconPath": "images/tab-customer-active.png"
+      },
+      {
+        "pagePath": "pages/messages/messages",
+        "text": "消息",
+        "iconPath": "images/tab-msg.png",
+        "selectedIconPath": "images/tab-msg-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "images/tab-profile.png",
+        "selectedIconPath": "images/tab-profile-active.png"
+      }
+    ]
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于获取客户位置信息"
+    }
+  }
+}

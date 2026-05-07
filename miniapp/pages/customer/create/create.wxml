@@ -1,0 +1,39 @@
+<view class="page-container">
+  <t-loading wx:if="{{pageLoading}}" loading theme="circular" style="margin-top: 200rpx;" />
+
+  <block wx:if="{{!pageLoading}}">
+    <!-- 基本信息 -->
+    <view class="card">
+      <view class="section-title">基本信息</view>
+      <t-input label="客户名称" placeholder="请输入客户名称" value="{{form.name}}" bind:change="onChange" data-field="name" maxlength="50" required />
+      <t-input label="联系电话" placeholder="选填" type="number" value="{{form.phone}}" bind:change="onChange" data-field="phone" maxlength="20" />
+      <t-input label="联系人" placeholder="选填" value="{{form.contactPerson}}" bind:change="onChange" data-field="contactPerson" maxlength="30" />
+      <t-input label="地址" placeholder="选填" value="{{form.address}}" bind:change="onChange" data-field="address" maxlength="200" />
+    </view>
+
+    <!-- 客户类型 -->
+    <view class="card">
+      <view class="section-title">客户类型</view>
+      <view class="type-options">
+        <view class="type-option {{form.customerType === item.value ? 'active' : ''}}"
+          wx:for="{{typeOptions}}" wx:key="value"
+          bindtap="onTypeChange" data-index="{{index}}">
+          <text>{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 备注 -->
+    <view class="card">
+      <view class="section-title">备注</view>
+      <textarea class="remark-textarea" placeholder="选填备注信息" value="{{form.remark}}" bindinput="onChange" data-field="remark" maxlength="500" auto-height />
+    </view>
+
+    <!-- 提交 -->
+    <view class="submit-area safe-bottom">
+      <t-button theme="primary" block size="large" loading="{{submitting}}" bindtap="submit">
+        {{mode === 'edit' ? '保存修改' : '创建客户'}}
+      </t-button>
+    </view>
+  </block>
+</view>

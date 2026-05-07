@@ -1,0 +1,27 @@
+<view class="login-page">
+  <view class="login-bg"></view>
+  <view class="login-header">
+    <view class="login-logo">广</view>
+    <text class="app-title">广告管理系统</text>
+    <text class="app-subtitle">企业级广告店管理平台</text>
+  </view>
+
+  <view class="login-form">
+    <view class="input-group">
+      <t-icon name="user" size="36rpx" color="#999" />
+      <input class="custom-input" placeholder="请输入用户名" value="{{username}}" bindinput="onUsernameChange" />
+    </view>
+    <view class="input-group">
+      <t-icon name="lock" size="36rpx" color="#999" />
+      <input class="custom-input" placeholder="请输入密码" type="password" value="{{password}}" bindinput="onPasswordChange" />
+    </view>
+
+    <t-button theme="primary" block size="large" loading="{{loading}}" bindtap="login" style="margin-top: 48rpx;border-radius:16rpx;">
+      登 录
+    </t-button>
+
+    <t-button variant="text" theme="primary" block style="margin-top: 24rpx;" bindtap="wxLogin">
+      微信一键登录
+    </t-button>
+  </view>
+</view>

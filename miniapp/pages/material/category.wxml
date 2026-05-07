@@ -1,0 +1,37 @@
+<view class="page-container">
+  <view class="card" wx:if="{{categories.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">物料分类</text>
+      <text class="add-btn" bindtap="showAddDialog"><t-icon name="add" size="32rpx" /> 新增</text>
+    </view>
+    <view class="category-item" wx:for="{{categories}}" wx:key="id">
+      <view class="category-left">
+        <view class="category-dot" style="background: #667eea;"></view>
+        <text class="category-name">{{item.name}}</text>
+        <text class="category-count" wx:if="{{item.materialCount}}">{{item.materialCount}}种物料</text>
+      </view>
+      <view class="category-right">
+        <t-icon name="edit" size="36rpx" color="#0052D9" data-item="{{item}}" bindtap="editCategory" />
+        <t-icon name="delete" size="36rpx" color="#E34D59" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteCategory" style="margin-left:20rpx" />
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{categories.length === 0}}" class="empty-state">
+    <t-icon name="view-list" size="96rpx" color="#ddd" />
+    <text class="empty-text">暂无分类</text>
+    <t-button size="small" theme="primary" variant="outline" bindtap="showAddDialog">添加分类</t-button>
+  </view>
+
+  <!-- 新增/编辑弹窗 -->
+  <t-popup visible="{{showAdd}}" placement="bottom" bind:close="hideDialog">
+    <view class="popup-content safe-bottom">
+      <view class="popup-header">
+        <text class="popup-title">{{editId ? '编辑分类' : '新增分类'}}</text>
+        <t-icon name="close" size="40rpx" color="#999" bindtap="hideDialog" />
+      </view>
+      <t-input label="分类名称" placeholder="请输入" value="{{name}}" bind:change="onNameChange" maxlength="30" />
+      <t-button theme="primary" block bindtap="addOrUpdate" loading="{{submitting}}" style="margin-top:24rpx">保存</t-button>
+    </view>
+  </t-popup>
+</view>

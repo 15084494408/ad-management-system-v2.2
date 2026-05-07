@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     phone VARCHAR(20) COMMENT '手机号',
     email VARCHAR(100) COMMENT '邮箱',
     avatar VARCHAR(500) COMMENT '头像URL',
+    wx_openid VARCHAR(128) COMMENT '微信小程序openid',
     status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0禁用 1正常',
     company_id BIGINT COMMENT '所属公司ID',
     department VARCHAR(100) COMMENT '部门',
@@ -746,6 +747,7 @@ CREATE TABLE IF NOT EXISTS sys_notice (
     read_user_id BIGINT COMMENT '读取用户ID',
     read_time   DATETIME COMMENT '读取时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted     TINYINT NOT NULL DEFAULT 0,
     INDEX idx_user_id (user_id),
     INDEX idx_is_read (is_read),
@@ -895,7 +897,8 @@ INSERT INTO sys_button (name, permission, type, parent_id, sort, status) VALUES
 ('按钮管理', 'system:menu', 'button', 0, 27, 1),
 ('公司管理', 'system:config', 'button', 0, 28, 1),
 ('查看物料', 'material:view', 'button', 0, 29, 1),
-('查看文件', 'design:file', 'button', 0, 30, 1),
+('编辑物料', 'material:edit', 'button', 0, 30, 1),
+('查看文件', 'design:file', 'button', 0, 31, 1),
 ('查看报表', 'statistics:view', 'button', 0, 31, 1),
 ('查看广场', 'square:manage', 'button', 0, 32, 1);
 
@@ -952,6 +955,7 @@ INSERT INTO sys_permission (parent_id, name, type, permission_code, sort, visibl
 (7,  '按钮管理',     'button', 'system:menu',        7, 1, 1),
 -- 物料管理按钮
 (8,  '查看物料',     'button', 'material:view',      1, 1, 1),
+(8,  '编辑物料',     'button', 'material:edit',      2, 1, 1),
 -- 设计文件按钮
 (9,  '查看文件',     'button', 'design:file',        1, 1, 1),
 -- 统计报表按钮
@@ -1133,3 +1137,84 @@ INSERT INTO `todo_item` (`customer_name`, `contact_phone`, `dimensions`, `requir
 ('张三（奶茶店）', '13900001111', '门头招牌：宽80cm×高120cm×1块', '亚克力发光字，白天晚上两用，红色为主色调，要求3天内完成', 1, 2, '上门量尺', 1),
 ('李四（服装店）', '13900002222', '橱窗贴：宽60cm×高90cm×3张', '高清车贴，过膜，3天内制作完成', 1, 1, '门店', 1),
 ('王五（餐厅）', '13900003333', '桌卡：宽10cm×高14cm×50个', 'pvc透明桌卡，双面印刷，含设计费', 2, 1, '电话', 1);
+
+
+-- === 增量同步 ===
+-- 2026-05-05 12:08:42 自动追加
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (12, 1, '查看仪表盘', 'button', NULL, NULL, NULL, 'dashboard:view', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (13, 2, '查看订单', 'button', NULL, NULL, NULL, 'order:list', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (14, 2, '新建订单', 'button', NULL, NULL, NULL, 'order:create', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (15, 2, '编辑订单', 'button', NULL, NULL, NULL, 'order:edit', 3, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (16, 2, '删除订单', 'button', NULL, NULL, NULL, 'order:delete', 4, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (17, 3, '查看客户', 'button', NULL, NULL, NULL, 'customer:list', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (18, 3, '新建客户', 'button', NULL, NULL, NULL, 'customer:create', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (19, 3, '编辑客户', 'button', NULL, NULL, NULL, 'customer:edit', 3, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (20, 3, '删除客户', 'button', NULL, NULL, NULL, 'customer:delete', 4, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (21, 4, '查看会员', 'button', NULL, NULL, NULL, 'member:list', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (22, 4, '新建会员', 'button', NULL, NULL, NULL, 'member:create', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (23, 4, '编辑会员', 'button', NULL, NULL, NULL, 'member:edit', 3, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (24, 4, '删除会员', 'button', NULL, NULL, NULL, 'member:delete', 4, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (25, 4, '会员充值', 'button', NULL, NULL, NULL, 'member:recharge', 5, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (26, 5, '查看账单', 'button', NULL, NULL, NULL, 'factory:list', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (27, 5, '新建账单', 'button', NULL, NULL, NULL, 'factory:create', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (28, 5, '编辑账单', 'button', NULL, NULL, NULL, 'factory:edit', 3, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (29, 5, '删除账单', 'button', NULL, NULL, NULL, 'factory:delete', 4, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (30, 6, '查看财务', 'button', NULL, NULL, NULL, 'finance:view', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (31, 6, '编辑财务', 'button', NULL, NULL, NULL, 'finance:edit', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (32, 7, '用户管理', 'button', NULL, NULL, NULL, 'system:user', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (33, 7, '角色权限', 'button', NULL, NULL, NULL, 'system:role', 2, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (34, 7, '操作日志', 'button', NULL, NULL, NULL, 'system:log', 3, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (35, 7, '数据字典', 'button', NULL, NULL, NULL, 'system:dict', 4, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (36, 7, '数据备份', 'button', NULL, NULL, NULL, 'system:backup', 5, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (37, 7, '公告管理', 'button', NULL, NULL, NULL, 'system:notice', 6, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (38, 7, '按钮管理', 'button', NULL, NULL, NULL, 'system:menu', 7, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (39, 8, '查看物料', 'button', NULL, NULL, NULL, 'material:view', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (44, 8, '编辑物料', 'button', NULL, NULL, NULL, 'material:edit', 2, 1, 1, '2026-05-06 22:33:00', '2026-05-06 22:33:00', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (40, 9, '查看文件', 'button', NULL, NULL, NULL, 'design:file', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (41, 10, '查看报表', 'button', NULL, NULL, NULL, 'statistics:view', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (42, 11, '查看广场', 'button', NULL, NULL, NULL, 'square:manage', 1, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_permission` (`id`, `parent_id`, `name`, `type`, `path`, `component`, `icon`, `permission_code`, `sort`, `visible`, `status`, `create_time`, `update_time`, `deleted`) VALUES (43, 7, '系统配置', 'button', NULL, NULL, NULL, 'system:config', 12, 1, 1, '2026-05-04 16:49:44', '2026-05-04 16:49:44', 0);
+INSERT INTO `sys_company` (`id`, `company_name`, `address`, `phone`, `fax`, `email`, `contact_person`, `company_type`, `bank_name`, `bank_account`, `tax_no`, `logo_url`, `is_default`, `status`, `create_time`, `update_time`, `deleted`) VALUES (1, '台州新原力广告传媒有限公司', '浙江省台州市椒江区台州湾新区', '15084494408', '021-88888889', '2991404309@qq.com', NULL, NULL, '中国建设银行股份有限公司台州湾新区支行', '33050111438300000786', '91331001MAK6XBJU5Q', NULL, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_dict` (`id`, `name`, `code`, `description`, `sort_order`, `status`, `create_time`, `update_time`, `deleted`) VALUES (1, '订单类型', 'order_type', '订单类型枚举', 1, 1, '2026-05-04 14:53:14', NULL, 0);
+INSERT INTO `sys_dict` (`id`, `name`, `code`, `description`, `sort_order`, `status`, `create_time`, `update_time`, `deleted`) VALUES (2, '订单状态', 'order_status', '订单状态枚举', 2, 1, '2026-05-04 14:53:14', NULL, 0);
+INSERT INTO `sys_dict` (`id`, `name`, `code`, `description`, `sort_order`, `status`, `create_time`, `update_time`, `deleted`) VALUES (3, '支付方式', 'payment_method', '支付方式枚举', 3, 1, '2026-05-04 14:53:14', NULL, 0);
+INSERT INTO `sys_dict` (`id`, `name`, `code`, `description`, `sort_order`, `status`, `create_time`, `update_time`, `deleted`) VALUES (4, '客户等级', 'customer_level', '客户等级枚举', 4, 1, '2026-05-04 14:53:14', NULL, 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (1, '查看仪表盘', 'dashboard:view', 'button', 0, 1, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (2, '查看订单', 'order:list', 'button', 0, 2, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (3, '新建订单', 'order:create', 'button', 0, 3, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (4, '编辑订单', 'order:edit', 'button', 0, 4, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (5, '删除订单', 'order:delete', 'button', 0, 5, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (6, '查看客户', 'customer:list', 'button', 0, 6, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (7, '新建客户', 'customer:create', 'button', 0, 7, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (8, '编辑客户', 'customer:edit', 'button', 0, 8, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (9, '删除客户', 'customer:delete', 'button', 0, 9, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (10, '查看会员', 'member:list', 'button', 0, 10, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (11, '新建会员', 'member:create', 'button', 0, 11, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (12, '编辑会员', 'member:edit', 'button', 0, 12, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (13, '删除会员', 'member:delete', 'button', 0, 13, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (14, '会员充值', 'member:recharge', 'button', 0, 14, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (15, '查看账单', 'factory:list', 'button', 0, 15, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (16, '新建账单', 'factory:create', 'button', 0, 16, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (17, '编辑账单', 'factory:edit', 'button', 0, 17, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (18, '删除账单', 'factory:delete', 'button', 0, 18, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (19, '查看财务', 'finance:view', 'button', 0, 19, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (20, '编辑财务', 'finance:edit', 'button', 0, 20, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (21, '用户管理', 'system:user', 'button', 0, 21, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (22, '角色权限', 'system:role', 'button', 0, 22, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (23, '操作日志', 'system:log', 'button', 0, 23, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (24, '数据字典', 'system:dict', 'button', 0, 24, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (25, '数据备份', 'system:backup', 'button', 0, 25, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (26, '公告管理', 'system:notice', 'button', 0, 26, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (27, '按钮管理', 'system:menu', 'button', 0, 27, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (28, '公司管理', 'system:config', 'button', 0, 28, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (29, '查看物料', 'material:view', 'button', 0, 29, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (33, '编辑物料', 'material:edit', 'button', 0, 30, 1, '2026-05-06 22:33:00', '2026-05-06 22:33:00', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (30, '查看文件', 'design:file', 'button', 0, 30, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (31, '查看报表', 'statistics:view', 'button', 0, 31, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (32, '查看广场', 'square:manage', 'button', 0, 32, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (33, '设计师提成', 'designer:commission', 'button', 0, 33, 1, '2026-05-04 14:53:14', '2026-05-04 14:53:14', 0);
+
+
+-- === 增量同步 ===
+-- 2026-05-07 08:52:43 自动追加
+INSERT INTO `sys_button` (`id`, `name`, `permission`, `type`, `parent_id`, `sort`, `status`, `create_time`, `update_time`, `deleted`) VALUES (34, '编辑物料', 'material:edit', 'button', 0, 34, 1, '2026-05-06 22:40:24', '2026-05-06 22:40:24', 0);

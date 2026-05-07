@@ -1,0 +1,333 @@
+/* 客户搜索行 */
+.customer-row {
+  display: flex;
+  gap: 16rpx;
+  align-items: center;
+}
+.customer-row .search-input {
+  flex: 1;
+}
+
+.selected-customer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 20rpx;
+  margin-top: 16rpx;
+  background: #f0f7ff;
+  border-radius: 12rpx;
+}
+.sc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.sc-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+}
+.sc-phone {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 行内表单 */
+.form-row-inline {
+  display: flex;
+  gap: 0;
+}
+.form-row-inline > picker {
+  flex: 1;
+}
+
+/* 弹窗选择器 */
+.picker-popup {
+  background: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 32rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.picker-title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+.picker-list {
+  padding: 0 24rpx 24rpx;
+}
+.picker-item {
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.picker-item:active {
+  background: #f5f5f5;
+}
+.pi-name {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+}
+.pi-meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 8rpx;
+}
+.pi-phone {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 添加按钮组 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+.header-actions {
+  display: flex;
+  gap: 20rpx;
+}
+.add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  font-size: 24rpx;
+  color: #0052D9;
+}
+.add-btn.custom {
+  color: #e6a23c;
+}
+
+/* 空物料提示 */
+.empty-material {
+  text-align: center;
+  padding: 48rpx 0;
+  color: #999;
+  font-size: 26rpx;
+}
+.empty-material .empty-hint {
+  display: block;
+  font-size: 22rpx;
+  color: #ccc;
+  margin-top: 8rpx;
+}
+
+/* 物料明细 */
+.material-item {
+  background: #fafafa;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+}
+.material-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+.mh-left {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.material-index {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: #666;
+}
+.material-name-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+  padding: 8rpx 0;
+}
+.mnd-name {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+}
+.mnd-spec {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 面积输入行 */
+.area-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin: 8rpx 0;
+}
+.area-x {
+  color: #999;
+  font-size: 28rpx;
+}
+.area-field {
+  flex: 1;
+}
+
+/* 数量+单价行 */
+.qty-price-row {
+  display: flex;
+  gap: 16rpx;
+  align-items: center;
+  margin-top: 8rpx;
+}
+.qty-stepper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.qty-label {
+  font-size: 26rpx;
+  color: #666;
+  white-space: nowrap;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+.stepper-btn {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  color: #666;
+  background: #f5f5f5;
+}
+.stepper-btn:active {
+  background: #e0e0e0;
+}
+.stepper-input {
+  width: 80rpx;
+  text-align: center;
+  font-size: 26rpx;
+}
+.price-field {
+  flex: 1;
+}
+
+/* 物料小计 */
+.material-amount {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid #eee;
+  font-size: 26rpx;
+  color: #666;
+}
+.amount-label {
+  color: #999;
+}
+.amount-value {
+  font-weight: 600;
+  color: #E34D59;
+  font-size: 30rpx;
+}
+.amount-unit {
+  color: #ccc;
+  font-size: 22rpx;
+}
+
+/* 物料库选择弹窗 */
+.category-scroll {
+  white-space: nowrap;
+  padding: 0 24rpx 16rpx;
+}
+.cat-tag {
+  display: inline-block;
+  padding: 8rpx 20rpx;
+  margin-right: 12rpx;
+  border-radius: 24rpx;
+  font-size: 24rpx;
+  color: #666;
+  background: #f0f0f0;
+}
+.cat-tag.active {
+  background: #0052D9;
+  color: #fff;
+}
+.empty-tip {
+  text-align: center;
+  padding: 60rpx 0;
+  color: #ccc;
+  font-size: 26rpx;
+}
+.mat-picker-item {
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.mat-picker-item:active {
+  background: #f0f7ff;
+}
+.mpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mpi-name {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+}
+.mpi-price {
+  font-size: 26rpx;
+  color: #e6a23c;
+  font-weight: 500;
+}
+.mpi-meta {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #999;
+}
+
+/* 金额汇总 */
+.summary {
+  background: #fff;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  font-size: 28rpx;
+  color: #666;
+}
+.summary-row.total {
+  border-top: 1rpx solid #eee;
+  margin-top: 8rpx;
+  padding-top: 20rpx;
+}
+.total-value {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #E34D59;
+}
+.discount-input {
+  width: 200rpx !important;
+  text-align: right !important;
+}
+
+/* 提交区域 */
+.submit-area {
+  padding: 24rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}

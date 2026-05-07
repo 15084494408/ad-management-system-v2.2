@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.SysConstants;
+import com.enterprise.ad.common.annotation.OperationLog;
 import com.enterprise.ad.module.system.user.entity.SysUser;
 import com.enterprise.ad.module.system.user.mapper.SysUserMapper;
 import com.enterprise.ad.module.system.user.dto.CreateUserDTO;
@@ -91,6 +92,7 @@ public class SysUserController {
 
     @PostMapping
     @Operation(summary = "新建用户")
+    @OperationLog(value = "新建用户", module = "用户管理")
     @Transactional
     public Result<Void> create(@Valid @RequestBody CreateUserDTO dto) {
         // ★ 修复 P0-1: 使用 DTO 接收请求，避免前端传入非法字段
@@ -129,6 +131,7 @@ public class SysUserController {
 
     @PutMapping("/{id}")
     @Operation(summary = "更新用户")
+    @OperationLog(value = "更新用户", module = "用户管理")
     @Transactional
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody UpdateUserDTO dto) {
         // ★ 修复 P0-1: 使用 DTO 接收请求，避免前端传入非法字段
@@ -199,6 +202,7 @@ public class SysUserController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除用户")
+    @OperationLog(value = "删除用户", module = "用户管理")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         sysUserService.removeById(id);

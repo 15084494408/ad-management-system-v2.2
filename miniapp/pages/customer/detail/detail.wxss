@@ -1,0 +1,41 @@
+.info-card { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04); }
+.customer-name-row { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
+.customer-name { font-size: 36rpx; font-weight: 600; color: #1a1a1a; }
+.type-badge { margin-bottom: 16rpx; }
+.info-row { display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.info-row:last-child { border-bottom: none; }
+.info-row .label { font-size: 26rpx; color: #999; flex-shrink: 0; }
+.info-row .value { font-size: 28rpx; color: #333; }
+.info-row .value.time { color: #999; font-size: 24rpx; }
+.value-row { display: flex; align-items: center; gap: 8rpx; }
+.value-row .link { color: #0052D9; }
+
+/* 会员 */
+.card { background: #fff; border-radius: 16rpx; padding: 24rpx; margin: 20rpx 0; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04); }
+.member-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; margin-top: 8rpx; }
+.member-stat { display: flex; flex-direction: column; align-items: center; padding: 20rpx 8rpx; background: #f9f9f9; border-radius: 12rpx; }
+.stat-val { font-size: 32rpx; font-weight: 600; color: #0052D9; }
+.stat-lbl { font-size: 22rpx; color: #999; margin-top: 8rpx; }
+.action-row { display: flex; gap: 16rpx; margin-top: 20rpx; }
+.action-area { padding: 24rpx; padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); }
+.two-btns { display: flex; gap: 16rpx; }
+.two-btns > t-button { flex: 1; }
+
+/* 历史订单 */
+.order-section { padding: 20rpx 0; }
+.empty-tip { text-align: center; padding: 60rpx 0; color: #ccc; font-size: 26rpx; }
+.order-item {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 12rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+}
+.order-item:active { background: #f9f9f9; }
+.oi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
+.oi-no { font-size: 24rpx; color: #999; }
+.oi-body { display: flex; justify-content: space-between; align-items: center; }
+.oi-title { font-size: 28rpx; color: #333; font-weight: 500; flex: 1; }
+.oi-amount { font-size: 30rpx; color: #e6a23c; font-weight: 600; margin-left: 16rpx; }
+.oi-footer { margin-top: 8rpx; }
+.oi-time { font-size: 22rpx; color: #ccc; }

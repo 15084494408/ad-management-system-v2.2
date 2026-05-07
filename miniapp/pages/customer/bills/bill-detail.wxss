@@ -1,0 +1,50 @@
+.header-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  color: #fff;
+}
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+.bill-no { font-size: 26rpx; opacity: 0.85; }
+.header-amount { display: flex; flex-direction: column; gap: 8rpx; }
+.amount-label { font-size: 26rpx; opacity: 0.75; }
+.amount-value { font-size: 48rpx; font-weight: 700; }
+
+.info-card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.06);
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.info-row:last-child { border-bottom: none; }
+.info-label { font-size: 26rpx; color: #999; }
+.info-value { font-size: 26rpx; color: #333; }
+.info-value.paid { color: #0F6E56; }
+.info-value.unpaid { color: #E34D59; font-weight: 600; }
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.detail-item:last-child { border-bottom: none; }
+.detail-name { font-size: 26rpx; color: #333; }
+.detail-meta { font-size: 24rpx; color: #666; display: flex; gap: 16rpx; }
+.detail-amount { color: #1a1a1a; font-weight: 500; }
+
+.actions { margin-top: 24rpx; }

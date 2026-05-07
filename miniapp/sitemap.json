@@ -1,0 +1,6 @@
+{
+  "description": "企业广告管理系统微信小程序",
+  "rules": [
+    { "action": "allow", "page": "*" }
+  ]
+}

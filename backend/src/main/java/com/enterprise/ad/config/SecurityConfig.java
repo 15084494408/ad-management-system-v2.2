@@ -43,6 +43,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/auth/login",
+                    "/auth/wx-login",
                     "/auth/captcha",
                     "/doc.html",
                     "/swagger-ui/**",

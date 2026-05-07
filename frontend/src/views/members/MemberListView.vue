@@ -12,7 +12,6 @@
       <h1 class="page-title">👑 会员列表</h1>
       <div class="page-actions">
         <button class="btn btn-default" @click="exportData">⬇️ 导出</button>
-        <button class="btn btn-primary" @click="openAdd">+ 新增会员</button>
       </div>
     </div>
 
@@ -373,7 +372,12 @@ function calcBonus() {
 }
 
 function openAdd() { Object.assign(addForm, { memberName: '', phone: '', level: 'normal', balance: 0, contactPerson: '', remark: '' }); addVisible.value = true }
-function openEdit(m: any) { Object.assign(editForm, m); editVisible.value = true }
+function openEdit(m: any) { 
+  Object.assign(editForm, m); 
+  // ★ 修复：后端返回 customerName，表单用 memberName，手动映射
+  if (m.customerName && !editForm.memberName) editForm.memberName = m.customerName;
+  editVisible.value = true 
+}
 function openDetail(m: any) { currentMember.value = m; detailVisible.value = true }
 function openRecharge(m: any) { currentMember.value = m; Object.assign(rechargeForm, { amount: 0, method: 'wechat', remark: '' }); calcBonus(); rechargeVisible.value = true }
 function openOrders(m: any) { currentMember.value = m; loadOrders(m.id); ordersVisible.value = true }

@@ -137,6 +137,7 @@ public class NoticeController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除通知")
+    @PreAuthorize("hasAuthority('system:notice')")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         noticeMapper.deleteById(id);

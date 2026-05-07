@@ -1,0 +1,54 @@
+<view class="page-container">
+  <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+    <t-loading loading theme="circular" size="40rpx" />
+  </view>
+
+  <view wx:elif="{{companies.length === 0}}" class="empty-state">
+    <t-icon name="shop" size="96rpx" color="#ddd" />
+    <text class="empty-text">暂无公司信息</text>
+    <t-button size="small" theme="primary" variant="outline" bindtap="showCreateDialog">添加公司</t-button>
+  </view>
+
+  <view class="company-list" wx:else>
+    <view class="company-card card" wx:for="{{companies}}" wx:key="id">
+      <view class="company-header">
+        <view class="company-icon" style="background:linear-gradient(135deg,#667eea,#764ba2)">
+          <text>{{item.name ? item.name[0] : '公'}}</text>
+        </view>
+        <view class="company-info">
+          <text class="company-name">{{item.name}}</text>
+          <text class="company-contact" wx:if="{{item.contactPerson}}">{{item.contactPerson}} {{item.contactPhone || ''}}</text>
+        </view>
+      </view>
+      <view class="company-body" wx:if="{{item.address}}">
+        <text class="company-address">{{item.address}}</text>
+      </view>
+      <view class="company-footer">
+        <text class="company-time">{{item.createTime}}</text>
+        <view class="company-actions">
+          <t-button size="small" variant="outline" theme="primary" data-item="{{item}}" bindtap="showEditDialog">编辑</t-button>
+          <t-button size="small" variant="outline" theme="danger" data-item="{{item}}" bindtap="deleteCompany">删除</t-button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 浮动新增按钮 -->
+  <t-fab icon="add" bind:click="showCreateDialog" class="fab-btn" wx:if="{{companies.length > 0}}" />
+
+  <!-- 新增/编辑弹窗 -->
+  <t-popup visible="{{showEdit}}" placement="bottom" bind:close="hideDialog">
+    <view class="popup-content safe-bottom">
+      <view class="popup-header">
+        <text class="popup-title">{{editId ? '编辑公司' : '新增公司'}}</text>
+        <t-icon name="close" size="40rpx" color="#999" bindtap="hideDialog" />
+      </view>
+      <t-input label="公司名称" placeholder="请输入" value="{{form.name}}" bind:change="onFormChange" data-field="name" maxlength="50" />
+      <t-input label="联系人" placeholder="选填" value="{{form.contactPerson}}" bind:change="onFormChange" data-field="contactPerson" maxlength="20" />
+      <t-input label="联系电话" placeholder="选填" type="number" value="{{form.contactPhone}}" bind:change="onFormChange" data-field="contactPhone" maxlength="11" />
+      <t-textarea label="地址" placeholder="选填" value="{{form.address}}" bind:change="onFormChange" data-field="address" maxlength="200" />
+      <t-textarea label="备注" placeholder="选填" value="{{form.remark}}" bind:change="onFormChange" data-field="remark" maxlength="200" />
+      <t-button theme="primary" block bindtap="submit" loading="{{submitting}}" style="margin-top:24rpx">保存</t-button>
+    </view>
+  </t-popup>
+</view>

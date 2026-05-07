@@ -6,6 +6,7 @@ import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
 import com.enterprise.ad.common.dto.MemberLevelRequest;
 import com.enterprise.ad.common.exception.BusinessException;
+import com.enterprise.ad.module.finance.service.FinanceRecordService;
 import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
@@ -38,6 +39,8 @@ public class MemberController {
     private final MemberMapper memberMapper;
     private final MemberTransactionMapper transactionMapper;
     private final OrderMapper orderMapper;
+    private final com.enterprise.ad.module.member.service.MemberService memberService;
+    private final FinanceRecordService financeRecordService;
 
     @GetMapping
     @Operation(summary = "会员列表（分页）")
@@ -239,7 +242,7 @@ public class MemberController {
         if (member.getDeleted() != null) member.setDeleted(null); // 不允许前端设置
         memberMapper.insert(member);
 
-        // 如果初始余额 > 0，自动生成一条充值记录
+        // 如果初始余额 > 0，自动生成一条充值记录 + 财务流水
         if (member.getBalance() != null && member.getBalance().compareTo(BigDecimal.ZERO) > 0) {
             MemberTransaction tx = new MemberTransaction();
             tx.setCustomerId(member.getId());
@@ -251,6 +254,17 @@ public class MemberController {
             tx.setRemark("初始充值");
             tx.setCreateTime(LocalDateTime.now());
             transactionMapper.insert(tx);
+
+            // ★ P1-07 修复：同步写入 fin_record，确保大屏统计正确
+            financeRecordService.createIncome(
+                    FinanceRecordService.PREFIX_MEMBER_RECHARGE,
+                    FinanceRecordService.CAT_MEMBER_RECHARGE,
+                    member.getBalance(),
+                    member.getId(),
+                    member.getMemberName(),
+                    null,
+                    "初始充值"
+            );
         }
 
         return Result.ok(member.getId());
@@ -275,7 +289,16 @@ public class MemberController {
     @Operation(summary = "删除会员")
     @PreAuthorize("hasAuthority('member:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
+        // ★ P0-03 修复：删除前检查余额，有余额禁止删除
+        Member member = memberMapper.selectById(id);
+        if (member == null) {
+            return Result.fail("会员不存在");
+        }
+        if (member.getBalance() != null && member.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+            return Result.fail("该会员仍有预存余额 ¥" + member.getBalance().toPlainString()
+                + "，请先联系会员退还余额或消费完毕后再删除");
+        }
+        // ★ deleteById 在 @TableLogic 下会自动转为逻辑删除
         memberMapper.deleteById(id);
         return Result.ok();
     }
@@ -287,35 +310,12 @@ public class MemberController {
     public Result<Void> recharge(
             @PathVariable Long id,
             @RequestBody RechargeRequest request) {
-        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            return Result.fail(400, "充值金额必须大于0");
+        try {
+            memberService.recharge(id, request.getAmount(), request.getRemark());
+            return Result.ok();
+        } catch (com.enterprise.ad.common.exception.BusinessException e) {
+            return Result.fail(e.getCode(), e.getMessage());
         }
-
-        Member member = memberMapper.selectById(id);
-        if (member == null) {
-            return Result.fail("会员不存在");
-        }
-
-        BigDecimal before = member.getBalance();
-        BigDecimal after = before.add(request.getAmount());
-
-        member.setBalance(after);
-        member.setTotalRecharge(member.getTotalRecharge().add(request.getAmount()));
-        member.setUpdateTime(LocalDateTime.now());
-        memberMapper.updateById(member);
-
-        MemberTransaction tx = new MemberTransaction();
-        tx.setCustomerId(id);
-        tx.setMemberId(id);
-        tx.setType("recharge");
-        tx.setAmount(request.getAmount());
-        tx.setBalanceBefore(before);
-        tx.setBalanceAfter(after);
-        tx.setRemark(request.getRemark() != null ? request.getRemark() : "充值");
-        tx.setCreateTime(LocalDateTime.now());
-        transactionMapper.insert(tx);
-
-        return Result.ok();
     }
 
     @PostMapping("/{id:[\\d]+}/consume")
@@ -325,39 +325,12 @@ public class MemberController {
     public Result<Void> consume(
             @PathVariable Long id,
             @RequestBody ConsumeRequest request) {
-        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            return Result.fail(400, "消费金额必须大于0");
+        try {
+            memberService.consume(id, request.getAmount(), request.getOrderId(), request.getRemark());
+            return Result.ok();
+        } catch (com.enterprise.ad.common.exception.BusinessException e) {
+            return Result.fail(e.getCode(), e.getMessage());
         }
-
-        Member member = memberMapper.selectById(id);
-        if (member == null) {
-            return Result.fail("会员不存在");
-        }
-        if (member.getBalance().compareTo(request.getAmount()) < 0) {
-            return Result.fail(400, "余额不足");
-        }
-
-        BigDecimal before = member.getBalance();
-        BigDecimal after = before.subtract(request.getAmount());
-
-        member.setBalance(after);
-        member.setTotalConsume(member.getTotalConsume().add(request.getAmount()));
-        member.setUpdateTime(LocalDateTime.now());
-        memberMapper.updateById(member);
-
-        MemberTransaction tx = new MemberTransaction();
-        tx.setCustomerId(id);
-        tx.setMemberId(id);
-        tx.setType("consume");
-        tx.setAmount(request.getAmount());
-        tx.setBalanceBefore(before);
-        tx.setBalanceAfter(after);
-        tx.setOrderId(request.getOrderId());
-        tx.setRemark(request.getRemark() != null ? request.getRemark() : "消费");
-        tx.setCreateTime(LocalDateTime.now());
-        transactionMapper.insert(tx);
-
-        return Result.ok();
     }
 
     @GetMapping("/{id:[\\d]+}/transactions")

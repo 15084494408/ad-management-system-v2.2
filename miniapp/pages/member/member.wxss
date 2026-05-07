@@ -1,0 +1,73 @@
+.member-card { padding: 24rpx; }
+
+.member-header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.member-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+}
+
+.member-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.member-name { font-size: 30rpx; font-weight: 600; color: #333; }
+.member-phone { font-size: 24rpx; color: #999; }
+
+.member-stats {
+  display: flex;
+  justify-content: space-around;
+  background: #f9fafb;
+  border-radius: 12rpx;
+  padding: 20rpx 0;
+  margin-bottom: 20rpx;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.stat-val { font-size: 30rpx; font-weight: 600; color: #333; }
+.stat-lbl { font-size: 22rpx; color: #999; }
+
+.member-actions {
+  display: flex;
+  gap: 16rpx;
+  justify-content: flex-end;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 0;
+  gap: 24rpx;
+}
+.empty-text { font-size: 28rpx; color: #999; }
+
+.load-more { text-align: center; padding: 32rpx; font-size: 24rpx; color: #999; }

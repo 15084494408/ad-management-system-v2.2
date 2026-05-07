@@ -343,7 +343,7 @@
             </div>
             <div class="detail-info-item">
               <span class="detail-label">待收金额</span>
-              <span class="detail-value unpaid-text">¥{{ (Number(detailData.totalAmount || 0) - Number(detailData.paidAmount || 0)).toLocaleString() }}</span>
+              <span class="detail-value unpaid-text">¥{{ Math.max(Number(detailData.totalAmount || 0) - Number(detailData.paidAmount || 0), 0).toLocaleString() }}</span>
             </div>
             <div class="detail-info-item">
               <span class="detail-label">创建时间</span>
@@ -425,7 +425,7 @@
             <div class="pay-info-item">
               <span class="pay-label">待收金额</span>
               <span class="pay-value" style="color:#f56c6c;font-weight:700;">
-                ¥{{ (Number(payTarget.totalAmount || 0) - Number(payTarget.paidAmount || 0)).toLocaleString() }}
+                ¥{{ Math.max(Number(payTarget.totalAmount || 0) - Number(payTarget.paidAmount || 0), 0).toLocaleString() }}
               </span>
             </div>
           </div>
@@ -625,7 +625,7 @@ const pageButtons = computed(() => {
 // ========== 统计 ==========
 const totalAmount = computed(() => bills.value.reduce((s, b) => s + Number(b.totalAmount || 0), 0))
 const paidAmount = computed(() => bills.value.reduce((s, b) => s + Number(b.paidAmount || 0), 0))
-const unpaidAmount = computed(() => totalAmount.value - paidAmount.value)
+const unpaidAmount = computed(() => Math.max(totalAmount.value - paidAmount.value, 0))
 
 // ========== 状态工具 ==========
 const statusMap: Record<number, { text: string; cls: string }> = {

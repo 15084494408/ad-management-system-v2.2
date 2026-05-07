@@ -234,7 +234,7 @@
               </div>
               <div class="finance-card" style="border-color:#f56c6c;">
                 <div class="finance-label" style="color:#f56c6c;">待收余额</div>
-                <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney((detailData?.totalAmount || 0) - (detailData?.paidAmount || 0) - (detailData?.roundingAmount || 0)) }}</div>
+                <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney(Math.max((detailData?.totalAmount || 0) - (detailData?.paidAmount || 0) - (detailData?.roundingAmount || 0), 0)) }}</div>
               </div>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin:16px 0;">

@@ -229,13 +229,13 @@
                   <td style="text-align:center;">
                     <!-- 广告物料：显示宽×高输入 -->
                     <div v-if="isMaterialSelected(m.id) && m.pricingType === 1" style="display:flex;align-items:center;gap:1px;">
-                      <input type="number" v-model.number="getSelected(m.id).width" placeholder="宽"
-                        class="area-input" min="0" step="0.01" @input="recalcLine(m.id)"
-                        style="width:36px;text-align:center;" />
+                      <input type="number" v-model.number="getSelected(m.id).width" placeholder="宽cm"
+                        class="area-input" min="0" step="0.1" @input="recalcLine(m.id)"
+                        style="width:42px;text-align:center;" />
                       <span style="color:#909399;font-size:10px;">×</span>
-                      <input type="number" v-model.number="getSelected(m.id).height" placeholder="高"
-                        class="area-input" min="0" step="0.01" @input="recalcLine(m.id)"
-                        style="width:36px;text-align:center;" />
+                      <input type="number" v-model.number="getSelected(m.id).height" placeholder="高cm"
+                        class="area-input" min="0" step="0.1" @input="recalcLine(m.id)"
+                        style="width:42px;text-align:center;" />
                     </div>
                     <!-- 印刷物料：显示数量步进器 -->
                     <div v-else-if="isMaterialSelected(m.id)" class="qty-stepper">
@@ -254,10 +254,12 @@
                       style="width:55px;text-align:right;padding:2px 3px;font-size:12px;" />
                     <span v-else style="color:#c0c4cc;">-</span>
                   </td>
-                  <td style="text-align:right;font-weight:600;color:#e6a23c;font-size:12px;">
-                    <span v-if="isMaterialSelected(m.id)">¥{{ formatMoney(getSelected(m.id).amount) }}</span>
-                    <span v-else>-</span>
-                  </td>
+              <td style="text-align:right;font-weight:600;color:#e6a23c;font-size:12px;">
+                <input v-if="isMaterialSelected(m.id)" type="number" v-model.number="getSelected(m.id).amount"
+                  class="price-input" min="0" step="0.01"
+                  style="width:60px;text-align:right;padding:2px 3px;font-size:12px;font-weight:600;color:#e6a23c;" />
+                <span v-else>-</span>
+              </td>
                   <td style="text-align:center;">
                     <button v-if="isMaterialSelected(m.id)"
                       class="action-btn delete-sm" title="移除"
@@ -327,13 +329,13 @@
             <td style="text-align:center;">
               <!-- 广告物料(按面积)：显示长×宽 -->
               <div v-if="s.isAreaBased" style="display:flex;align-items:center;gap:2px;justify-content:center;">
-                <input type="number" v-model.number="s.width" placeholder="宽"
-                  class="area-input" min="0" step="0.01"
-                  @input="recalcSelectedItem(idx)" style="width:42px;text-align:center;" />
+                <input type="number" v-model.number="s.width" placeholder="宽cm"
+                  class="area-input" min="0" step="0.1"
+                  @input="recalcSelectedItem(idx)" style="width:48px;text-align:center;" />
                 <span style="color:#909399;">×</span>
-                <input type="number" v-model.number="s.height" placeholder="高"
-                  class="area-input" min="0" step="0.01"
-                  @input="recalcSelectedItem(idx)" style="width:42px;text-align:center;" />
+                <input type="number" v-model.number="s.height" placeholder="高cm"
+                  class="area-input" min="0" step="0.1"
+                  @input="recalcSelectedItem(idx)" style="width:48px;text-align:center;" />
               </div>
               <!-- 印刷物料(按数量)：显示数量步进器 -->
               <div v-else class="qty-stepper">
@@ -348,9 +350,10 @@
                 class="price-inline" min="0" step="0.01"
                 @change="recalcSelectedItem(idx)" />
             </td>
-            <td style="text-align:right;font-weight:600;color:#e6a23c;">
-              ¥{{ formatMoney(s.amount) }}
-            </td>
+              <td style="text-align:right;font-weight:600;color:#e6a23c;">
+                <input type="number" v-model.number="s.amount"
+                  class="price-inline" min="0" step="0.01" style="color:#e6a23c;font-weight:600;" />
+              </td>
             <td v-if="canViewCost" style="text-align:right;">
               <input type="number" v-model.number="s.unitCost"
                 class="cost-inline" min="0" step="0.01"
@@ -787,6 +790,8 @@ function addMaterial(mat: any) {
     isAreaBased: isAreaBased, // 标记按面积计价
     quoteRemark: '',
   })
+  // ★ 修复：添加后立即计算金额，避免显示0
+  recalcLine(mat.id)
 }
 
 function removeMaterial(id: number) {
@@ -824,10 +829,10 @@ function recalcLine(id: number) {
   const item = getSelected(id)
   if (!item) return
   if (item.isAreaBased) {
-    // 广告物料按面积计价：面积 = 宽 × 高
-    const w = Math.max(0, Number(item.width) || 0)
-    const h = Math.max(0, Number(item.height) || 0)
-    item.area = Number((w * h).toFixed(2))
+    // 广告物料按面积计价：输入 cm，自动转 m² 计算
+    const w = Math.max(0, Number(item.width) || 0) / 100
+    const h = Math.max(0, Number(item.height) || 0) / 100
+    item.area = Number((w * h).toFixed(4))
     const price = Math.max(0, Number(item.unitPrice) || 0)
     item.amount = Number((item.area * price).toFixed(2))
   } else {
@@ -843,10 +848,10 @@ function recalcSelectedItem(idx: number) {
   const item = selectedMaterials.value[idx]
   if (!item) return
   if (item.isAreaBased) {
-    // 广告物料按面积计价：面积 = 宽 × 高
-    const w = Math.max(0, Number(item.width) || 0)
-    const h = Math.max(0, Number(item.height) || 0)
-    item.area = Number((w * h).toFixed(2))
+    // 广告物料按面积计价：输入 cm，自动转 m² 计算
+    const w = Math.max(0, Number(item.width) || 0) / 100
+    const h = Math.max(0, Number(item.height) || 0) / 100
+    item.area = Number((w * h).toFixed(4))
     const price = Math.max(0, Number(item.unitPrice) || 0)
     item.amount = Number((item.area * price).toFixed(2))
   } else {

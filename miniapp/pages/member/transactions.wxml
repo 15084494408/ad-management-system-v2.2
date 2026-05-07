@@ -1,0 +1,38 @@
+<view class="page-container">
+  <t-tabs value="{{activeTab}}" bind:change="onTabChange" space-evenly>
+    <t-tab-panel label="全部" value="all" />
+    <t-tab-panel label="充值" value="recharge" />
+    <t-tab-panel label="消费" value="consume" />
+  </t-tabs>
+
+  <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+    <t-loading loading theme="circular" size="40rpx" />
+  </view>
+  <view wx:elif="{{transactions.length === 0}}" class="empty-state">
+    <t-icon name="wallet" size="96rpx" color="#ddd" />
+    <text class="empty-text">暂无交易记录</text>
+  </view>
+
+  <view class="tx-list" wx:else>
+    <view class="tx-item card" wx:for="{{transactions}}" wx:key="id">
+      <view class="tx-header">
+        <view class="tx-left">
+          <view class="tx-type-icon {{item.isIncome ? 'income' : 'expense'}}">
+            <t-icon name="{{item.isIncome ? 'add-circle' : 'remove-circle'}}" size="36rpx" />
+          </view>
+          <view class="tx-info">
+            <text class="tx-type">{{item.typeLabel}}</text>
+            <text class="tx-time">{{item.createTime}}</text>
+          </view>
+        </view>
+        <text class="tx-amount {{item.isIncome ? 'income' : 'expense'}}">{{item.amountStr}}</text>
+      </view>
+      <view class="tx-remark" wx:if="{{item.remark}}">
+        <text>{{item.remark}}</text>
+      </view>
+      <view class="tx-meta" wx:if="{{item.paymentMethod}}">
+        <text>方式: {{item.paymentMethod}}</text>
+      </view>
+    </view>
+  </view>
+</view>

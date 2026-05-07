@@ -6,15 +6,18 @@ import com.enterprise.ad.module.system.user.entity.SysUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import com.enterprise.ad.module.system.user.service.SysUserService;
 
 /**
- * 设计师专用接口 - 不需要权限验证
+ * 设计师专用接口 - 需要登录权限
  */
 @RestController
 @RequestMapping("/api/designers")
@@ -26,9 +29,9 @@ public class DesignerController {
 
     @GetMapping
     @Operation(summary = "获取设计师列表")
-    public Result<List<SysUser>> getDesigners() {
-        // 查询所有状态正常的设计师用户
-        // 设计师的 real_name 中包含"设计"或者角色包含 DESIGNER
+    @PreAuthorize("isAuthenticated()")
+    public Result<List<Map<String, Object>>> getDesigners() {
+        // ★ P1-04 修复：添加权限控制，且只返回必要字段（不暴露手机号、邮箱等敏感信息）
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getDeleted, 0)
                .eq(SysUser::getStatus, 1)
@@ -36,9 +39,15 @@ public class DesignerController {
 
         List<SysUser> users = sysUserService.list(wrapper);
 
-        // 过滤：只返回用户名为设计相关的用户，或者通过角色判断
-        // 这里简单返回所有正常用户，让前端自己筛选或者后端根据用户名包含"设计"来过滤
-        // 为了简单，我们返回所有用户，前端可以根据实际情况使用
-        return Result.ok(users);
+        // 只返回 id, realName, username 字段，不暴露 phone/email 等敏感信息
+        List<Map<String, Object>> result = users.stream().map(u -> {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", u.getId());
+            item.put("realName", u.getRealName());
+            item.put("username", u.getUsername());
+            return item;
+        }).collect(Collectors.toList());
+
+        return Result.ok(result);
     }
 }

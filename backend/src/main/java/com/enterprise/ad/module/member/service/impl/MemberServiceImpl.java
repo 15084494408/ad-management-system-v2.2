@@ -1,6 +1,7 @@
 package com.enterprise.ad.module.member.service.impl;
 
 import com.enterprise.ad.common.exception.BusinessException;
+import com.enterprise.ad.module.finance.service.FinanceRecordService;
 import com.enterprise.ad.module.member.entity.Member;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberMapper;
@@ -24,6 +25,7 @@ public class MemberServiceImpl implements MemberService {
 
     private final MemberMapper memberMapper;
     private final MemberTransactionMapper transactionMapper;
+    private final FinanceRecordService financeRecordService;
 
     @Override
     @Transactional
@@ -62,6 +64,17 @@ public class MemberServiceImpl implements MemberService {
         tx.setRemark(remark != null ? remark : "充值");
         tx.setCreateTime(LocalDateTime.now());
         transactionMapper.insert(tx);
+
+        // ★ 同步写入 fin_record（大屏"本月充值"统计依赖此表）
+        financeRecordService.createIncome(
+                FinanceRecordService.PREFIX_MEMBER_RECHARGE,
+                FinanceRecordService.CAT_MEMBER_RECHARGE,
+                amount,
+                memberId,
+                member.getMemberName(),
+                null,
+                remark != null ? remark : "会员充值"
+        );
     }
 
     @Override

@@ -99,9 +99,9 @@ public interface OrderMapper extends BaseMapper<Order> {
     List<Order> selectUnfinishedOrders();
 
     /**
-     * 统计待收款总额（未付清订单的 total_amount - paid_amount - rounding_amount 之和）
+     * 统计待收款总额（GREATEST 保证单行非负，排除已取消订单）
      */
-    @Select("SELECT COALESCE(SUM(total_amount - paid_amount - IFNULL(rounding_amount, 0)), 0) " +
+    @Select("SELECT COALESCE(SUM(GREATEST(total_amount - paid_amount - IFNULL(rounding_amount, 0) - IFNULL(discount_amount, 0), 0)), 0) " +
             "FROM ord_order WHERE deleted = 0 AND (payment_status IN (1, 2) OR payment_status IS NULL) AND status != 4")
     BigDecimal sumUnpaidAmount();
 

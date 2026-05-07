@@ -25,6 +25,7 @@ public class SysUser {
     private String phone;             // 手机号
     private String email;             // 邮箱
     private String avatar;            // 头像URL
+    private String wxOpenid;          // 微信小程序openid
     private Integer status;           // 状态：0禁用 1正常
     private Long companyId;           // 所属公司ID（支持多公司）
     private String department;        // 部门

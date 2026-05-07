@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 /**
@@ -47,7 +49,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Result<?> handleAccessDeniedException(AccessDeniedException e) {
-        log.warn("权限拒绝: {}", e.getMessage());
+        // 获取当前请求的 URL 和用户信息
+        String requestUrl = "unknown";
+        String username = "unknown";
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                requestUrl = attrs.getRequest().getRequestURI();
+                Object principal = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
+                    username = ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
+                }
+            }
+        } catch (Exception ignored) {}
+        log.warn("权限拒绝: 用户={}, 请求路径={}", username, requestUrl);
         return Result.forbidden("没有权限访问该资源");
     }
 

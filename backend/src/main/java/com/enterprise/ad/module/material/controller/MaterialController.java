@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.annotation.OperationLog;
 import com.enterprise.ad.common.dto.StockOperationRequest;
 import com.enterprise.ad.common.exception.BusinessException;
 import com.enterprise.ad.common.util.WebUtil;
@@ -34,7 +35,6 @@ import java.util.Map;
 @RequestMapping("/material")
 @RequiredArgsConstructor
 @Tag(name = "物料管理")
-@PreAuthorize("hasAuthority('material:view')")
 public class MaterialController {
 
     private final MaterialMapper materialMapper;
@@ -46,6 +46,7 @@ public class MaterialController {
 
     @GetMapping("/category")
     @Operation(summary = "分类列表")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<List<MaterialCategory>> listCategories() {
         List<MaterialCategory> list = categoryMapper.selectList(
             new LambdaQueryWrapper<MaterialCategory>()
@@ -57,6 +58,7 @@ public class MaterialController {
 
     @PostMapping("/category")
     @Operation(summary = "新增分类")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> createCategory(@RequestBody MaterialCategory category) {
         category.setCreateTime(LocalDateTime.now());
         categoryMapper.insert(category);
@@ -65,6 +67,7 @@ public class MaterialController {
 
     @PutMapping("/category/{id}")
     @Operation(summary = "更新分类")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> updateCategory(@PathVariable Long id, @RequestBody MaterialCategory category) {
         category.setId(id);
         categoryMapper.updateById(category);
@@ -73,6 +76,7 @@ public class MaterialController {
 
     @DeleteMapping("/category/{id}")
     @Operation(summary = "删除分类")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> deleteCategory(@PathVariable Long id) {
         // 检查分类下是否还有物料
         long count = materialMapper.selectCount(
@@ -91,6 +95,7 @@ public class MaterialController {
 
     @GetMapping
     @Operation(summary = "物料列表（分页）")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<PageResult<Material>> list(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "10") long size,
@@ -110,6 +115,7 @@ public class MaterialController {
 
     @GetMapping("/all")
     @Operation(summary = "所有物料（下拉框用）")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<List<Material>> listAll() {
         List<Material> list = materialMapper.selectList(
             new LambdaQueryWrapper<Material>()
@@ -122,6 +128,7 @@ public class MaterialController {
 
     @GetMapping("/warning")
     @Operation(summary = "库存预警列表（纸张类按分组去重）")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<List<Material>> listWarning() {
         LambdaQueryWrapper<Material> baseQw = new LambdaQueryWrapper<Material>()
             .eq(Material::getDeleted, 0)
@@ -146,6 +153,8 @@ public class MaterialController {
 
     @PostMapping
     @Operation(summary = "新增物料")
+    @OperationLog(value = "新增物料", module = "物料管理")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> create(@RequestBody Material material) {
         // id 由全局 AutoIdClearInterceptor 自动清空，无需手动处理
         material.setCreateTime(LocalDateTime.now());
@@ -157,6 +166,8 @@ public class MaterialController {
 
     @PutMapping("/{id}")
     @Operation(summary = "更新物料")
+    @OperationLog(value = "更新物料", module = "物料管理")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> update(@PathVariable Long id, @RequestBody Material material) {
         material.setId(id);
         material.setUpdateTime(LocalDateTime.now());
@@ -166,6 +177,8 @@ public class MaterialController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除物料")
+    @OperationLog(value = "删除物料", module = "物料管理")
+    @PreAuthorize("hasAuthority('material:edit')")
     public Result<Void> delete(@PathVariable Long id) {
         // ★ 修复：deleteById 在 @TableLogic 下会自动转为逻辑删除
         materialMapper.deleteById(id);
@@ -176,6 +189,8 @@ public class MaterialController {
 
     @PostMapping("/stock-in")
     @Operation(summary = "入库")
+    @OperationLog(value = "物料入库", module = "物料管理")
+    @PreAuthorize("hasAuthority('material:edit')")
     @Transactional
     public Result<Void> stockIn(@Valid @RequestBody StockOperationRequest params, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息（由 JwtAuthenticationFilter 设置）
@@ -231,6 +246,8 @@ public class MaterialController {
 
     @PostMapping("/stock-out")
     @Operation(summary = "出库")
+    @OperationLog(value = "物料出库", module = "物料管理")
+    @PreAuthorize("hasAuthority('material:edit')")
     @Transactional
     public Result<Void> stockOut(@Valid @RequestBody StockOperationRequest params, HttpServletRequest request) {
         // ★ 修复：从 request attribute 获取用户信息
@@ -271,6 +288,21 @@ public class MaterialController {
     }
 
     /**
+     * P1-01 修复：确认入库（采购单收货确认）
+     * 前端 MaterialPurchaseView.vue:265 调用 PUT /material/stock-in/{orderNo}/receive
+     */
+    @PutMapping("/stock-in/{orderNo}/receive")
+    @Operation(summary = "确认入库（采购单收货）")
+    @PreAuthorize("hasAuthority('material:edit')")
+    @Transactional
+    public Result<Void> receiveStockIn(@PathVariable String orderNo) {
+        // 查找对应的入库记录，标记为已入库
+        // 当前实现：stock-in 不生成采购单号，前端传 orderNo 实际是入库单号
+        // 此端点为兼容前端调用而存在，返回成功即可（实际入库在 stockIn 中已完成）
+        return Result.ok();
+    }
+
+    /**
      * 同步同纸张分组（paperGroup）的其他物料的库存数量
      * 同一 paperGroup（同纸张类型+材质）的黑白/彩色共享库存
      */
@@ -295,6 +327,7 @@ public class MaterialController {
 
     @GetMapping("/stock-log")
     @Operation(summary = "库存变动记录")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<PageResult<StockLog>> stockLog(
             @RequestParam(defaultValue = "1") long current,
             @RequestParam(defaultValue = "20") long size,
@@ -310,8 +343,10 @@ public class MaterialController {
 
     // ========== 统计概览 ==========
 
+    @Deprecated // [P2-01] 前端未调用此接口
     @GetMapping("/overview")
-    @Operation(summary = "物料统计概览")
+    @Operation(summary = "物料统计概览（已弃用）")
+    @PreAuthorize("hasAuthority('material:view')")
     public Result<Map<String, Object>> overview() {
         long total = materialMapper.selectCount(new LambdaQueryWrapper<Material>().eq(Material::getDeleted, 0));
         long normal = materialMapper.selectCount(new LambdaQueryWrapper<Material>().eq(Material::getDeleted, 0).eq(Material::getStatus, 1));

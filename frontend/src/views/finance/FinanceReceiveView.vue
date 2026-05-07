@@ -112,7 +112,7 @@
           <el-select v-model="editForm.orderId" placeholder="请选择订单" filterable style="width: 100%;" @change="onOrderChange">
             <el-option v-for="o in orders" :key="o.id" :label="`${o.orderNo} - ${o.customerName}`" :value="o.id">
               <span>{{ o.orderNo }}</span>
-              <span style="float: right; color: #8492a6; font-size: 12px;">待收 ¥{{ ((o.totalAmount || 0) + (o.roundingAmount || 0) - (o.paidAmount || 0)).toFixed(2) }}</span>
+              <span style="float: right; color: #8492a6; font-size: 12px;">待收 ¥{{ Math.max((o.totalAmount || 0) + (o.roundingAmount || 0) - (o.paidAmount || 0), 0).toFixed(2) }}</span>
             </el-option>
           </el-select>
         </el-form-item>

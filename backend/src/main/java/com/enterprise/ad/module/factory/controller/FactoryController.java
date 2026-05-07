@@ -331,6 +331,21 @@ public class FactoryController {
             return Result.fail("账单不存在");
         }
 
+        // ★ P2-15 修复：状态机校验
+        // 状态流转规则: 1(未对账) → 2(已对账) → 3(已付款) → 4(已结清)
+        // 允许的流转: 1→2, 2→3, 3→4, 以及回退 2→1
+        Integer currentStatus = existing.getStatus() != null ? existing.getStatus() : 1;
+        boolean validTransition = switch (status) {
+            case 1 -> currentStatus == 2; // 退回未对账
+            case 2 -> currentStatus == 1; // 标记已对账
+            case 3 -> currentStatus == 2; // 标记已付款
+            case 4 -> currentStatus == 2 || currentStatus == 3; // 标记已结清（可直接从已对账跳转）
+            default -> false;
+        };
+        if (!validTransition) {
+            return Result.fail("非法状态流转：当前状态 " + currentStatus + " 不能变更为 " + status);
+        }
+
         FactoryBill update = new FactoryBill();
         update.setId(id);
         update.setStatus(status);
@@ -375,6 +390,8 @@ public class FactoryController {
     @PreAuthorize("hasAuthority('factory:edit')")
     public Result<Void> cleanupBillDetails(@PathVariable Long billId) {
         factoryBillDetailMapper.logicDeleteByBillId(billId);
+        // ★ P2-14 修复：清理后立即重算总额，避免脏数据
+        recalcBillTotal(billId);
         return Result.ok();
     }
 

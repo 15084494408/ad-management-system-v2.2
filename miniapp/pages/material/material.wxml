@@ -1,0 +1,72 @@
+<view class="page-container">
+  <!-- 搜索 -->
+  <t-search placeholder="搜索物料名称" value="{{keyword}}" bind:change="onSearch" bind:submit="doSearch" shape="round" />
+
+  <!-- 分类Tab -->
+  <scroll-view class="category-scroll" scroll-x enable-flex>
+    <view class="category-tag {{activeTab === 'all' ? 'active' : ''}}" bindtap="onTabChange" data-value="all">全部</view>
+    <view class="category-tag {{activeTab === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id" bindtap="onTabChange" data-value="{{item.id}}">{{item.name}}</view>
+  </scroll-view>
+
+  <!-- 快捷操作 -->
+  <view class="quick-actions">
+    <view class="action-btn" bindtap="showAddDialog"><t-icon name="add" size="28rpx" /> 新增</view>
+    <view class="action-btn" bindtap="goStockIn"><t-icon name="download" size="28rpx" /> 入库</view>
+    <view class="action-btn" bindtap="goStockOut"><t-icon name="upload" size="28rpx" /> 出库</view>
+    <view class="action-btn" bindtap="goCategories"><t-icon name="view-list" size="28rpx" /> 分类</view>
+    <view class="action-btn" bindtap="goStockLog"><t-icon name="file" size="28rpx" /> 日志</view>
+  </view>
+
+  <!-- 物料列表 -->
+  <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+    <t-loading loading theme="circular" size="40rpx" />
+  </view>
+  <view wx:elif="{{materials.length === 0}}" class="empty-state">
+    <t-icon name="folder" size="96rpx" color="#ddd" />
+    <text class="empty-text">暂无物料</text>
+  </view>
+
+  <view class="material-list" wx:else>
+    <view class="material-card card" wx:for="{{materials}}" wx:key="id">
+      <view class="material-header">
+        <text class="material-name">{{item.name}}</text>
+        <view class="material-tags">
+          <t-tag wx:if="{{item.isWarning}}" size="small" theme="danger" variant="light">库存预警</t-tag>
+          <t-tag size="small" variant="light" theme="primary">{{item.pricingLabel}}</t-tag>
+        </view>
+      </view>
+      <view class="material-body">
+        <view class="material-info">
+          <view class="info-item">
+            <text class="info-label">库存</text>
+            <text class="info-value {{item.isWarning ? 'warning' : ''}}">{{item.stockStr}} {{item.unit || ''}}</text>
+          </view>
+          <view class="info-item">
+            <text class="info-label">单价</text>
+            <text class="info-value">¥{{item.unitPriceStr}}</text>
+          </view>
+          <view class="info-item" wx:if="{{item.unitCost}}">
+            <text class="info-label">成本</text>
+            <text class="info-value">¥{{item.unitCostStr}}</text>
+          </view>
+          <view class="info-item" wx:if="{{item.categoryName}}">
+            <text class="info-label">分类</text>
+            <text class="info-value">{{item.categoryName}}</text>
+          </view>
+        </view>
+      </view>
+      <view class="material-footer">
+        <text class="material-time">{{item.createTime}}</text>
+        <view class="footer-actions">
+          <text class="edit-btn" data-id="{{item.id}}" bindtap="editMaterial">编辑</text>
+          <text class="delete-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteMaterial">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="load-more" wx:if="{{materials.length > 0}}">
+    <text wx:if="{{loadingMore}}">加载中...</text>
+    <text wx:elif="{{noMore}}">没有更多了</text>
+  </view>
+</view>

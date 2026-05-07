@@ -1,0 +1,172 @@
+<view class="page-container">
+  <!-- ========== 客户选择 ========== -->
+  <view class="card">
+    <view class="section-title">客户信息</view>
+    <view class="customer-row">
+      <t-input label="搜索客户" placeholder="输入名称/电话搜索" value="{{customerSearch}}" bind:change="onCustomerSearch" t-class="search-input" />
+      <t-button size="small" theme="primary" bindtap="showCustomerPickerFn">选择</t-button>
+    </view>
+    <view class="selected-customer" wx:if="{{form.customerName}}">
+      <view class="sc-info">
+        <text class="sc-name">{{form.customerName}}</text>
+        <text class="sc-phone" wx:if="{{form.contactPhone}}">{{form.contactPhone}}</text>
+      </view>
+      <t-icon name="close-circle-filled" size="40rpx" color="#bbb" bindtap="hideCustomerPicker" data-action="clear" />
+    </view>
+  </view>
+
+  <!-- 客户选择弹窗 -->
+  <t-popup visible="{{showCustomerPicker}}" placement="bottom" bind:close="hideCustomerPicker">
+    <view class="picker-popup">
+      <view class="picker-header">
+        <text class="picker-title">选择客户</text>
+        <t-icon name="close" size="40rpx" bindtap="hideCustomerPicker" />
+      </view>
+      <t-search placeholder="搜索客户名称/电话" value="{{customerSearch}}" bind:change="onCustomerSearch" shape="round" style="margin:16rpx 24rpx" />
+      <scroll-view scroll-y class="picker-list" style="max-height:500rpx">
+        <view wx:if="{{filteredCustomers.length === 0}}" class="empty-tip">暂无匹配客户</view>
+        <view class="picker-item" wx:for="{{filteredCustomers}}" wx:key="id" bindtap="selectCustomer" data-index="{{index}}">
+          <view class="pi-name">{{item.displayName}}</view>
+          <view class="pi-meta">
+            <t-tag size="small" variant="light" theme="{{item.customerType === 2 ? 'primary' : item.customerType === 3 ? 'warning' : 'default'}}">{{item.typeLabel}}</t-tag>
+            <text wx:if="{{item.phone}}" class="pi-phone">{{item.phone}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </t-popup>
+
+  <!-- ========== 订单信息 ========== -->
+  <view class="card">
+    <view class="section-title">订单信息</view>
+    <t-input label="订单标题" placeholder="如：某某公司宣传册印刷" value="{{form.title}}" bind:change="onFieldChange" data-field="title" maxlength="200" />
+    <view class="form-row-inline">
+      <picker mode="selector" range="{{['印刷','广告','设计']}}" value="{{form.orderType - 1}}" bindchange="onOrderTypeChange">
+        <t-cell title="订单类型" arrow hover value="{{form.orderType == 1 ? '印刷' : form.orderType == 2 ? '广告' : '设计'}}" />
+      </picker>
+      <picker mode="selector" range="{{['普通','紧急','加急']}}" value="{{form.priority - 1}}" bindchange="onPriorityChange">
+        <t-cell title="优先级" arrow hover value="{{form.priority == 1 ? '普通' : form.priority == 2 ? '紧急' : '加急'}}" />
+      </picker>
+    </view>
+    <t-input label="联系人" placeholder="选填" value="{{form.contactPerson}}" bind:change="onFieldChange" data-field="contactPerson" />
+    <t-input label="联系电话" placeholder="选填" value="{{form.contactPhone}}" bind:change="onFieldChange" data-field="contactPhone" />
+    <picker mode="date" value="{{form.deliveryDate}}" bindchange="onDateChange">
+      <t-cell title="交付日期" arrow hover value="{{form.deliveryDate || '请选择'}}" />
+    </picker>
+    <t-input label="交付地址" placeholder="选填" value="{{form.deliveryAddress}}" bind:change="onFieldChange" data-field="deliveryAddress" />
+    <t-input label="备注" placeholder="特殊要求、注意事项" value="{{form.remark}}" bind:change="onFieldChange" data-field="remark" maxlength="500" />
+    <picker wx:if="{{designers.length > 0}}" mode="selector" range="{{designers}}" range-key="displayName" bindchange="onDesignerChange">
+      <t-cell title="设计师" arrow hover value="{{form.designerId ? '已选择' : '不指定（无提成）'}}" />
+    </picker>
+  </view>
+
+  <!-- ========== 物料选择 ========== -->
+  <view class="card">
+    <view class="section-header">
+      <text class="section-title">物料明细 ({{materials.length}})</text>
+      <view class="header-actions">
+        <text class="add-btn" bindtap="showMaterialPickerFn"><t-icon name="shop" size="28rpx" /> 从物料库选择</text>
+        <text class="add-btn custom" bindtap="addCustomMaterial"><t-icon name="edit" size="28rpx" /> 手动添加</text>
+      </view>
+    </view>
+
+    <!-- 已选物料列表 -->
+    <view wx:if="{{materials.length === 0}}" class="empty-material">
+      <text>暂未选择物料</text>
+      <text class="empty-hint">点击上方按钮从物料库选择或手动添加</text>
+    </view>
+
+    <view class="material-item" wx:for="{{materials}}" wx:key="index">
+      <view class="material-header">
+        <view class="mh-left">
+          <text class="material-index">{{index + 1}}</text>
+          <t-tag wx:if="{{item.isCustom}}" size="small" theme="warning" variant="light">自定义</t-tag>
+        </view>
+        <t-icon name="delete" size="36rpx" color="#E34D59" bindtap="removeMaterial" data-index="{{index}}" />
+      </view>
+      <!-- 自定义物料：名称可编辑 -->
+      <t-input wx:if="{{item.isCustom}}" label="名称" placeholder="输入物料名称" value="{{item.materialName}}" data-index="{{index}}" data-field="materialName" bind:change="onMaterialFieldChange" />
+      <view wx:else class="material-name-display">
+        <text class="mnd-name">{{item.materialName}}</text>
+        <text class="mnd-spec" wx:if="{{item.spec}}">{{item.spec}}</text>
+      </view>
+
+      <!-- 按面积计价：显示宽×高 -->
+      <view wx:if="{{item.pricingType === 1}}" class="area-input-row">
+        <t-input label="宽cm" placeholder="0" type="digit" value="{{item.width}}" data-index="{{index}}" data-field="width" bind:change="onMaterialFieldChange" t-class="area-field" />
+        <text class="area-x">×</text>
+        <t-input label="高cm" placeholder="0" type="digit" value="{{item.height}}" data-index="{{index}}" data-field="height" bind:change="onMaterialFieldChange" t-class="area-field" />
+      </view>
+
+      <view class="qty-price-row">
+        <view class="qty-stepper">
+          <text class="qty-label">数量</text>
+          <view class="stepper">
+            <view class="stepper-btn dec" bindtap="qtyDec" data-index="{{index}}">-</view>
+            <t-input t-class="stepper-input" type="number" value="{{item.quantity}}" data-index="{{index}}" data-field="quantity" bind:change="onMaterialFieldChange" />
+            <view class="stepper-btn inc" bindtap="qtyInc" data-index="{{index}}">+</view>
+          </view>
+        </view>
+        <t-input label="单价" placeholder="0.00" type="digit" value="{{item.unitPrice}}" data-index="{{index}}" data-field="unitPrice" bind:change="onMaterialFieldChange" t-class="price-field" />
+      </view>
+      <view class="material-amount">
+        <text class="amount-label">小计: </text>
+        <text class="amount-value">{{item.amount}} 元</text>
+        <text class="amount-unit" wx:if="{{item.unit}}">/ {{item.unit}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 物料库选择弹窗 -->
+  <t-popup visible="{{showMaterialPicker}}" placement="bottom" bind:close="hideMaterialPicker">
+    <view class="picker-popup">
+      <view class="picker-header">
+        <text class="picker-title">从物料库选择</text>
+        <t-icon name="close" size="40rpx" bindtap="hideMaterialPicker" />
+      </view>
+      <t-search placeholder="搜索物料名称/编码/规格" value="{{materialKeyword}}" bind:change="onMaterialSearch" shape="round" style="margin:16rpx 24rpx" />
+      <!-- 分类过滤 -->
+      <scroll-view scroll-x class="category-scroll">
+        <view class="cat-tag {{materialCategoryFilter === 0 ? 'active' : ''}}" bindtap="onCategoryFilter" data-id="{{0}}">全部</view>
+        <view class="cat-tag {{materialCategoryFilter === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:if="{{item.id > 0}}" wx:key="id" bindtap="onCategoryFilter" data-id="{{item.id}}">{{item.name}}</view>
+      </scroll-view>
+      <scroll-view scroll-y class="picker-list" style="max-height:500rpx">
+        <view wx:if="{{filteredMaterials.length === 0}}" class="empty-tip">暂无匹配物料</view>
+        <view class="mat-picker-item" wx:for="{{filteredMaterials}}" wx:key="id" bindtap="addFromLibrary" data-index="{{index}}">
+          <view class="mpi-top">
+            <text class="mpi-name">{{item.name}}</text>
+            <text class="mpi-price">¥{{item.price || 0}}/{{item.unit || '个'}}</text>
+          </view>
+          <view class="mpi-meta">
+            <text wx:if="{{item.spec}}">{{item.spec}}</text>
+            <text wx:if="{{item.categoryName}}">{{item.categoryName}}</text>
+            <text wx:if="{{item.stock !== undefined}}">库存:{{item.stock}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </t-popup>
+
+  <!-- ========== 金额汇总 ========== -->
+  <view class="card summary">
+    <view class="summary-row">
+      <text>物料合计</text>
+      <text>¥{{totalAmount}}</text>
+    </view>
+    <view class="summary-row">
+      <text>优惠金额</text>
+      <t-input t-class="discount-input" placeholder="0" type="digit" value="{{form.discountAmount}}" bind:change="onDiscountChange" />
+    </view>
+    <view class="summary-row total">
+      <text>订单总额</text>
+      <text class="total-value">¥{{finalAmount}}</text>
+    </view>
+  </view>
+
+  <!-- ========== 提交 ========== -->
+  <view class="submit-area safe-bottom">
+    <t-button theme="primary" block size="large" loading="{{submitting}}" bindtap="submit" disabled="{{materials.length === 0}}">提交订单</t-button>
+  </view>
+</view>
+
+<t-dialog id="t-dialog" />

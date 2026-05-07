@@ -1,0 +1,51 @@
+<view class="page-container">
+  <!-- 筛选栏 -->
+  <view class="filter-bar">
+    <t-search placeholder="搜索" bind:submit="doSearch" shape="round" style="flex:1" />
+    <t-button size="small" variant="outline" icon="filter" bindtap="pickCustomer" style="margin-left:16rpx">{{selectedCustomer ? selectedCustomer.name : '客户'}}</t-button>
+  </view>
+
+  <!-- 账单列表 -->
+  <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+    <t-loading loading theme="circular" size="40rpx" />
+  </view>
+  <view wx:elif="{{bills.length === 0}}" class="empty-state">
+    <t-icon name="file-copy" size="96rpx" color="#ddd" />
+    <text class="empty-text">暂无客户账单</text>
+  </view>
+
+  <view class="bill-list" wx:else>
+    <view class="bill-card card" wx:for="{{bills}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="bill-header">
+        <text class="bill-no">{{item.billNo || item.customerName || '账单'}}</text>
+        <t-tag size="small" variant="light" theme="{{item.statusTheme}}">{{item.statusText}}</t-tag>
+      </view>
+      <view class="bill-body">
+        <view class="bill-row">
+          <text class="bill-label">客户</text>
+          <text class="bill-value">{{item.customerName || '-'}}</text>
+        </view>
+        <view class="bill-row">
+          <text class="bill-label">账单月份</text>
+          <text class="bill-value">{{item.billMonth}}</text>
+        </view>
+        <view class="bill-row">
+          <text class="bill-label">账单金额</text>
+          <text class="bill-value amount">¥{{item.amountStr}}</text>
+        </view>
+        <view class="bill-row" wx:if="{{item.paidAmount > 0}}">
+          <text class="bill-label">已付金额</text>
+          <text class="bill-value paid">¥{{item.paidStr}}</text>
+        </view>
+      </view>
+      <view class="bill-footer">
+        <text class="bill-time">{{item.createTime}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="load-more" wx:if="{{bills.length > 0}}">
+    <text wx:if="{{loadingMore}}">加载中...</text>
+    <text wx:elif="{{noMore}}">没有更多了</text>
+  </view>
+</view>

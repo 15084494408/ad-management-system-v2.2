@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.enterprise.ad.common.PageResult;
 import com.enterprise.ad.common.Result;
+import com.enterprise.ad.common.annotation.OperationLog;
 import com.enterprise.ad.common.exception.BusinessException;
 import com.enterprise.ad.module.customer.entity.Customer;
 import com.enterprise.ad.module.customer.entity.CustomerLevel;
@@ -11,6 +12,7 @@ import com.enterprise.ad.module.customer.mapper.CustomerMapper;
 import com.enterprise.ad.module.customer.mapper.CustomerLevelMapper;
 import com.enterprise.ad.module.member.entity.MemberTransaction;
 import com.enterprise.ad.module.member.mapper.MemberTransactionMapper;
+import com.enterprise.ad.module.finance.service.FinanceRecordService;
 import com.enterprise.ad.module.order.entity.Order;
 import com.enterprise.ad.module.order.mapper.OrderMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,6 +42,7 @@ public class CustomerController {
     private final CustomerLevelMapper customerLevelMapper;
     private final MemberTransactionMapper transactionMapper;
     private final OrderMapper orderMapper;
+    private final FinanceRecordService financeRecordService;
 
     @GetMapping
     @Operation(summary = "客户列表（分页，支持按客户类型/会员状态筛选）")
@@ -220,6 +223,7 @@ public class CustomerController {
 
     @PostMapping
     @Operation(summary = "新建客户（支持普通/工厂类型，手机号选填）")
+    @OperationLog(value = "新建客户", module = "客户管理")
     @PreAuthorize("hasAuthority('customer:create')")
     public Result<Long> create(@RequestBody Customer customer) {
         String customerName = customer.getCustomerName();
@@ -255,6 +259,7 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     @Operation(summary = "更新客户")
+    @OperationLog(value = "更新客户", module = "客户管理")
     @PreAuthorize("hasAuthority('customer:edit')")
     public Result<Void> update(@PathVariable Long id, @RequestBody Customer customer) {
         Customer existing = customerMapper.selectById(id);
@@ -276,6 +281,7 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除客户（有关联订单或有余额时禁止删除）")
+    @OperationLog(value = "删除客户", module = "客户管理")
     @PreAuthorize("hasAuthority('customer:delete')")
     public Result<Void> delete(@PathVariable Long id) {
         Customer customer = customerMapper.selectById(id);
@@ -374,6 +380,17 @@ public class CustomerController {
             tx.setRemark("升级会员初始充值");
             tx.setCreateTime(LocalDateTime.now());
             transactionMapper.insert(tx);
+
+            // ★ P1-07 修复：升级会员初始余额同步写入 fin_record
+            financeRecordService.createIncome(
+                    FinanceRecordService.PREFIX_MEMBER_RECHARGE,
+                    FinanceRecordService.CAT_MEMBER_RECHARGE,
+                    initialBalance,
+                    id,
+                    customer.getCustomerName(),
+                    null,
+                    "升级会员初始充值"
+            );
         }
 
         return Result.ok();
@@ -384,6 +401,7 @@ public class CustomerController {
      */
     @PostMapping("/{id}/recharge")
     @Operation(summary = "会员充值")
+    @OperationLog(value = "会员充值", module = "客户管理")
     @PreAuthorize("hasAuthority('member:recharge')")
     @Transactional
     public Result<Void> recharge(
@@ -401,13 +419,15 @@ public class CustomerController {
             return Result.fail("该客户还不是会员，请先升级");
         }
 
+        // ★ P0-01 修复：使用数据库原子操作保证并发安全（addBalance 内含 total_recharge 原子更新）
         BigDecimal before = customer.getBalance();
-        BigDecimal after = before.add(request.getAmount());
+        int rows = customerMapper.addBalance(id, request.getAmount());
+        if (rows == 0) {
+            return Result.fail("客户不存在或已删除");
+        }
 
-        customer.setBalance(after);
-        customer.setTotalRecharge(customer.getTotalRecharge().add(request.getAmount()));
-        customer.setUpdateTime(LocalDateTime.now());
-        customerMapper.updateById(customer);
+        Customer updated = customerMapper.selectById(id);
+        BigDecimal after = updated != null && updated.getBalance() != null ? updated.getBalance() : BigDecimal.ZERO;
 
         MemberTransaction tx = new MemberTransaction();
         tx.setCustomerId(id);
@@ -419,6 +439,17 @@ public class CustomerController {
         tx.setRemark(request.getRemark() != null ? request.getRemark() : "充值");
         tx.setCreateTime(LocalDateTime.now());
         transactionMapper.insert(tx);
+
+        // ★ P2-08/P1-12 修复：统一使用 FinanceRecordService，前缀 MBR
+        financeRecordService.createIncome(
+                FinanceRecordService.PREFIX_MEMBER_RECHARGE,
+                FinanceRecordService.CAT_MEMBER_RECHARGE,
+                request.getAmount(),
+                id,
+                customer.getCustomerName(),
+                null,
+                request.getRemark() != null ? request.getRemark() : "会员充值"
+        );
 
         return Result.ok();
     }

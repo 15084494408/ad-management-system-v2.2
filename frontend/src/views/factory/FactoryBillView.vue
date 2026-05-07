@@ -239,18 +239,20 @@
             <div style="font-size:12px;color:#909399;">应付总额</div>
           </div>
           <table style="width:100%;font-size:13px;">
-            <tr>
-              <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">订单总额</td>
-              <td style="padding:10px;text-align:right;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(reconcileData.totalAmount) }}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">已付款项</td>
-              <td style="padding:10px;text-align:right;color:#67c23a;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(reconcileData.paidAmount) }}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">本次应付</td>
-              <td style="padding:10px;text-align:right;font-weight:600;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(getUnpaid(reconcileData)) }}</td>
-            </tr>
+            <tbody>
+              <tr>
+                <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">订单总额</td>
+                <td style="padding:10px;text-align:right;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(reconcileData.totalAmount) }}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">已付款项</td>
+                <td style="padding:10px;text-align:right;color:#67c23a;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(reconcileData.paidAmount) }}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px;color:#909399;border-bottom:1px solid #f5f7fa;">本次应付</td>
+                <td style="padding:10px;text-align:right;font-weight:600;border-bottom:1px solid #f5f7fa;">¥{{ fmtMoney(getUnpaid(reconcileData)) }}</td>
+              </tr>
+            </tbody>
           </table>
           <div class="form-row" style="margin-top:20px;">
             <div class="form-group">
@@ -933,7 +935,7 @@ const stats = computed(() => {
 })
 
 function getUnpaid(row: any): number {
-  return Number((row.totalAmount || 0) - (row.paidAmount || 0))
+  return Math.max(Number((row.totalAmount || 0) - (row.paidAmount || 0)), 0)
 }
 
 /** 根据工厂ID获取工厂名称（用于无账单提示） */

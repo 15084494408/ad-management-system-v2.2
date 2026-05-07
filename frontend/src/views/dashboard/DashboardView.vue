@@ -268,27 +268,6 @@
           </div>
         </div>
 
-        <!-- 支付渠道占比 -->
-        <div class="board-card channel-card">
-          <div class="card-title-bar">
-            <span class="card-title-dot"></span>
-            <span>支付渠道占比</span>
-          </div>
-          <div class="channel-list">
-            <div class="channel-item" v-for="(item, idx) in channelData" :key="item.name">
-              <div class="channel-rank" :class="{ top: idx < 3 }">{{ idx + 1 }}</div>
-              <div class="channel-info">
-                <span class="channel-name">{{ item.name }}</span>
-                <span class="channel-amount">¥{{ formatMoney(item.amount) }}</span>
-              </div>
-              <div class="channel-bar-track">
-                <div class="channel-bar-fill" :style="{ width: item.pct + '%', background: item.color }"></div>
-              </div>
-              <span class="channel-pct">{{ item.pct }}%</span>
-            </div>
-          </div>
-        </div>
-
         <!-- 客户消费排行 TOP10 -->
         <div class="board-card top-customers-card">
           <div class="card-title-bar">
@@ -348,14 +327,6 @@ const updateTime = ref('')
 const totalCustomers = ref(0)
 const todayStats = ref<any[]>([])
 const pendingPaymentOrders = ref<any[]>([])
-
-// 渠道数据
-const channelData = ref<any[]>([
-  { name: '微信支付', amount: 0, pct: 0, color: '#07c160' },
-  { name: '支付宝', amount: 0, pct: 0, color: '#1677ff' },
-  { name: '现金', amount: 0, pct: 0, color: '#ff7875' },
-  { name: '转账', amount: 0, pct: 0, color: '#ffa940' },
-])
 
 // 客户类型分布
 const customerTypeData = ref<any[]>([])
@@ -446,7 +417,7 @@ function quickDeliver(order: any) {
 function getMainStatus(order: any) {
   const ps = order.paymentStatus
   const os = order.status
-  const unpaid = (order.totalAmount || 0) - (order.paidAmount || 0) - (order.roundingAmount || 0)
+  const unpaid = Math.max((order.totalAmount || 0) - (order.paidAmount || 0) - (order.roundingAmount || 0), 0)
   if (unpaid > 0 && ps === 1) return '待收款'
   if (unpaid > 0 && ps === 2) return '部分收款'
   if (os === 2) return '进行中'
@@ -493,6 +464,8 @@ async function loadBoard() {
     const profitColor = profitRate > 0 ? '#00d4ff' : profitRate < 0 ? '#ff6b6b' : '#909399'
     kpiList.value = [
       { label: '本月收款', value: '¥' + formatMoney(kpi.thisMonthIncome), icon: '💰', color: '#00d4ff', bg: 'rgba(0,212,255,0.12)' },
+      { label: '本月充值', value: '¥' + formatMoney(kpi.thisMonthRecharge), icon: '💳', color: '#ab47bc', bg: 'rgba(171,71,188,0.12)' },
+      { label: '本月支出', value: '¥' + formatMoney(kpi.thisMonthExpense), icon: '💸', color: '#ff6b6b', bg: 'rgba(255,107,107,0.12)' },
       { label: '本月订单', value: (kpi.thisMonthOrders || 0) + ' 张', icon: '📋', color: '#66bb6a', bg: 'rgba(102,187,106,0.12)' },
       { label: '待收款', value: '¥' + formatMoney(kpi.unpaidAmount), icon: '⏳', color: '#ffa726', bg: 'rgba(255,167,38,0.12)' },
       { label: '客户总数', value: (d.totalCustomers || 0) + ' 个', icon: '👥', color: '#ab47bc', bg: 'rgba(171,71,188,0.12)' },
@@ -527,16 +500,6 @@ async function loadBoard() {
         { icon: '📤', label: '今日支出', value: '¥0.00', color: '#ff4d4f' },
         { icon: '🔢', label: '今日流水', value: '0 笔', color: '#722ed1' },
       ]
-    }
-
-    // 真实支付渠道数据（来自后端 revenueBreakdown）
-    if (sd.revenueBreakdown && sd.revenueBreakdown.length) {
-      channelData.value = sd.revenueBreakdown.map((item: any) => ({
-        name: item.name,
-        amount: item.amount,
-        pct: item.percent,
-        color: item.color,
-      }))
     }
 
     // 模拟客户类型数据
@@ -1219,67 +1182,6 @@ onUnmounted(() => {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
   margin-top: 4px;
-}
-
-/* ====== 右侧 - 渠道占比 ====== */
-.channel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.channel-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.channel-rank {
-  width: 18px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-}
-.channel-rank.top {
-  background: rgba(0, 212, 255, 0.15);
-  color: #00d4ff;
-}
-.channel-info {
-  min-width: 70px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.channel-name {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-.channel-amount {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-}
-.channel-bar-track {
-  flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.channel-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 1s ease;
-}
-.channel-pct {
-  min-width: 36px;
-  text-align: right;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
 }
 
 /* ====== 右侧 - 客户消费排行 TOP10 ====== */

@@ -16,8 +16,10 @@ import java.util.List;
 import com.enterprise.ad.module.system.user.service.SysPermissionService;
 
 /**
- * 动态菜单API（前端根据此数据动态渲染侧边栏）
+ * 动态菜单API
+ * @deprecated [P2-01] 前端路由硬编码，未调用此接口。保留供未来动态菜单功能使用。
  */
+@Deprecated
 @RestController
 @RequestMapping("/system/menus")
 @RequiredArgsConstructor

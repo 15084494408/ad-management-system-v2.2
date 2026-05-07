@@ -1,0 +1,153 @@
+<view class="page-container">
+  <!-- 用户信息卡片 -->
+  <view class="profile-header">
+    <view class="profile-avatar">
+      <text class="avatar-text">{{userInfo.realName ? userInfo.realName[0] : 'U'}}</text>
+    </view>
+    <view class="profile-info">
+      <text class="profile-name">{{userInfo.realName || userInfo.username || '未知用户'}}</text>
+      <text class="profile-role">{{roleText}}</text>
+    </view>
+  </view>
+
+  <!-- 待办工作台 -->
+  <view class="menu-card">
+    <view class="card-section-title">待办工作台</view>
+    <view class="menu-item" bindtap="goTodo">
+      <view class="menu-left">
+        <t-icon name="todo-list" size="40rpx" color="#667eea" />
+        <text class="menu-text">待办工作台</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 订单管理 -->
+  <view class="menu-card">
+    <view class="card-section-title">订单管理</view>
+    <view class="menu-item" bindtap="goOrderQuote">
+      <view class="menu-left">
+        <t-icon name="calculator" size="40rpx" color="#0F6E56" />
+        <text class="menu-text">订单报价</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 客户管理 -->
+  <view class="menu-card">
+    <view class="card-section-title">客户与账单</view>
+    <view class="menu-item" bindtap="goCustomerBills">
+      <view class="menu-left">
+        <t-icon name="file-copy" size="40rpx" color="#E37318" />
+        <text class="menu-text">客户账单</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+    <view class="menu-item" bindtap="goFactoryBills">
+      <view class="menu-left">
+        <t-icon name="shop" size="40rpx" color="#E37318" />
+        <text class="menu-text">工厂账单</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 会员管理 -->
+  <view class="menu-card">
+    <view class="card-section-title">会员管理</view>
+    <view class="menu-item" bindtap="goMember">
+      <view class="menu-left">
+        <t-icon name="usergroup" size="40rpx" color="#faad14" />
+        <text class="menu-text">会员列表</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 物料管理 -->
+  <view class="menu-card">
+    <view class="card-section-title">物料管理</view>
+    <view class="menu-item" bindtap="goMaterial">
+      <view class="menu-left">
+        <t-icon name="folder" size="40rpx" color="#0052D9" />
+        <text class="menu-text">物料管理</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 系统管理 -->
+  <view class="menu-card">
+    <view class="card-section-title">系统管理</view>
+    <view class="menu-item" bindtap="goUsers">
+      <view class="menu-left">
+        <t-icon name="user" size="40rpx" color="#0052D9" />
+        <text class="menu-text">用户管理</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+    <view class="menu-item" bindtap="goCompany">
+      <view class="menu-left">
+        <t-icon name="building" size="40rpx" color="#0052D9" />
+        <text class="menu-text">公司管理</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 账户设置 -->
+  <view class="menu-card">
+    <view class="card-section-title">账户设置</view>
+    <view class="menu-item" bindtap="bindWxAction">
+      <view class="menu-left">
+        <t-icon name="link" size="40rpx" color="#0052D9" />
+        <text class="menu-text">绑定微信</text>
+      </view>
+      <view class="menu-right">
+        <text class="menu-desc" wx:if="{{wxBound}}">已绑定</text>
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+    <view class="menu-item" bindtap="clearCache">
+      <view class="menu-left">
+        <t-icon name="delete" size="40rpx" color="#E34D59" />
+        <text class="menu-text">清除缓存</text>
+      </view>
+      <view class="menu-right">
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+    <view class="menu-item" bindtap="about">
+      <view class="menu-left">
+        <t-icon name="info-circle" size="40rpx" color="#999" />
+        <text class="menu-text">关于</text>
+      </view>
+      <view class="menu-right">
+        <text class="menu-desc">v2.0</text>
+        <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <view class="logout-btn">
+    <t-button theme="danger" variant="outline" block bindtap="doLogout">退出登录</t-button>
+  </view>
+</view>

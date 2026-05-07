@@ -1,0 +1,35 @@
+    <!-- 更多功能入口 -->
+    <view class="more-grid">
+      <view class="more-item" bindtap="goMemberList">
+        <t-icon name="usergroup" size="36rpx" color="#faad14" />
+        <text>会员管理</text>
+      </view>
+      <view class="more-item" bindtap="goMaterial">
+        <t-icon name="folder" size="36rpx" color="#0052D9" />
+        <text>物料管理</text>
+      </view>
+      <view class="more-item" bindtap="goStockIn">
+        <t-icon name="download" size="36rpx" color="#0F6E56" />
+        <text>物料入库</text>
+      </view>
+      <view class="more-item" bindtap="goStockOut">
+        <t-icon name="upload" size="36rpx" color="#E34D59" />
+        <text>物料出库</text>
+      </view>
+      <view class="more-item" bindtap="goCustomerBills">
+        <t-icon name="file-copy" size="36rpx" color="#E37318" />
+        <text>客户账单</text>
+      </view>
+      <view class="more-item" bindtap="goFactoryBills">
+        <t-icon name="shop" size="36rpx" color="#667eea" />
+        <text>工厂账单</text>
+      </view>
+      <view class="more-item" bindtap="goUsers">
+        <t-icon name="user" size="36rpx" color="#722ed1" />
+        <text>用户管理</text>
+      </view>
+      <view class="more-item" bindtap="goCompany">
+        <t-icon name="building" size="36rpx" color="#13c2c2" />
+        <text>公司管理</text>
+      </view>
+    </view>

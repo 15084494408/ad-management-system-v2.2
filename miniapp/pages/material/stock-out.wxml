@@ -1,0 +1,11 @@
+<view class="page-container">
+  <view class="card">
+    <view class="section-title">出库信息</view>
+    <t-cell title="选择物料" arrow hover value="{{selectedIndex >= 0 ? materials[selectedIndex].name : '请选择'}}" bindtap="pickMaterial" />
+    <t-input label="出库数量" placeholder="请输入" type="digit" value="{{quantity}}" bind:change="onFieldChange" data-field="quantity" />
+    <t-input label="备注" placeholder="选填" value="{{remark}}" bind:change="onFieldChange" data-field="remark" />
+  </view>
+  <view class="submit-area safe-bottom">
+    <t-button theme="primary" block size="large" loading="{{submitting}}" bindtap="submit">确认出库</t-button>
+  </view>
+</view>

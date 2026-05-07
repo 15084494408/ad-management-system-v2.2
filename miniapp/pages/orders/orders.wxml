@@ -1,0 +1,60 @@
+<view class="page-container">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <t-search placeholder="搜索订单号/客户名" value="{{searchValue}}" bind:change="onSearch" bind:submit="doSearch" shape="round" />
+  </view>
+
+  <!-- 状态 Tab（后端：1=待处理 2=进行中 3=已完成 4=已取消） -->
+  <t-tabs class="order-tabs" value="{{activeTab}}" bind:change="onTabChange" space-evenly>
+    <t-tab-panel label="全部" value="all" />
+    <t-tab-panel label="待处理" value="1" />
+    <t-tab-panel label="进行中" value="2" />
+    <t-tab-panel label="已完成" value="3" />
+    <t-tab-panel label="已取消" value="4" />
+  </t-tabs>
+
+  <!-- 订单列表 -->
+  <view class="order-list">
+    <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
+      <t-loading loading theme="circular" size="40rpx" />
+    </view>
+    <view wx:elif="{{orders.length === 0}}" style="text-align:center;padding:100rpx 0;color:#999;font-size:26rpx">暂无订单</view>
+
+    <view class="order-card" wx:for="{{orders}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="card-header">
+        <view class="header-left">
+          <text class="order-no">{{item.orderNo}}</text>
+          <text class="order-title" wx:if="{{item.title}}" style="margin-left:12rpx;color:#999;font-size:24rpx">{{item.title}}</text>
+        </view>
+        <t-tag theme="{{item.statusColor}}" size="small" variant="light">{{item.statusText}}</t-tag>
+      </view>
+      <view class="card-body">
+        <view class="card-row">
+          <text class="label">客户</text>
+          <text class="value">{{item.customerName || '-'}}</text>
+        </view>
+        <view class="card-row">
+          <text class="label">金额</text>
+          <text class="value amount">¥{{item.totalAmount}}</text>
+        </view>
+        <view class="card-row" wx:if="{{item.unpaidAmount > 0}}">
+          <text class="label">待收</text>
+          <text class="value unpaid">¥{{item.unpaidAmount}}</text>
+        </view>
+        <view class="card-row">
+          <text class="label">时间</text>
+          <text class="value time">{{item.createTime}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{orders.length > 0}}">
+      <text wx:if="{{loadingMore}}">加载中...</text>
+      <text wx:elif="{{noMore}}">没有更多了</text>
+    </view>
+  </view>
+
+  <!-- 浮动新增按钮 -->
+  <t-fab icon="add" bind:click="createOrder" class="fab-btn" />
+</view>

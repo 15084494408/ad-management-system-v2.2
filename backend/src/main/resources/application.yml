@@ -64,6 +64,12 @@ jwt:
 cors:
   allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
 
+# 微信小程序配置
+wechat:
+  miniapp:
+    appid: ${WX_APPID:your-appid-placeholder}
+    secret: ${WX_SECRET:your-secret-placeholder}
+
 logging:
   level:
     com.enterprise.ad: debug

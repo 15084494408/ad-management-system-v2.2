@@ -104,6 +104,8 @@ const menuGroups = [
           { path: '/finance/invoice', label: '🧾 发票管理', perm: 'finance:view' },
           { path: '/finance/report', label: '📈 财务报表', perm: 'finance:view' },
           { path: '/finance/designer-commission', label: '👔 提成管理', perm: 'finance:view' },
+          { path: '/finance/salary', label: '💰 工资管理', perm: 'finance:view' },
+          { path: '/finance/print-quote', label: '🖨️ 印刷报价', perm: 'finance:view', badge: 'NEW' },
         ],
       },
       // 7. 统计分析

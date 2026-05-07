@@ -1,0 +1,39 @@
+<view class="page-container">
+  <view class="card">
+    <view class="section-title">会员信息</view>
+    <t-cell title="客户" value="{{customerName}}" />
+    <t-cell title="当前余额">
+      <text slot="value" class="balance-value">¥{{balance}}</text>
+    </t-cell>
+  </view>
+
+  <view class="card">
+    <view class="section-title">充值信息</view>
+    <t-input label="充值金额" placeholder="请输入充值金额" type="digit" value="{{amount}}" bind:change="onAmountChange" />
+
+    <view class="method-section">
+      <text class="method-label">支付方式</text>
+      <view class="method-grid">
+        <view class="method-btn {{paymentMethod === item ? 'active' : ''}}"
+          wx:for="{{paymentMethods}}" wx:key="*this"
+          bindtap="selectMethod" data-method="{{item}}">
+          <text class="method-icon">{{item === '现金' ? '💵' : item === '微信' ? '💬' : item === '支付宝' ? '🅰️' : item === '转账' ? '🏦' : '📝'}}</text>
+          <text>{{item}}</text>
+        </view>
+      </view>
+    </view>
+
+    <t-input label="备注" placeholder="选填" value="{{remark}}" bind:change="onRemarkChange" />
+  </view>
+
+  <view class="quick-amounts">
+    <text class="quick-label">快捷金额</text>
+    <view class="quick-grid">
+      <view class="quick-btn {{amount === String(item) ? 'active' : ''}}" wx:for="{{quickAmounts}}" wx:key="*this" bindtap="setAmount" data-amount="{{item}}">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="submit-area safe-bottom">
+    <t-button theme="primary" block size="large" loading="{{submitting}}" bindtap="submit">确认充值</t-button>
+  </view>
+</view>

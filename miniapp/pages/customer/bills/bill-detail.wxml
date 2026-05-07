@@ -1,0 +1,65 @@
+<view class="page-container">
+  <t-loading wx:if="{{loading}}" loading theme="circular" style="margin-top:120rpx" />
+  <block wx:elif="{{bill}}">
+    <!-- 账单头部 -->
+    <view class="header-card">
+      <view class="header-top">
+        <text class="bill-no">{{bill.billNo || '账单'}}</text>
+        <t-tag theme="{{bill.paymentStatus === 2 ? 'success' : 'warning'}}" size="medium">{{bill.statusText}}</t-tag>
+      </view>
+      <view class="header-amount">
+        <text class="amount-label">账单金额</text>
+        <text class="amount-value">¥{{bill.amountStr}}</text>
+      </view>
+    </view>
+
+    <!-- 基本信息 -->
+    <view class="info-card">
+      <view class="info-row" wx:if="{{bill.customerName}}">
+        <text class="info-label">客户</text>
+        <text class="info-value">{{bill.customerName}}</text>
+      </view>
+      <view class="info-row" wx:if="{{bill.factoryName}}">
+        <text class="info-label">工厂</text>
+        <text class="info-value">{{bill.factoryName}}</text>
+      </view>
+      <view class="info-row" wx:if="{{bill.billMonth}}">
+        <text class="info-label">账单月份</text>
+        <text class="info-value">{{bill.billMonth}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">已付金额</text>
+        <text class="info-value paid">¥{{bill.paidStr}}</text>
+      </view>
+      <view class="info-row" wx:if="{{bill.totalAmount - bill.paidAmount > 0}}">
+        <text class="info-label">待付金额</text>
+        <text class="info-value unpaid">¥{{bill.unpaidStr}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">创建时间</text>
+        <text class="info-value">{{bill.createTime}}</text>
+      </view>
+      <view class="info-row" wx:if="{{bill.remark}}">
+        <text class="info-label">备注</text>
+        <text class="info-value">{{bill.remark}}</text>
+      </view>
+    </view>
+
+    <!-- 明细列表 -->
+    <view class="card" wx:if="{{details.length > 0}}">
+      <view class="section-title">账单明细</view>
+      <view class="detail-item" wx:for="{{details}}" wx:key="id">
+        <view class="detail-name">{{item.itemName || item.materialName || item.description || '明细'}}</view>
+        <view class="detail-meta">
+          <text wx:if="{{item.quantity}}">{{item.quantity}} × ¥{{item.unitPriceStr}}</text>
+          <text class="detail-amount">¥{{item.amountStr}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作 -->
+    <view class="actions safe-bottom" wx:if="{{bill.totalAmount - bill.paidAmount > 0}}">
+      <t-button block size="large" theme="primary" bindtap="addPayment">录入付款</t-button>
+    </view>
+  </block>
+</view>

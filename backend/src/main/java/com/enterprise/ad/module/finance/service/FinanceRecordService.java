@@ -35,6 +35,8 @@ public class FinanceRecordService {
     public static final String PREFIX_MATERIAL = "MAT";
     /** 工厂付款 */
     public static final String PREFIX_FACTORY = "FAC";
+    /** 会员充值 */
+    public static final String PREFIX_MEMBER_RECHARGE = "MBR";
 
     // ── 类别常量 ──
     public static final String CAT_ORDER_INCOME = "订单收款";

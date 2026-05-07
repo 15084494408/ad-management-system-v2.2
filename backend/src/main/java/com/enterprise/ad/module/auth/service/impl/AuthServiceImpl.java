@@ -3,6 +3,7 @@ package com.enterprise.ad.module.auth.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.enterprise.ad.common.exception.BusinessException;
 import com.enterprise.ad.config.RateLimiterFilter;
+import com.enterprise.ad.common.util.WxMaUtil;
 import com.enterprise.ad.module.auth.dto.LoginRequest;
 import com.enterprise.ad.module.auth.dto.LoginResponse;
 import com.enterprise.ad.module.system.user.entity.SysUser;
@@ -33,6 +34,7 @@ public class AuthServiceImpl implements com.enterprise.ad.module.auth.service.Au
     private final SysUserMapper sysUserMapper;
     private final RateLimiterFilter rateLimiterFilter;
     private final StringRedisTemplate redisTemplate;
+    private final WxMaUtil wxMaUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -86,6 +88,75 @@ public class AuthServiceImpl implements com.enterprise.ad.module.auth.service.Au
             int failedCount = Math.min(5, 5); // 隐晦不暴露具体失败次数
             throw new BusinessException(401, "用户名或密码错误");
         }
+    }
+
+    @Override
+    public LoginResponse wxLogin(String code) {
+        // 1. 调用微信接口获取 openid
+        WxMaUtil.WxSessionResult sessionResult = wxMaUtil.code2Session(code);
+        String openid = sessionResult.getOpenid();
+
+        // 2. 根据 openid 查找已绑定用户
+        SysUser user = sysUserMapper.selectOne(
+            new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getWxOpenid, openid)
+                .eq(SysUser::getDeleted, 0)
+        );
+
+        if (user == null) {
+            throw new BusinessException(404, "该微信尚未绑定系统账号，请先使用账号密码登录后在个人中心绑定");
+        }
+
+        if (user.getStatus() != 1) {
+            throw new BusinessException(403, "账号已被禁用");
+        }
+
+        // 3. 生成 JWT Token
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
+
+        // 4. 查询角色和权限
+        List<String> roles = sysUserMapper.selectRolesByUserId(user.getId());
+        List<String> permissions = sysUserMapper.selectPermissionsByUserId(user.getId());
+
+        LoginResponse.UserInfo userInfo = new LoginResponse.UserInfo(
+            user.getId(), user.getUsername(), user.getRealName(),
+            user.getAvatar(), roles, permissions
+        );
+
+        log.info("微信登录成功: userId={}, openid={}", user.getId(), openid);
+        return new LoginResponse(token, userInfo);
+    }
+
+    @Override
+    public void bindWxOpenid(Long userId, String code) {
+        // 1. 调用微信接口获取 openid
+        WxMaUtil.WxSessionResult sessionResult = wxMaUtil.code2Session(code);
+        String openid = sessionResult.getOpenid();
+
+        // 2. 检查 openid 是否已被其他用户绑定
+        SysUser existUser = sysUserMapper.selectOne(
+            new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getWxOpenid, openid)
+                .eq(SysUser::getDeleted, 0)
+        );
+        if (existUser != null && !existUser.getId().equals(userId)) {
+            throw new BusinessException("该微信已被其他账号绑定");
+        }
+
+        // 3. 更新用户的 openid
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        user.setWxOpenid(openid);
+        sysUserMapper.updateById(user);
+
+        // 4. 清除用户信息缓存
+        String cacheKey = "user:info:" + user.getUsername();
+        redisTemplate.delete(cacheKey);
+
+        log.info("微信绑定成功: userId={}, openid={}", userId, openid);
     }
 
     @Override

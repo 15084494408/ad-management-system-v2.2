@@ -34,6 +34,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import com.enterprise.ad.module.design.service.DesignFileService;
 import com.enterprise.ad.module.design.service.FileVersionService;
@@ -52,6 +53,18 @@ public class DesignFileController {
 
     @Value("${file.upload-dir:uploads/design}")
     private String uploadDir;
+
+    /** ★ P1-05 修复：允许上传的文件类型白名单 */
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+        // 图片
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "tiff", "tif",
+        // 设计文件
+        "psd", "ai", "cdr", "indd", "eps", "pdf",
+        // 文档
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv",
+        // 压缩包
+        "zip", "rar", "7z", "tar", "gz"
+    );
 
     @GetMapping
     @Operation(summary = "文件列表（分页）")
@@ -250,6 +263,13 @@ public class DesignFileController {
             Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
             Path filePath = uploadPath.resolve(relativePath).normalize();
 
+            // ★ P1-06 修复：路径穿越校验，确保文件在上传目录内
+            if (!filePath.startsWith(uploadPath)) {
+                log.warn("路径穿越攻击: id={}, path={}", id, filePath);
+                response.setStatus(403);
+                return;
+            }
+
             if (!Files.exists(filePath)) {
                 log.warn("物理文件不存在: {}", filePath);
                 response.setStatus(404);
@@ -304,6 +324,15 @@ public class DesignFileController {
      */
     private String saveFile(MultipartFile file) {
         try {
+            String originalName = file.getOriginalFilename();
+            String extension = originalName != null && originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf(".") + 1).toLowerCase() : "";
+
+            // ★ P1-05 修复：文件类型白名单校验
+            if (extension.isEmpty() || !ALLOWED_EXTENSIONS.contains(extension)) {
+                throw new RuntimeException("不支持的文件类型: " + extension + "，允许的类型: " + ALLOWED_EXTENSIONS);
+            }
+
             String dateDir = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
             
             // ★ 修复：使用绝对路径
@@ -313,10 +342,7 @@ public class DesignFileController {
             // 创建完整目录结构
             Files.createDirectories(dirPath);
 
-            String originalName = file.getOriginalFilename();
-            String extension = originalName != null && originalName.contains(".")
-                ? originalName.substring(originalName.lastIndexOf(".")) : "";
-            String savedName = UUID.randomUUID().toString() + extension;
+            String savedName = UUID.randomUUID().toString() + "." + extension;
 
             Path filePath = dirPath.resolve(savedName);
             

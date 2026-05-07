@@ -240,7 +240,7 @@
             </div>
             <div class="finance-card" style="border-color:#f56c6c;">
               <div class="finance-label" style="color:#f56c6c;">待收余额</div>
-              <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney((detailData.totalAmount || 0) - (detailData.paidAmount || 0) - (detailData?.roundingAmount || 0)) }}</div>
+              <div class="finance-value" style="color:#f56c6c;">¥{{ formatMoney(Math.max((detailData.totalAmount || 0) - (detailData.paidAmount || 0) - (detailData?.roundingAmount || 0), 0)) }}</div>
             </div>
           </div>
 
@@ -540,13 +540,12 @@ const remainingAmount = computed(() => {
   return Math.max(total - paid, 0)
 })
 
-// 未收金额（抵扣抹零/优惠）
+// 未收金额（totalAmount 已包含优惠，抹零金额为正数表示减免，需扣除）
 const unpaidAmount = computed(() => {
   const total = detailData.value?.totalAmount || 0
   const paid = detailData.value?.paidAmount || 0
   const rounding = detailData.value?.roundingAmount || 0
-  const discount = detailData.value?.discountAmount || 0
-  return Math.max(total - paid - rounding - discount, 0)
+  return Math.max(total - paid - rounding, 0)
 })
 
 // 是否已收全款（可交付）
