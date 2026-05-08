@@ -14,7 +14,7 @@
   <view class="user-list" wx:else>
     <view class="user-card card" wx:for="{{users}}" wx:key="id">
       <view class="user-header">
-        <view class="user-avatar" style="background:{{item.status === 1 ? 'linear-gradient(135deg,#667eea,#764ba2)' : '#ccc'}}">
+        <view class="user-avatar" style="background:{{item.status === 1 ? 'linear-gradient(135deg,#00d4ff,#764ba2)' : '#ccc'}}">
           {{item.realName ? item.realName[0] : (item.username ? item.username[0] : '?')}}
         </view>
         <view class="user-info">

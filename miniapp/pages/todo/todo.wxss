@@ -1,107 +1,220 @@
-.todo-list { margin-top: 16rpx; }
-
-.todo-card { padding: 24rpx; }
-
-.todo-header {
+/* ====== 自定义Tab栏 ====== */
+.tab-bar {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16rpx;
+  background: var(--bg-card, #fff);
+  border-bottom: 1rpx solid var(--border-color, #f0f0f0);
+  padding: 0 16rpx;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
-.todo-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
+.tab-item {
   flex: 1;
-}
-
-.priority-dot {
-  width: 16rpx;
-  height: 16rpx;
-  border-radius: 50%;
-  margin-top: 12rpx;
-  flex-shrink: 0;
-}
-.priority-1 { background: #ccc; }
-.priority-2 { background: #faad14; }
-.priority-3 { background: #E34D59; }
-
-.todo-title {
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #333;
-  line-height: 1.5;
-}
-
-.todo-body {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin: 16rpx 0 0 28rpx;
-}
-
-.todo-meta {
-  font-size: 24rpx;
-  color: #888;
-  background: #f5f7fa;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-}
-
-.todo-footer {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 16rpx;
-  padding-top: 16rpx;
-  border-top: 1rpx solid #f0f0f0;
+  justify-content: center;
+  padding: 24rpx 0;
+  font-size: 28rpx;
+  color: var(--text-hint, #999);
+  position: relative;
+  gap: 6rpx;
 }
 
-.todo-time {
-  font-size: 22rpx;
-  color: #bbb;
+.tab-item.active {
+  color: var(--primary, #00a8cc);
+  font-weight: 600;
 }
 
-.todo-actions {
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48rpx;
+  height: 4rpx;
+  background: var(--primary, #00a8cc);
+  border-radius: 2rpx;
+}
+
+.tab-badge {
+  background: var(--danger, #ef4444);
+  color: #fff;
+  font-size: 20rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  border-radius: 16rpx;
   display: flex;
-  gap: 20rpx;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8rpx;
+  font-weight: 500;
 }
 
-.action-btn {
-  font-size: 24rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-}
-.action-btn.complete { color: #0F6E56; }
-.action-btn.more { color: #0052D9; }
-.action-btn.delete { color: #E34D59; }
-
+/* ====== 空状态 ====== */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 120rpx 0;
-  gap: 24rpx;
+  gap: 12rpx;
 }
-.empty-text { font-size: 28rpx; color: #999; }
+.empty-text { font-size: 32rpx; color: var(--text-primary, #333); font-weight: 500; }
+.empty-sub { font-size: 26rpx; color: var(--text-hint, #bbb); }
 
-/* 弹窗 */
-.popup-content { padding: 32rpx; }
-.popup-header {
+/* ====== 列表 ====== */
+.item-list { margin-top: 16rpx; }
+
+.todo-card {
+  padding: 24rpx;
+  margin: 0 24rpx 16rpx;
+  background: var(--bg-card, #fff);
+  border-radius: var(--radius-lg, 16rpx);
+  box-shadow: var(--shadow-sm, 0 2rpx 12rpx rgba(0,0,0,0.04));
+}
+
+.card {
+  background: var(--bg-card, #fff);
+  border-radius: var(--radius-lg, 16rpx);
+  padding: 24rpx;
+}
+
+/* ====== 通用卡片头部 ====== */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.card-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.type-icon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.type-todo-icon { background: rgba(0, 168, 204, 0.1); }
+.type-order-icon { background: rgba(245, 158, 11, 0.1); }
+.type-bill-icon { background: rgba(139, 92, 246, 0.1); }
+
+.card-title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a2e);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card-subtitle {
+  font-size: 24rpx;
+  color: var(--text-hint, #999);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+/* ====== 优先级角标 ====== */
+.priority-badge {
+  padding: 2rpx 12rpx;
+  border-radius: 100rpx;
+  font-size: 20rpx;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.priority-1 { background: #f5f5f5; color: #999; }
+.priority-2 { background: #fff7e6; color: #faad14; }
+.priority-3 { background: #fff1f0; color: #ff6b6b; }
+
+/* ====== 金额 ====== */
+.card-amount {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f59e0b;
+  font-family: 'Courier New', monospace;
+}
+.card-amount-purple {
+  color: #8b5cf6;
+}
+
+/* ====== 卡片底部 ====== */
+.card-bottom {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24rpx;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--border-color, #f5f5f5);
 }
-.popup-title { font-size: 32rpx; font-weight: 600; }
 
-.form-group {
+.card-tags {
   display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin: 20rpx 0;
+  gap: 8rpx;
+  align-items: center;
 }
-.form-label { font-size: 28rpx; color: #333; font-weight: 500; }
 
+.card-time {
+  font-size: 22rpx;
+  color: var(--text-hint, #bbb);
+}
+
+.card-actions {
+  display: flex;
+  gap: 12rpx;
+}
+
+.action-icon-btn {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+}
+
+.card-arrow {
+  display: flex;
+  align-items: center;
+}
+
+/* ====== 订单/账单卡片点击态 ====== */
+.item-type-order:active,
+.item-type-bill:active {
+  opacity: 0.85;
+  background: #fafbfc;
+}
+
+/* ====== FAB ====== */
 .fab-btn { position: fixed; right: 40rpx; bottom: 120rpx; z-index: 99; }

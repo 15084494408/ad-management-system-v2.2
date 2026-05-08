@@ -14,9 +14,12 @@ Page({
     }
     const info = getUserInfo() || {}
     const roles = (info.roles || [])
-    const roleText = roles.includes('admin') ? '超级管理员' :
-                     roles.includes('manager') ? '管理员' :
-                     roles.includes('designer') ? '设计师' :
+    const roleText = roles.includes('SUPER_ADMIN') ? '超级管理员' :
+                     roles.includes('ADMIN') ? '管理员' :
+                     roles.includes('FINANCE') ? '财务' :
+                     roles.includes('DESIGNER') ? '设计师' :
+                     roles.includes('OPERATOR') ? '操作员' :
+                     roles.includes('VIEWER') ? '观察者' :
                      roles.length > 0 ? roles[0] : '普通用户'
     this.setData({
       userInfo: info,
@@ -36,6 +39,10 @@ Page({
   goCompany() { wx.navigateTo({ url: '/pages/system/company' }) },
 
   // ===== 账户功能 =====
+  changePassword() {
+    wx.navigateTo({ url: '/pages/profile/password/password' })
+  },
+
   async bindWxAction() {
     if (this.data.wxBound) {
       wx.showToast({ title: '已绑定微信', icon: 'none' })
@@ -47,8 +54,8 @@ Page({
     } catch (e) { /* handled */ }
   },
 
-  changePassword() {
-    wx.showToast({ title: '请联系管理员修改密码', icon: 'none' })
+  checkUpdate() {
+    wx.showToast({ title: '已是最新版本', icon: 'none' })
   },
 
   clearCache() {

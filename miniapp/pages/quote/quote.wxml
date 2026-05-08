@@ -31,7 +31,7 @@
       <view class="result-row"><text>纸张成本</text><text>{{labelResult.paperCost}}</text></view>
       <view class="result-row"><text>印刷费</text><text>{{labelResult.printCost}}</text></view>
       <view class="result-row"><text>划线费</text><text>{{labelResult.lineCost}}</text></view>
-      <view class="result-row total"><text>总报价</text><text>{{labelResult.total}}</text></view>
+      <view class="result-row total"><text>总报价</text><text class="total-amount">{{labelResult.total}}</text></view>
     </view>
   </block>
 
@@ -54,7 +54,7 @@
       <view class="section-title">报价结果</view>
       <view class="result-row"><text>黑白费用</text><text>{{printResult.bwCost}}</text></view>
       <view class="result-row"><text>彩色费用</text><text>{{printResult.colorCost}}</text></view>
-      <view class="result-row total"><text>总费用</text><text>{{printResult.total}}</text></view>
+      <view class="result-row total"><text>总费用</text><text class="total-amount">{{printResult.total}}</text></view>
     </view>
   </block>
 </view>

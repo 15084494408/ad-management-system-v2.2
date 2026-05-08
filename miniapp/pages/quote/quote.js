@@ -2,6 +2,9 @@
 const BLACK_TIERS = [[0, 100, 0.5], [100, 500, 0.4], [500, 1000, 0.3], [1000, Infinity, 0.2]];
 const COLOR_TIERS = [[0, 50, 1.0], [50, 200, 0.8], [200, 500, 0.7], [500, 1000, 0.6], [1000, Infinity, 0.5]];
 function getPriceByTier(count, tiers) {
+    // ★ 修复 P1-金额：count <= 0 时返回第一档起步价，防止匹配到最后一档
+    if (count <= 0)
+        return tiers[0][2];
     for (const [min, max, price] of tiers) {
         if (count > min && count <= max)
             return price;

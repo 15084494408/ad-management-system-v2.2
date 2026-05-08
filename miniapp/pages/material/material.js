@@ -53,7 +53,7 @@ Page({
         this.setData({ loading: true });
         try {
             const res = await (0, request_1.get)('/material', this.buildParams());
-            const records = (res.records || res || []).map((m) => (Object.assign(Object.assign({}, m), { unitPriceStr: (0, helpers_1.formatMoney)(m.unitPrice || 0), unitCostStr: (0, helpers_1.formatMoney)(m.unitCost || 0), stockStr: m.stock || 0, isWarning: (m.stock || 0) <= (m.warningStock || 0), pricingLabel: m.pricingType === 1 ? '按面积' : '按数量', createTime: (0, helpers_1.formatDate)(m.createTime) })));
+            const records = (res.records || res || []).map((m) => (Object.assign(Object.assign({}, m), { unitPriceStr: (0, helpers_1.formatMoney)(m.unitPrice || 0), unitCostStr: (0, helpers_1.formatMoney)(m.unitCost || 0), stockStr: m.stock || 0, isWarning: (m.stock || 0) <= (m.warningStock || 0) && !m.noStock, pricingLabel: m.pricingType === 1 ? '按面积' : '按数量', noStock: m.noStock || 0, createTime: (0, helpers_1.formatDate)(m.createTime) })));
             this.setData({ materials: records, noMore: records.length < this.data.size });
         }
         catch (e) {

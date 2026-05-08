@@ -17,8 +17,17 @@
     <view class="section-title">价格与库存</view>
     <t-input label="单价(元)" placeholder="0" type="digit" value="{{form.unitPrice}}" bind:change="onChange" data-field="unitPrice" />
     <t-input label="成本(元)" placeholder="0" type="digit" value="{{form.unitCost}}" bind:change="onChange" data-field="unitCost" />
-    <t-input label="初始库存" placeholder="0" type="number" value="{{form.stock}}" bind:change="onChange" data-field="stock" />
-    <t-input label="预警库存" placeholder="低于此数量预警" type="number" value="{{form.warningStock}}" bind:change="onChange" data-field="warningStock" />
+    <view class="form-group">
+      <text class="form-label">库存管理</text>
+      <view class="no-stock-row">
+        <text class="ns-label">不计库存（如纸张等消耗品）</text>
+        <t-switch value="{{form.noStock === 1}}" bind:change="onNoStockChange" />
+      </view>
+    </view>
+    <view wx:if="{{form.noStock !== 1}}">
+      <t-input label="初始库存" placeholder="0" type="number" value="{{form.stock}}" bind:change="onChange" data-field="stock" />
+      <t-input label="预警库存" placeholder="低于此数量预警" type="number" value="{{form.warningStock}}" bind:change="onChange" data-field="warningStock" />
+    </view>
   </view>
 
   <view class="card">

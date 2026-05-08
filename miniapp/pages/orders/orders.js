@@ -98,7 +98,10 @@ Page({
     },
     /** 格式化订单数据 */
     formatOrder(item) {
-        return Object.assign(Object.assign({}, item), { statusText: helpers_1.ORDER_STATUS[item.status] || '未知', statusColor: helpers_1.ORDER_STATUS_COLOR[item.status] || 'default', totalAmount: (0, helpers_1.formatMoney)(item.totalAmount), unpaidAmount: Math.max((item.totalAmount || 0) - (item.paidAmount || 0), 0), createTime: (0, helpers_1.timeAgo)(item.createTime) });
+        return Object.assign(Object.assign({}, item), { statusText: helpers_1.ORDER_STATUS[item.status] || '未知', statusColor: helpers_1.ORDER_STATUS_COLOR[item.status] || 'default', totalAmount: (0, helpers_1.formatMoney)(item.totalAmount), 
+            // ★ 修复 P0-金额：待收金额需减去优惠、抹零
+            unpaidAmount: Math.max((item.totalAmount || 0) - (item.paidAmount || 0)
+                - (item.discountAmount || 0) - (item.roundingAmount || 0), 0), createTime: (0, helpers_1.timeAgo)(item.createTime) });
     },
     /** 跳转创建订单 */
     createOrder() {

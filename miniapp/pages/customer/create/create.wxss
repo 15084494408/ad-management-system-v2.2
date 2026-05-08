@@ -8,7 +8,7 @@
 .section-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #1a1a2e;
   margin-bottom: 20rpx;
 }
 .type-options {
@@ -22,12 +22,12 @@
   border-radius: 12rpx;
   border: 2rpx solid #e0e0e0;
   font-size: 28rpx;
-  color: #666;
+  color: #888;
   transition: all 0.2s;
 }
 .type-option.active {
-  border-color: #0052D9;
-  color: #0052D9;
+  border-color: #00a8cc;
+  color: #00a8cc;
   background: #f0f7ff;
   font-weight: 500;
 }

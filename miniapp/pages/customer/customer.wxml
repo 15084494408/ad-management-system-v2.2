@@ -1,56 +1,63 @@
-<view class="page-container">
-  <t-search placeholder="搜索客户名称/电话" value="{{keyword}}" bind:change="onSearch" bind:submit="doSearch" shape="round" />
+<view class="page">
+  <!-- 顶部搜索 -->
+  <t-search value="{{keyword}}" placeholder="搜索客户名称/电话" bind:change="onSearch" bind:submit="doSearch" bind:clear="resetAndLoad" />
 
   <!-- 筛选标签 -->
-  <view class="filter-bar">
-    <view class="filter-tag {{activeType === 'all' ? 'active' : ''}}" bindtap="filterType" data-type="all">全部</view>
-    <view class="filter-tag {{activeType === 'normal' ? 'active' : ''}}" bindtap="filterType" data-type="normal">普通客户</view>
-    <view class="filter-tag {{activeType === 'member' ? 'active' : ''}}" bindtap="filterType" data-type="member">会员</view>
-  </view>
+  <scroll-view class="filter-bar" scroll-x enhanced show-scrollbar="{{false}}">
+    <view class="filter-tag {{activeType === 'all' ? 'active' : ''}}" data-type="all" bindtap="filterType">全部</view>
+    <view class="filter-tag {{activeType === 'member' ? 'active' : ''}}" data-type="member" bindtap="filterType">会员</view>
+    <view class="filter-tag {{activeType === 'normal' ? 'active' : ''}}" data-type="normal" bindtap="filterType">普通</view>
+    <view class="filter-tag {{activeType === 'factory' ? 'active' : ''}}" data-type="factory" bindtap="filterType">工厂</view>
+  </scroll-view>
 
+  <!-- 客户列表 -->
   <view class="customer-list">
-    <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
-      <t-loading loading theme="circular" size="40rpx" />
-    </view>
-    <view wx:elif="{{customers.length === 0}}" style="text-align:center;padding:100rpx 0;color:#999;font-size:26rpx">暂无客户</view>
+    <block wx:if="{{loading}}">
+      <view class="skeleton-card" wx:for="{{6}}" wx:key="*this" style="margin-bottom:16rpx;height:160rpx"></view>
+    </block>
 
-    <view class="customer-card" wx:for="{{customers}}" wx:key="id">
-      <!-- 左侧点击查看详情 -->
-      <view class="card-main" bindtap="goDetail" data-id="{{item.id}}">
-        <view class="customer-header">
-          <view class="customer-avatar" style="background:{{item.memberBadge ? '#e6a23c' : '#667eea'}}">{{item.displayName[0] || '?'}}</view>
-          <view class="customer-info">
-            <view class="name-row">
-              <text class="customer-name">{{item.displayName}}</text>
-              <t-tag wx:if="{{item.memberBadge}}" size="small" variant="light" theme="warning">{{item.memberLevelName || '会员'}}</t-tag>
+    <block wx:elif="{{customers.length === 0}}">
+      <view class="empty-state">暂无客户数据</view>
+    </block>
+
+    <block wx:else>
+      <view wx:for="{{customers}}" wx:key="id" class="customer-card" bindtap="goDetail" data-id="{{item.id}}">
+        <view class="card-main">
+          <view class="customer-header">
+            <view class="customer-avatar" style="background: {{'#' + Math.floor(item.displayName.charCodeAt(0) * 8421 % 16777215).toString(16).padStart(6, '0')}}">
+              {{item.displayName[0] || '?'}}
             </view>
-            <text class="customer-phone">{{item.phone || '暂无电话'}}</text>
+            <view class="customer-info">
+              <view class="name-row">
+                <text class="customer-name">{{item.displayName}}</text>
+                <t-tag size="small" variant="light" theme="{{item.customerType === 2 ? 'primary' : item.customerType === 3 ? 'warning' : 'default'}}">{{item.typeName}}</t-tag>
+                <t-tag size="small" variant="light" theme="warning" wx:if="{{item.isMember === 1}}">会员</t-tag>
+              </view>
+              <text class="customer-phone" wx:if="{{item.phone}}" style="margin-top:4rpx">{{item.phone}}</text>
+            </view>
           </view>
-          <view class="customer-tags">
-            <t-tag size="small" variant="light" theme="{{item.customerType === 2 ? 'primary' : item.customerType === 3 ? 'warning' : 'default'}}">{{item.typeName}}</t-tag>
-          </view>
-        </view>
-        <view class="customer-footer">
-          <text class="customer-address" wx:if="{{item.address}}">{{item.address}}</text>
-          <text class="customer-balance" wx:if="{{item.memberBadge}}">余额: ¥{{item.balance || '0.00'}}</text>
-        </view>
-      </view>
-      <!-- 右侧操作按钮 -->
-      <view class="card-actions">
-        <view class="action-btn" bindtap="callPhone" data-phone="{{item.phone}}" wx:if="{{item.phone}}">
-          <t-icon name="call" size="32rpx" color="#0052D9" />
-        </view>
-        <view class="action-btn" bindtap="showActions" data-id="{{item.id}}" data-name="{{item.displayName}}" data-retail="{{item.customerType === 3 ? 1 : 0}}">
-          <t-icon name="ellipsis" size="32rpx" color="#666" />
-        </view>
-      </view>
-    </view>
 
-    <view class="load-more" wx:if="{{customers.length > 0}}">
-      <text wx:if="{{loadingMore}}">加载中...</text>
-      <text wx:elif="{{noMore}}">没有更多了</text>
-    </view>
+          <view class="customer-footer">
+            <text class="customer-address" wx:if="{{item.address}}">{{item.address}}</text>
+            <text class="customer-address" wx:else>暂无地址</text>
+            <text class="customer-balance" wx:if="{{item.balance !== undefined}}">余额: ¥{{item.balance}}</text>
+          </view>
+        </view>
+
+        <!-- 右侧操作区 -->
+        <view class="card-actions">
+          <view class="action-btn" data-phone="{{item.phone}}" catchtap="callPhone">
+            <t-icon name="phone" size="28rpx" color="#00a8cc" />
+          </view>
+        </view>
+      </view>
+    </block>
   </view>
 
-  <t-fab icon="add" bind:click="addCustomer" class="fab-btn" />
+  <!-- 加载更多 -->
+  <view wx:if="{{loadingMore}}" class="load-more">加载中...</view>
+  <view wx:elif="{{!loading && customers.length > 0 && noMore}}" class="load-more">没有更多了</view>
+
+  <!-- FAB 新增客户 -->
+  <t-fab icon="add" bind:click="addCustomer" />
 </view>

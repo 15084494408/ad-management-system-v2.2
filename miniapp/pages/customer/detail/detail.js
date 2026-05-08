@@ -5,7 +5,11 @@ const helpers_1 = require("../../../utils/helpers");
 Page({
     data: {
         customerId: 0,
-        customer: null,
+        detail: null,
+        displayName: '',
+        balance: '0.00',
+        typeName: '普通',
+        memberLevelName: '',
         loading: true,
         activeTab: 'info',
         orders: [],
@@ -31,8 +35,15 @@ Page({
             const c = await (0, request_1.get)(`/customers/${this.data.customerId}`);
             const memberLevelName = { 1: '普通会员', 2: 'VIP会员', 3: '战略会员' };
             const typeLabel = { 1: '普通', 2: '工厂', 3: '零售' };
+            const displayName = c.name || c.customerName || '';
+            const typeName = typeLabel[c.customerType] || '普通';
             this.setData({
-                customer: Object.assign(Object.assign({}, c), { displayName: c.name || c.customerName || '', typeLabel: typeLabel[c.customerType] || '普通', memberLevelName: memberLevelName[c.memberLevel] || '普通会员', balance: (0, helpers_1.formatMoney)(c.balance || 0), totalRecharge: (0, helpers_1.formatMoney)(c.totalRecharge || 0), totalConsume: (0, helpers_1.formatMoney)(c.totalConsume || 0), totalAmount: (0, helpers_1.formatMoney)(c.totalAmount || 0), orderCount: c.orderCount || 0, isMember: c.isMember === 1, createTime: (0, helpers_1.formatDate)(c.createTime) })
+                detail: Object.assign(Object.assign({}, c), { displayName,
+                    typeName, memberLevelName: memberLevelName[c.memberLevel] || '普通会员', balance: (0, helpers_1.formatMoney)(c.balance || 0), totalRecharge: (0, helpers_1.formatMoney)(c.totalRecharge || 0), totalConsume: (0, helpers_1.formatMoney)(c.totalConsume || 0), totalAmount: (0, helpers_1.formatMoney)(c.totalAmount || 0), orderCount: c.orderCount || 0, isMember: c.isMember === 1, createTime: (0, helpers_1.formatDate)(c.createTime) }),
+                displayName,
+                typeName,
+                balance: (0, helpers_1.formatMoney)(c.balance || 0),
+                memberLevelName: memberLevelName[c.memberLevel] || ''
             });
         }
         catch (e) {
@@ -62,6 +73,9 @@ Page({
     recharge() {
         wx.navigateTo({ url: `/pages/customer/recharge/recharge?id=${this.data.customerId}` });
     },
+    consume() {
+        wx.navigateTo({ url: `/pages/customer/consume/consume?id=${this.data.customerId}` });
+    },
     async upgradeMember() {
         wx.showModal({
             title: '升级为会员',
@@ -80,7 +94,7 @@ Page({
     },
     callPhone() {
         var _a;
-        const phone = (_a = this.data.customer) === null || _a === void 0 ? void 0 : _a.phone;
+        const phone = (_a = this.data.detail) === null || _a === void 0 ? void 0 : _a.phone;
         if (phone)
             wx.makePhoneCall({ phoneNumber: phone });
     },
@@ -89,7 +103,7 @@ Page({
     },
     goTransactions() {
         var _a;
-        wx.navigateTo({ url: `/pages/member/transactions?id=${this.data.customerId}&name=${encodeURIComponent(((_a = this.data.customer) === null || _a === void 0 ? void 0 : _a.displayName) || '')}` });
+        wx.navigateTo({ url: `/pages/member/transactions?id=${this.data.customerId}&name=${encodeURIComponent(((_a = this.data.detail) === null || _a === void 0 ? void 0 : _a.displayName) || '')}` });
     },
     goOrderDetail(e) {
         wx.navigateTo({ url: `/pages/orders/detail/detail?id=${e.currentTarget.dataset.id}` });

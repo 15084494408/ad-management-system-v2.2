@@ -1,4 +1,4 @@
 .result { background: linear-gradient(135deg, #f8f9ff, #fff); border: 2rpx solid #E6F1FB; }
-.result-row { display: flex; justify-content: space-between; padding: 14rpx 0; font-size: 28rpx; color: #666; }
+.result-row { display: flex; justify-content: space-between; padding: 14rpx 0; font-size: 28rpx; color: #888; }
 .result-row.total { border-top: 1rpx solid #eee; margin-top: 8rpx; padding-top: 20rpx; }
-.result-row.total text:last-child { font-size: 36rpx; font-weight: 600; color: #E34D59; }
+.result-row.total .total-amount { font-size: 36rpx; font-weight: 600; color: #E34D59; }

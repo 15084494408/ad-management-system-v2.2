@@ -109,7 +109,11 @@ Page({
       statusText: ORDER_STATUS[item.status] || '未知',
       statusColor: ORDER_STATUS_COLOR[item.status] || 'default',
       totalAmount: formatMoney(item.totalAmount),
-      unpaidAmount: Math.max((item.totalAmount || 0) - (item.paidAmount || 0), 0),
+      // ★ 修复 P0-金额：待收金额需减去优惠、抹零
+      unpaidAmount: Math.max(
+        (item.totalAmount || 0) - (item.paidAmount || 0)
+        - (item.discountAmount || 0) - (item.roundingAmount || 0), 0
+      ),
       createTime: timeAgo(item.createTime)
     }
   },

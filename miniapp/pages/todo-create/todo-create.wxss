@@ -1,0 +1,106 @@
+.page-container {
+  padding: 24rpx 32rpx 160rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 表单区块 */
+.form-section {
+  margin-bottom: 32rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 16rpx;
+  display: flex;
+  align-items: center;
+}
+
+.required {
+  color: #ef4444;
+  margin-right: 8rpx;
+}
+
+/* 需求描述 */
+.desc-textarea {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+/* 客户信息卡片 */
+.form-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 8rpx 0;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+/* 优先级选择 */
+.priority-list {
+  display: flex;
+  gap: 20rpx;
+}
+
+.priority-item {
+  flex: 1;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  border: 2rpx solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.priority-item.active {
+  border-color: var(--active-color);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.priority-dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+}
+
+.priority-label {
+  font-size: 26rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.check-icon {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+}
+
+/* 底部按钮 */
+.footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24rpx 32rpx;
+  background: #fff;
+  display: flex;
+  gap: 24rpx;
+  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.06);
+  z-index: 100;
+}
+
+.cancel-btn {
+  flex: 1;
+}
+
+.submit-btn {
+  flex: 2;
+}

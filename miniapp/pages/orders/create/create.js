@@ -228,12 +228,16 @@ Page({
     recalcLine(index) {
         const materials = this.data.materials;
         const m = materials[index];
-        if (m.pricingType === 1 && (m.width || 0) > 0 && (m.height || 0) > 0) {
-            // 按面积计价
-            m.amount = parseFloat(((m.width || 0) * (m.height || 0) * m.unitPrice * m.quantity).toFixed(2));
+        if (m.pricingType === 1) {
+            // 按面积计价：数量 × (宽cm/100 × 高cm/100) × 单价
+            const qty = Math.max(1, m.quantity || 1);
+            const w = Math.max(0, m.width || 0) / 100;
+            const h = Math.max(0, m.height || 0) / 100;
+            const area = w * h * qty;
+            m.amount = parseFloat((area * m.unitPrice).toFixed(2));
         }
         else {
-            m.amount = parseFloat((m.quantity * m.unitPrice).toFixed(2));
+            m.amount = parseFloat((Math.max(1, m.quantity || 1) * m.unitPrice).toFixed(2));
         }
         const key = `materials[${index}].amount`;
         this.setData({ [key]: m.amount, materials });

@@ -59,6 +59,11 @@ Page({
                         wx.showToast({ title: '请输入有效金额', icon: 'none' });
                         return;
                     }
+                    // ★ 修复 P1-金额：禁止超额付款
+                    if (amount > unpaid) {
+                        wx.showToast({ title: `金额超出待付金额 ¥${(0, helpers_1.formatMoney)(unpaid)}`, icon: 'none' });
+                        return;
+                    }
                     try {
                         await (0, request_1.put)(`/factory/bills/${this.data.billId}/paid`, { amount });
                         wx.showToast({ title: '付款成功', icon: 'success' });

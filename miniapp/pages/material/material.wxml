@@ -27,17 +27,18 @@
   </view>
 
   <view class="material-list" wx:else>
-    <view class="material-card card" wx:for="{{materials}}" wx:key="id">
+      <view class="material-card card" wx:for="{{materials}}" wx:key="id">
       <view class="material-header">
         <text class="material-name">{{item.name}}</text>
         <view class="material-tags">
-          <t-tag wx:if="{{item.isWarning}}" size="small" theme="danger" variant="light">库存预警</t-tag>
+          <t-tag wx:if="{{item.noStock}}" size="small" theme="default" variant="light">不计库存</t-tag>
+          <t-tag wx:elif="{{item.isWarning}}" size="small" theme="danger" variant="light">库存预警</t-tag>
           <t-tag size="small" variant="light" theme="primary">{{item.pricingLabel}}</t-tag>
         </view>
       </view>
       <view class="material-body">
         <view class="material-info">
-          <view class="info-item">
+          <view wx:if="{{!item.noStock}}" class="info-item">
             <text class="info-label">库存</text>
             <text class="info-value {{item.isWarning ? 'warning' : ''}}">{{item.stockStr}} {{item.unit || ''}}</text>
           </view>
@@ -58,8 +59,12 @@
       <view class="material-footer">
         <text class="material-time">{{item.createTime}}</text>
         <view class="footer-actions">
-          <text class="edit-btn" data-id="{{item.id}}" bindtap="editMaterial">编辑</text>
-          <text class="delete-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteMaterial">删除</text>
+          <view class="icon-btn" data-id="{{item.id}}" bindtap="editMaterial">
+            <t-icon name="edit" size="32rpx" color="#00a8cc" />
+          </view>
+          <view class="icon-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteMaterial">
+            <t-icon name="delete" size="32rpx" color="#ef4444" />
+          </view>
         </view>
       </view>
     </view>

@@ -4,11 +4,29 @@ Page({
   data: {
     username: '',
     password: '',
-    loading: false
+    loading: false,
+    showPassword: false,
+    remember: false
   },
 
-  onUsernameChange(e: any) { this.setData({ username: e.detail.value }) },
-  onPasswordChange(e: any) { this.setData({ password: e.detail.value }) },
+  onLoad() {
+    const saved = wx.getStorageSync('saved_account')
+    if (saved) {
+      this.setData({ username: saved.username, password: saved.password, remember: true })
+    }
+  },
+
+  onFieldChange(e: any) {
+    this.setData({ [e.currentTarget.dataset.field]: e.detail.value })
+  },
+
+  onRememberChange(e: any) {
+    this.setData({ remember: e.detail.checked })
+  },
+
+  togglePassword() {
+    this.setData({ showPassword: !this.data.showPassword })
+  },
 
   async login() {
     if (!this.data.username) { wx.showToast({ title: '请输入账号', icon: 'none' }); return }
@@ -16,6 +34,11 @@ Page({
     this.setData({ loading: true })
     try {
       await passwordLogin(this.data.username, this.data.password)
+      if (this.data.remember) {
+        wx.setStorageSync('saved_account', { username: this.data.username, password: this.data.password })
+      } else {
+        wx.removeStorageSync('saved_account')
+      }
       wx.switchTab({ url: '/pages/index/index' })
     } catch (e) { /* handled in auth */ }
     finally { this.setData({ loading: false }) }

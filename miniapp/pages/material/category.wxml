@@ -6,7 +6,7 @@
     </view>
     <view class="category-item" wx:for="{{categories}}" wx:key="id">
       <view class="category-left">
-        <view class="category-dot" style="background: #667eea;"></view>
+        <view class="category-dot" style="background: #00d4ff;"></view>
         <text class="category-name">{{item.name}}</text>
         <text class="category-count" wx:if="{{item.materialCount}}">{{item.materialCount}}种物料</text>
       </view>

@@ -140,7 +140,8 @@
           <view class="mpi-meta">
             <text wx:if="{{item.spec}}">{{item.spec}}</text>
             <text wx:if="{{item.categoryName}}">{{item.categoryName}}</text>
-            <text wx:if="{{item.stock !== undefined}}">库存:{{item.stock}}</text>
+            <text wx:if="{{item.noStock}}">不计库存</text>
+            <text wx:elif="{{item.stock !== undefined}}">库存:{{item.stock}}</text>
           </view>
         </view>
       </scroll-view>

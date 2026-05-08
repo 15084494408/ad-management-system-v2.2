@@ -1,10 +1,22 @@
 <view class="page-container">
-  <!-- 状态Tab -->
-  <t-tabs value="{{activeTab}}" bind:change="onTabChange" space-evenly>
-    <t-tab-panel label="全部" value="all" />
-    <t-tab-panel label="处理中" value="pending" />
-    <t-tab-panel label="已完成" value="done" />
-  </t-tabs>
+  <!-- 顶部统计 + 状态Tab -->
+  <view class="tab-bar">
+    <view class="tab-item {{activeTab === 'all' ? 'active' : ''}}" data-value="all" bindtap="onTabChange">
+      <text>全部 ({{counts.todo + counts.order + counts.bill}})</text>
+    </view>
+    <view class="tab-item {{activeTab === 'todo' ? 'active' : ''}}" data-value="todo" bindtap="onTabChange">
+      <text>需求</text>
+      <view class="tab-badge" wx:if="{{counts.todo > 0}}">{{counts.todo}}</view>
+    </view>
+    <view class="tab-item {{activeTab === 'order' ? 'active' : ''}}" data-value="order" bindtap="onTabChange">
+      <text>订单</text>
+      <view class="tab-badge" wx:if="{{counts.order > 0}}">{{counts.order}}</view>
+    </view>
+    <view class="tab-item {{activeTab === 'bill' ? 'active' : ''}}" data-value="bill" bindtap="onTabChange">
+      <text>账单</text>
+      <view class="tab-badge" wx:if="{{counts.bill > 0}}">{{counts.bill}}</view>
+    </view>
+  </view>
 
   <!-- 加载状态 -->
   <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
@@ -12,62 +24,114 @@
   </view>
 
   <!-- 空状态 -->
-  <view wx:elif="{{todos.length === 0}}" class="empty-state">
-    <t-icon name="todo-list" size="96rpx" color="#ddd" />
-    <text class="empty-text">暂无待办事项</text>
+  <view wx:elif="{{displayItems.length === 0}}" class="empty-state">
+    <t-icon name="check-circle" size="96rpx" color="#10b981" />
+    <text class="empty-text">一切井然有序</text>
+    <text class="empty-sub">暂无待处理事项</text>
+    <t-button theme="primary" size="medium" bindtap="goCreate" style="margin-top:24rpx">
+      <t-icon name="add" size="32rpx" /> 新建需求
+    </t-button>
   </view>
 
-  <!-- 待办列表 -->
-  <view class="todo-list" wx:else>
-    <view class="todo-card card" wx:for="{{todos}}" wx:key="id">
-      <view class="todo-header">
-        <view class="todo-left">
-          <view class="priority-dot priority-{{item.priority || 1}}"></view>
-          <text class="todo-title">{{item.requirements || '待办事项'}}</text>
+  <!-- 聚合列表 -->
+  <view class="item-list" wx:else>
+    <!-- 需求待办卡片 -->
+    <view class="todo-card card item-type-todo" wx:for="{{displayItems}}" wx:key="id" wx:if="{{item.type === 'todo'}}">
+      <view class="card-header">
+        <view class="card-left">
+          <view class="type-icon type-todo-icon">
+            <t-icon name="edit" size="28rpx" color="#00a8cc" />
+          </view>
+          <view class="card-title-area">
+            <text class="card-title">{{item.title}}</text>
+            <text class="card-subtitle" wx:if="{{item.subtitle}}">{{item.subtitle}}</text>
+          </view>
         </view>
-        <t-tag size="small" variant="light" theme="{{item.status >= 3 ? 'success' : item.status >= 2 ? 'primary' : 'warning'}}">{{item.statusLabel}}</t-tag>
-      </view>
-
-      <view class="todo-body" wx:if="{{item.customerName || item.contactPhone || item.source}}">
-        <text class="todo-meta" wx:if="{{item.customerName}}">{{item.customerName}}</text>
-        <text class="todo-meta" wx:if="{{item.contactPhone}}">{{item.contactPhone}}</text>
-        <text class="todo-meta" wx:if="{{item.source}}">{{item.source}}</text>
-      </view>
-
-      <view class="todo-footer">
-        <text class="todo-time">{{item.createTime}}</text>
-        <view class="todo-actions">
-          <text class="action-btn complete" wx:if="{{item.status < 4}}" data-id="{{item.id}}" data-status="4" data-label="已转订单" bindtap="updateStatus">完成</text>
-          <text class="action-btn more" wx:if="{{item.status < 3}}" data-id="{{item.id}}" bindtap="updateStatus">推进</text>
-          <text class="action-btn delete" data-id="{{item.id}}" bindtap="deleteTodo">删除</text>
+        <view class="card-right">
+          <!-- 优先级角标 -->
+          <view class="priority-badge priority-{{item.priority || 1}}">
+            <text>{{item.priorityLabel}}</text>
+          </view>
         </view>
+      </view>
+      <view class="card-bottom">
+        <view class="card-tags">
+          <t-tag size="small" variant="light" theme="primary">{{item.statusLabel}}</t-tag>
+          <view class="card-time">{{item.createTime}}</view>
+        </view>
+        <view class="card-actions">
+          <view class="action-icon-btn" data-id="{{item.id}}" bindtap="completeTodo">
+            <t-icon name="check" size="30rpx" color="#10b981" />
+          </view>
+          <view class="action-icon-btn" data-id="{{item.id}}" bindtap="updateTodoStatus">
+            <t-icon name="chevron-right" size="30rpx" color="#00a8cc" />
+          </view>
+          <view class="action-icon-btn" data-id="{{item.id}}" bindtap="deleteTodo">
+            <t-icon name="delete" size="30rpx" color="#ef4444" />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 订单卡片 -->
+    <view class="todo-card card item-type-order" wx:for="{{displayItems}}" wx:key="id" wx:if="{{item.type === 'order'}}" data-id="{{item.id}}" bindtap="goOrderDetail">
+      <view class="card-header">
+        <view class="card-left">
+          <view class="type-icon type-order-icon">
+            <t-icon name="order" size="28rpx" color="#f59e0b" />
+          </view>
+          <view class="card-title-area">
+            <text class="card-title">{{item.title}}</text>
+            <text class="card-subtitle">{{item.subtitle}}</text>
+          </view>
+        </view>
+        <view class="card-right">
+          <!-- 优先级角标 -->
+          <view class="priority-badge priority-{{item.priority || 1}}">
+            <text>{{item.priorityLabel}}</text>
+          </view>
+          <text class="card-amount">{{item.amount}}</text>
+        </view>
+      </view>
+      <view class="card-bottom">
+        <view class="card-tags">
+          <t-tag size="small" variant="light" theme="warning">待处理</t-tag>
+          <view class="card-time">{{item.createTime}}</view>
+        </view>
+        <text class="card-arrow">
+          <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+        </text>
+      </view>
+    </view>
+
+    <!-- 账单卡片 -->
+    <view class="todo-card card item-type-bill" wx:for="{{displayItems}}" wx:key="id" wx:if="{{item.type === 'bill'}}" data-id="{{item.id}}" data-billtype="{{item.rawData.billType}}" bindtap="goBillDetail">
+      <view class="card-header">
+        <view class="card-left">
+          <view class="type-icon type-bill-icon">
+            <t-icon name="file-copy" size="28rpx" color="#8b5cf6" />
+          </view>
+          <view class="card-title-area">
+            <text class="card-title">{{item.title}}</text>
+            <text class="card-subtitle">{{item.subtitle}}</text>
+          </view>
+        </view>
+        <view class="card-right">
+          <text class="card-amount card-amount-purple">{{item.amount}}</text>
+        </view>
+      </view>
+      <view class="card-bottom">
+        <view class="card-tags">
+          <t-tag size="small" variant="light" theme="default">未对账</t-tag>
+          <t-tag wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" size="small" variant="outline" theme="primary">{{tag}}</t-tag>
+        </view>
+        <text class="card-arrow">
+          <t-icon name="chevron-right" size="32rpx" color="#ccc" />
+        </text>
       </view>
     </view>
   </view>
 
-  <!-- 浮动新增 -->
-  <t-fab icon="add" bind:click="showCreateDialog" class="fab-btn" />
-
-  <!-- 新建待办弹窗 -->
-  <t-popup visible="{{showCreate}}" placement="bottom" bind:close="hideCreateDialog">
-    <view class="popup-content safe-bottom">
-      <view class="popup-header">
-        <text class="popup-title">新建待办</text>
-        <t-icon name="close" size="40rpx" color="#999" bindtap="hideCreateDialog" />
-      </view>
-      <t-textarea label="需求描述" placeholder="请输入需求描述" value="{{newTodo.requirements}}" maxlength="500" bind:change="onNewFieldChange" data-field="requirements" />
-      <t-input label="客户名称" placeholder="选填" value="{{newTodo.customerName}}" bind:change="onNewFieldChange" data-field="customerName" />
-      <t-input label="联系电话" placeholder="选填" type="number" value="{{newTodo.contactPhone}}" bind:change="onNewFieldChange" data-field="contactPhone" />
-      <t-input label="来源" placeholder="选填，如电话/微信/到店" value="{{newTodo.source}}" bind:change="onNewFieldChange" data-field="source" />
-      <view class="form-group">
-        <text class="form-label">优先级</text>
-        <t-radio-group value="{{newTodo.priority}}" bind:change="onPriorityChange">
-          <t-radio value="1" label="普通" />
-          <t-radio value="2" label="紧急" />
-          <t-radio value="3" label="非常紧急" />
-        </t-radio-group>
-      </view>
-      <t-button theme="primary" block size="large" bindtap="createTodo" style="margin-top:24rpx">创建待办</t-button>
-    </view>
-  </t-popup>
+  <!-- 浮动新增按钮 -->
+  <t-fab icon="add" bind:click="goCreate" class="fab-btn" />
 </view>

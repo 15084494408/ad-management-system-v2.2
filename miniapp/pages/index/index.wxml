@@ -1,35 +1,216 @@
+<view class="page-container">
+
+  <!-- 欢迎卡片 -->
+  <view class="welcome-card">
+    <view class="welcome-left">
+      <view class="welcome-avatar">{{userInfo.nickname ? userInfo.nickname[0] : 'A'}}</view>
+      <view class="welcome-text">
+        <text class="welcome-name">{{userInfo.nickname || '管理员'}}</text>
+        <text class="welcome-date">{{todayStr}}</text>
+      </view>
+    </view>
+    <view class="welcome-right">
+      <t-icon name="notification" size="44rpx" color="rgba(255,255,255,0.8)" bindtap="goMessages" />
+    </view>
+  </view>
+
+  <!-- 骨架屏 -->
+  <block wx:if="{{loading}}">
+    <view class="stats-grid skeleton-grid">
+      <view class="skeleton-card" wx:for="{{4}}" wx:key="*this"></view>
+    </view>
+  </block>
+
+  <!-- 数据概览 -->
+  <view class="stats-grid" wx:else>
+    <view class="stat-card stat-cyan animate-in" wx:if="{{stats}}">
+      <view class="stat-card-inner">
+        <t-icon name="order" size="36rpx" color="#00a8cc" />
+        <text class="stat-value">{{stats.todayOrders}}</text>
+        <text class="stat-label">今日订单</text>
+      </view>
+    </view>
+    <view class="stat-card stat-green animate-in" wx:if="{{stats}}">
+      <view class="stat-card-inner">
+        <t-icon name="bank-filled" size="36rpx" color="#10b981" />
+        <text class="stat-value">¥{{stats.todayRevenue}}</text>
+        <text class="stat-label">今日收入</text>
+      </view>
+    </view>
+    <view class="stat-card stat-orange animate-in" wx:if="{{stats}}">
+      <view class="stat-card-inner">
+        <t-icon name="shop" size="36rpx" color="#f59e0b" />
+        <text class="stat-value">{{stats.pendingOrders}}</text>
+        <text class="stat-label">待处理</text>
+      </view>
+      <view class="badge-dot" wx:if="{{unreadCount > 0}}">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
+    </view>
+    <view class="stat-card stat-red animate-in" wx:if="{{stats}}">
+      <view class="stat-card-inner">
+        <t-icon name="time" size="36rpx" color="#ef4444" />
+        <text class="stat-value">¥{{stats.unpaidAmount}}</text>
+        <text class="stat-label">待收款</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 快捷操作 -->
+  <view class="card">
+    <view class="section-header">
+      <text class="section-title">快捷操作</text>
+    </view>
+    <view class="quick-actions">
+      <view class="action-item" bindtap="createOrder">
+        <view class="action-icon" style="background: rgba(0,212,255,0.12);">
+          <t-icon name="add" size="40rpx" color="#00d4ff" />
+        </view>
+        <text class="action-text">创建订单</text>
+      </view>
+      <view class="action-item" bindtap="createQuote">
+        <view class="action-icon" style="background: rgba(123,47,247,0.12);">
+          <t-icon name="file" size="40rpx" color="#7b2ff7" />
+        </view>
+        <text class="action-text">快速报价</text>
+      </view>
+      <view class="action-item" bindtap="addCustomer">
+        <view class="action-icon" style="background: rgba(102,187,106,0.12);">
+          <t-icon name="user-add" size="40rpx" color="#66bb6a" />
+        </view>
+        <text class="action-text">新增客户</text>
+      </view>
+      <view class="action-item" bindtap="goOrders">
+        <view class="action-icon" style="background: rgba(255,169,64,0.12);">
+          <t-icon name="order" size="40rpx" color="#ffa940" />
+        </view>
+        <text class="action-text">全部订单</text>
+      </view>
+    </view>
+
     <!-- 更多功能入口 -->
     <view class="more-grid">
       <view class="more-item" bindtap="goMemberList">
-        <t-icon name="usergroup" size="36rpx" color="#faad14" />
+        <view class="more-icon" style="background: rgba(250,173,20,0.12);">
+          <t-icon name="usergroup" size="32rpx" color="#faad14" />
+        </view>
         <text>会员管理</text>
       </view>
       <view class="more-item" bindtap="goMaterial">
-        <t-icon name="folder" size="36rpx" color="#0052D9" />
+        <view class="more-icon" style="background: rgba(0,212,255,0.12);">
+          <t-icon name="folder" size="32rpx" color="#00d4ff" />
+        </view>
         <text>物料管理</text>
       </view>
       <view class="more-item" bindtap="goStockIn">
-        <t-icon name="download" size="36rpx" color="#0F6E56" />
+        <view class="more-icon" style="background: rgba(102,187,106,0.12);">
+          <t-icon name="download" size="32rpx" color="#66bb6a" />
+        </view>
         <text>物料入库</text>
       </view>
       <view class="more-item" bindtap="goStockOut">
-        <t-icon name="upload" size="36rpx" color="#E34D59" />
+        <view class="more-icon" style="background: rgba(255,107,107,0.12);">
+          <t-icon name="upload" size="32rpx" color="#ff6b6b" />
+        </view>
         <text>物料出库</text>
       </view>
       <view class="more-item" bindtap="goCustomerBills">
-        <t-icon name="file-copy" size="36rpx" color="#E37318" />
+        <view class="more-icon" style="background: rgba(255,169,64,0.12);">
+          <t-icon name="file-copy" size="32rpx" color="#ffa940" />
+        </view>
         <text>客户账单</text>
       </view>
       <view class="more-item" bindtap="goFactoryBills">
-        <t-icon name="shop" size="36rpx" color="#667eea" />
+        <view class="more-icon" style="background: rgba(123,47,247,0.12);">
+          <t-icon name="shop" size="32rpx" color="#7b2ff7" />
+        </view>
         <text>工厂账单</text>
       </view>
+      <view class="more-item" bindtap="goFinance">
+        <view class="more-icon" style="background: rgba(16,185,129,0.12);">
+          <t-icon name="bank-filled" size="32rpx" color="#10b981" />
+        </view>
+        <text>财务管理</text>
+      </view>
+      <view class="more-item" bindtap="goDesignFiles">
+        <view class="more-icon" style="background: rgba(139,92,246,0.12);">
+          <t-icon name="file-paste" size="32rpx" color="#8b5cf6" />
+        </view>
+        <text>设计文件</text>
+      </view>
       <view class="more-item" bindtap="goUsers">
-        <t-icon name="user" size="36rpx" color="#722ed1" />
+        <view class="more-icon" style="background: rgba(171,71,188,0.12);">
+          <t-icon name="user" size="32rpx" color="#ab47bc" />
+        </view>
         <text>用户管理</text>
       </view>
       <view class="more-item" bindtap="goCompany">
-        <t-icon name="building" size="36rpx" color="#13c2c2" />
+        <view class="more-icon" style="background: rgba(0,212,255,0.12);">
+          <t-icon name="building" size="32rpx" color="#00d4ff" />
+        </view>
         <text>公司管理</text>
       </view>
     </view>
+  </view>
+
+  <!-- 待办概览 -->
+  <view class="card" wx:if="{{todos.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">待办事项</text>
+      <text class="section-more" bindtap="goTodo">查看全部 ></text>
+    </view>
+    <view wx:for="{{todos}}" wx:key="id" class="todo-item" bindtap="{{item.type === 'todo' ? 'onTodo' : item.type === 'order' ? 'goOrderDetail' : ''}}" data-id="{{item.id}}">
+      <view class="todo-type-dot todo-dot-{{item.type}}"></view>
+      <view class="todo-info">
+        <text class="todo-text">{{item.title}}</text>
+        <text class="todo-meta" wx:if="{{item.subtitle}}">{{item.subtitle}}</text>
+      </view>
+      <text class="todo-amount" wx:if="{{item.amount}}">{{item.amount}}</text>
+      <t-icon name="chevron-right" size="28rpx" color="#ccc" wx:if="{{item.type !== 'todo'}}" />
+      <text class="todo-time" wx:else>{{item.createTime}}</text>
+    </view>
+  </view>
+
+  <!-- 系统公告 -->
+  <view class="card notice-card" wx:if="{{notices.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">系统公告</text>
+      <text class="section-more" bindtap="goMessages">查看全部 ></text>
+    </view>
+    <view wx:for="{{notices}}" wx:key="id" class="notice-item-card" bindtap="readNotice" data-item="{{item}}">
+      <view class="notice-icon-wrap">
+        <t-icon name="notification" size="28rpx" color="#00a8cc" />
+      </view>
+      <view class="notice-content">
+        <text class="notice-title">{{item.title}}</text>
+        <text class="notice-time">{{item.createTime}}</text>
+      </view>
+      <t-icon name="chevron-right" size="28rpx" color="#ccc" />
+    </view>
+  </view>
+
+  <!-- 最近订单 -->
+  <view class="card">
+    <view class="section-header">
+      <text class="section-title">最近订单</text>
+      <text class="section-more" bindtap="goOrders">查看全部 ></text>
+    </view>
+    <view wx:if="{{orderLoading}}" class="empty-state">加载中...</view>
+    <block wx:elif="{{orders.length > 0}}">
+      <view wx:for="{{orders}}" wx:key="id" class="order-item" bindtap="goOrderDetail" data-id="{{item.id}}">
+        <view class="order-header">
+          <text class="order-no">{{item.orderNo}}</text>
+          <t-tag size="small" theme="{{item.statusColor}}" variant="light">{{item.statusText}}</t-tag>
+        </view>
+        <view class="order-body">
+          <text class="order-customer">{{item.customerName || '散客'}}</text>
+          <text class="order-amount">{{item.totalAmount}}</text>
+        </view>
+        <view class="order-footer">
+          <text class="order-time">{{item.createTime}}</text>
+          <text class="order-unpaid" wx:if="{{item.unpaidAmount > 0}}">待收 ¥{{item.unpaidAmount}}</text>
+        </view>
+      </view>
+    </block>
+    <view wx:else class="empty-state">暂无订单数据</view>
+  </view>
+
+</view>

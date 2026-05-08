@@ -58,6 +58,8 @@ Page({
         if (res.confirm && res.content) {
           const amount = parseFloat(res.content)
           if (isNaN(amount) || amount <= 0) { wx.showToast({ title: '请输入有效金额', icon: 'none' }); return }
+          // ★ 修复 P1-金额：禁止超额付款
+          if (amount > unpaid) { wx.showToast({ title: `金额超出待付金额 ¥${formatMoney(unpaid)}`, icon: 'none' }); return }
           try {
             await put(`/factory/bills/${this.data.billId}/paid`, { amount })
             wx.showToast({ title: '付款成功', icon: 'success' })

@@ -10,14 +10,14 @@
       </div>
     </div>
 
-    <!-- 顶部大Tab：待办 / 待收款 -->
+    <!-- 顶部大Tab：待办 / 待收款 / 未对账 -->
     <div class="top-tabs">
       <div
         class="top-tab"
         :class="{ active: activeTopTab === 'todo' }"
         @click="activeTopTab = 'todo'"
       >
-        📋 待办事项
+        📋 需求待办
         <span class="count">{{ todoTotalCount }}</span>
       </div>
       <div
@@ -25,8 +25,16 @@
         :class="{ active: activeTopTab === 'payment' }"
         @click="switchToPaymentTab"
       >
-        📊 未完成订单
+        📦 待处理订单
         <span class="count" :class="{ warn: pendingPaymentCount > 0 }">{{ pendingPaymentCount }}</span>
+      </div>
+      <div
+        class="top-tab"
+        :class="{ active: activeTopTab === 'bill' }"
+        @click="switchToBillTab"
+      >
+        🧾 未对账账单
+        <span class="count" :class="{ warn: pendingBillCount > 0 }">{{ pendingBillCount }}</span>
       </div>
     </div>
 
@@ -159,14 +167,14 @@
       <!-- 空状态 -->
       <div v-else-if="pendingPayments.length === 0" class="empty-state">
         <div class="empty-icon">✅</div>
-        <div class="empty-title">暂无未完成订单</div>
-        <div class="empty-desc">所有订单都已结清完成，干得漂亮！</div>
+        <div class="empty-title">暂无待处理订单</div>
+        <div class="empty-desc">所有订单都已处理完成，干得漂亮！</div>
       </div>
 
       <!-- 未完成订单列表 -->
       <div v-else class="payment-list">
         <div class="payment-summary">
-          <span>共 <strong>{{ pendingPayments.length }}</strong> 笔未完成订单</span>
+          <span>共 <strong>{{ pendingPayments.length }}</strong> 笔待处理订单</span>
           <span class="sep">|</span>
           <span>待收款 <strong class="text-danger">{{ unpaidCount }}</strong> 笔，</span>
           <span>合计 <strong class="text-danger">¥{{ formatMoney(totalUnpaid) }}</strong></span>
@@ -181,7 +189,6 @@
           >
             <div class="payment-header">
               <div class="order-no">📄 {{ p.orderNo }}</div>
-              <!-- 只显示一个主状态标签 -->
               <div class="main-status-tag" :class="'mst-' + getMainStatusClass(p.mainStatus)">
                 {{ getMainStatusIcon(p.mainStatus) }} {{ p.mainStatus }}
               </div>
@@ -192,7 +199,6 @@
             </div>
             <div class="payment-title" v-if="p.title">{{ p.title }}</div>
 
-            <!-- 金额信息（仅待收款状态显示详细金额，其他状态只显示总额） -->
             <div v-if="hasUnpaidAmount(p)" class="payment-amounts">
               <div class="amount-row">
                 <span class="amount-label">应收</span>
@@ -234,6 +240,65 @@
                 @click.stop="collectPayment(p)"
               >
                 💰 收款
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ===== 未对账账单 Tab ===== -->
+    <template v-if="activeTopTab === 'bill'">
+      <div v-if="billLoading" class="loading-state">
+        <div class="loading-spinner"></div>
+        正在加载未对账账单...
+      </div>
+
+      <div v-else-if="pendingBills.length === 0" class="empty-state">
+        <div class="empty-icon">🧾</div>
+        <div class="empty-title">暂无未对账账单</div>
+        <div class="empty-desc">所有账单都已对账完成</div>
+      </div>
+
+      <div v-else class="bill-list">
+        <div class="bill-summary">
+          <span>共 <strong>{{ pendingBills.length }}</strong> 笔未对账账单</span>
+          <span class="sep">|</span>
+          <span>合计金额 <strong class="text-purple">¥{{ formatMoney(totalBillAmount) }}</strong></span>
+        </div>
+        <div class="bill-grid">
+          <div
+            v-for="b in pendingBills"
+            :key="b.id"
+            class="bill-card"
+            :class="b.billType === 1 ? 'bill-factory' : 'bill-customer'"
+            @click="viewBillDetail(b)"
+          >
+            <div class="bill-header">
+              <div class="bill-no">📄 {{ b.billNo }}</div>
+              <span class="bill-type-tag" :class="b.billType === 1 ? 'factory' : 'customer'">
+                {{ b.billType === 1 ? '🏭 工厂' : '👤 客户' }}
+              </span>
+            </div>
+            <div class="bill-customer-name">
+              <div class="customer-avatar-sm bill-avatar">{{ getAvatar(b.factoryName) }}</div>
+              <span>{{ b.factoryName || '-' }}</span>
+            </div>
+            <div class="bill-month" v-if="b.month">📅 {{ b.month }}</div>
+            <div class="bill-amounts">
+              <div class="amount-row total">
+                <span class="amount-label">账单金额</span>
+                <span class="amount-value bill-amount">¥{{ formatMoney(b.totalAmount) }}</span>
+              </div>
+              <div class="amount-row" v-if="b.paidAmount && b.paidAmount > 0">
+                <span class="amount-label">已付</span>
+                <span class="amount-value paid">¥{{ formatMoney(b.paidAmount) }}</span>
+              </div>
+            </div>
+            <div class="bill-footer">
+              <span class="date">{{ formatDate(b.createTime) }}</span>
+              <button class="action-btn reconcile-btn" @click.stop="reconcileBill(b)">
+                ✅ 对账
               </button>
             </div>
           </div>
@@ -422,11 +487,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { todoApi } from '@/api/modules/todo'
 import { orderApi } from '@/api/modules/order'
+import { factoryApi } from '@/api/modules/factory'
 
 const router = useRouter()
-const activeTopTab = ref<'todo' | 'payment'>('todo')
+const activeTopTab = ref<'todo' | 'payment' | 'bill'>('todo')
 const todoLoading = ref(false)
 const paymentLoading = ref(false)
+const billLoading = ref(false)
 const filterStatus = ref<number | null>(null)
 const showAddDialog = ref(false)
 const showDetail = ref(false)
@@ -439,6 +506,8 @@ const paymentSubmitting = ref(false)
 const allItems = ref<any[]>([])
 const pendingPayments = ref<any[]>([])
 const pendingPaymentCount = ref(0)
+const pendingBills = ref<any[]>([])
+const pendingBillCount = ref(0)
 
 const statusList = ref([
   { value: 1, label: '新收集', icon: '💡', count: 0 },
@@ -488,6 +557,13 @@ const unpaidCount = computed(() => {
     const amt = typeof p.unpaidAmount === 'number' ? p.unpaidAmount : parseFloat(p.unpaidAmount || 0)
     return amt > 0
   }).length
+})
+
+const totalBillAmount = computed(() => {
+  return pendingBills.value.reduce((sum, b) => {
+    const amt = typeof b.totalAmount === 'number' ? b.totalAmount : parseFloat(b.totalAmount || 0)
+    return sum + (isNaN(amt) ? 0 : amt)
+  }, 0)
 })
 
 function hasUnpaidAmount(p: any) {
@@ -554,7 +630,7 @@ async function loadPendingPayments() {
     pendingPayments.value = Array.isArray(data) ? data : []
     pendingPaymentCount.value = pendingPayments.value.length
   } catch (e: any) {
-    ElMessage.error('加载待收款数据失败：' + (e.message || '未知错误'))
+    ElMessage.error('加载待处理订单失败：' + (e.message || '未知错误'))
     pendingPayments.value = []
     pendingPaymentCount.value = 0
   } finally {
@@ -562,10 +638,33 @@ async function loadPendingPayments() {
   }
 }
 
+async function loadPendingBills() {
+  billLoading.value = true
+  try {
+    const res = await factoryApi.getBills({ status: 1, current: 1, size: 50 })
+    const records = res.data?.records || []
+    pendingBills.value = records
+    pendingBillCount.value = records.length
+  } catch (e: any) {
+    ElMessage.error('加载账单失败：' + (e.message || '未知错误'))
+    pendingBills.value = []
+    pendingBillCount.value = 0
+  } finally {
+    billLoading.value = false
+  }
+}
+
 function switchToPaymentTab() {
   activeTopTab.value = 'payment'
   if (pendingPayments.value.length === 0 && !paymentLoading.value) {
     loadPendingPayments()
+  }
+}
+
+function switchToBillTab() {
+  activeTopTab.value = 'bill'
+  if (pendingBills.value.length === 0 && !billLoading.value) {
+    loadPendingBills()
   }
 }
 
@@ -578,12 +677,25 @@ function viewOrderDetail(p: any) {
   router.push({ name: 'OrderDetail', params: { id: p.id } })
 }
 
+function viewBillDetail(b: any) {
+  router.push({ name: b.billType === 1 ? 'FactoryBills' : 'CustomerBills' })
+}
+
 function collectPayment(p: any) {
   currentPaymentOrder.value = p
   paymentForm.amount = p.unpaidAmount ? String(Number(p.unpaidAmount).toFixed(2)) : ''
   paymentForm.writeOff = false
   paymentForm.remark = ''
   showPaymentDialog.value = true
+}
+
+async function reconcileBill(b: any) {
+  try {
+    await ElMessageBox.confirm(`确认对账「${b.billNo}」？`, '对账确认', { type: 'info' })
+    await factoryApi.reconcile(b.id)
+    ElMessage.success('对账成功')
+    await loadPendingBills()
+  } catch {}
 }
 
 async function submitPayment() {
@@ -602,7 +714,6 @@ async function submitPayment() {
     })
     ElMessage.success('收款成功！')
     showPaymentDialog.value = false
-    // 重新加载待收款列表
     await loadPendingPayments()
   } catch (e: any) {
     ElMessage.error('收款失败：' + (e.message || '未知错误'))
@@ -706,11 +817,11 @@ onMounted(() => {
 
 /* 顶部大Tab */
 .top-tabs {
-  display: flex; gap: 12px; margin-bottom: 20px;
+  display: flex; gap: 8px; margin-bottom: 20px;
   padding: 6px; background: #f5f7fa; border-radius: 14px;
 }
 .top-tab {
-  flex: 1; padding: 12px 20px; border-radius: 10px;
+  flex: 1; padding: 12px 16px; border-radius: 10px;
   cursor: pointer; font-size: 14px; font-weight: 600;
   color: #606266; background: transparent;
   transition: all 0.25s; text-align: center;
@@ -814,18 +925,21 @@ onMounted(() => {
   &.view-btn { background: #ecf5ff; color: #409eff; }
   &.collect-btn { background: linear-gradient(135deg, #e6a23c, #f56c6c); color: #fff; }
   &.collect-btn:hover { transform: scale(1.05); }
+  &.reconcile-btn { background: linear-gradient(135deg, #8b5cf6, #a78bfa); color: #fff; }
+  &.reconcile-btn:hover { transform: scale(1.05); box-shadow: 0 3px 10px rgba(139,92,246,0.4); }
 }
 .order-tag { position: absolute; bottom: 14px; right: 18px; font-size: 11px; color: #67c23a; font-weight: 600; }
 
 /* 待收款/未完成订单列表 */
 .payment-list { margin-top: 4px; }
-.payment-summary {
+.payment-summary, .bill-summary {
   background: #fff; border-radius: 12px; padding: 14px 20px;
   margin-bottom: 16px; font-size: 14px; color: #606266;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   strong { color: #303133; }
   .sep { margin: 0 8px; color: #dcdfe6; }
   .text-danger { color: #f56c6c; }
+  .text-purple { color: #8b5cf6; }
 }
 .payment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .payment-card {
@@ -833,7 +947,6 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(0,0,0,0.06); cursor: pointer;
   transition: all 0.25s; border: 2px solid transparent;
   &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: #d0e8ff; }
-  // 主状态左边框颜色
   &.main-status-unpaid { border-left: 4px solid #f56c6c; }
   &.main-status-partial { border-left: 4px solid #e6a23c; }
   &.main-status-processing { border-left: 4px solid #409eff; }
@@ -842,7 +955,6 @@ onMounted(() => {
 .payment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .order-no { font-size: 14px; font-weight: 700; color: #303133; }
 
-/* 主状态标签 — 每个订单只显示一个 */
 .main-status-tag {
   font-size: 12px; padding: 3px 12px; border-radius: 12px; font-weight: 700;
   &.mst-unpaid { background: #fef0f0; color: #f56c6c; }
@@ -870,8 +982,34 @@ onMounted(() => {
   &.paid { color: #67c23a; }
   &.discount { color: #e6a23c; }
   &.unpaid { color: #f56c6c; font-size: 15px; }
+  &.bill-amount { color: #8b5cf6; font-size: 15px; }
 }
 .payment-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; margin-top: 10px; border-top: 1px solid #f0f0f0; }
+
+/* 未对账账单 */
+.bill-list { margin-top: 4px; }
+.bill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.bill-card {
+  background: #fff; border-radius: 14px; padding: 18px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06); cursor: pointer;
+  transition: all 0.25s; border: 2px solid transparent;
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: #e0d4f7; }
+  &.bill-factory { border-left: 4px solid #f59e0b; }
+  &.bill-customer { border-left: 4px solid #8b5cf6; }
+}
+.bill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.bill-no { font-size: 14px; font-weight: 700; color: #303133; }
+.bill-type-tag {
+  font-size: 12px; padding: 3px 12px; border-radius: 12px; font-weight: 600;
+  &.factory { background: #fdf6ec; color: #e6a23c; }
+  &.customer { background: #f3e8ff; color: #8b5cf6; }
+}
+.bill-customer-name { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #303133; }
+.bill-avatar {
+  background: linear-gradient(135deg, #8b5cf6, #a78bfa) !important;
+}
+.bill-month { font-size: 12px; color: #909399; margin-bottom: 10px; }
+.bill-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; margin-top: 10px; border-top: 1px solid #f0f0f0; }
 
 /* 弹窗 */
 .modal-overlay {

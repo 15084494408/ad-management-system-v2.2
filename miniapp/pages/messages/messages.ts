@@ -1,98 +1,93 @@
-import { get, patch } from '../../utils/request'
+import { get, put } from '../../utils/request'
 import { timeAgo } from '../../utils/helpers'
 
 Page({
   data: {
-    activeTab: 'todo',
-    todos: [] as any[],
-    notices: [] as any[],
-    loading: false
+    list: [] as any[],
+    unreadCount: 0,
+    loading: false,
+    page: 1,
+    noMore: false
   },
 
-  onLoad() { this.loadData() },
-  onShow() { this.loadData() },
-
-  onTabChange(e: any) {
-    this.setData({ activeTab: e.detail.value })
+  onLoad() {
     this.loadData()
+    this.loadUnreadCount()
   },
 
-  async loadData() {
+  onShow() {
+    this.loadData()
+    this.loadUnreadCount()
+  },
+
+  onPullDownRefresh() {
+    this.setData({ page: 1, noMore: false })
+    Promise.all([this.loadData(), this.loadUnreadCount()])
+      .then(() => wx.stopPullDownRefresh())
+  },
+
+  onReachBottom() {
+    if (!this.data.noMore && !this.data.loading) {
+      this.setData({ page: this.data.page + 1 })
+      this.loadData(true)
+    }
+  },
+
+  async loadData(append = false) {
     this.setData({ loading: true })
-    if (this.data.activeTab === 'todo') {
-      await this.loadTodos()
-    } else {
-      await this.loadNotices()
-    }
-    this.setData({ loading: false })
-  },
-
-  /** 加载待办：GET /todo/list */
-  async loadTodos() {
     try {
-      const res = await get<any>('/todo/list', null, { showLoading: false })
-      // 后端返回 [{ items: [...], statusCount: {...} }]
-      const items = (Array.isArray(res) && res.length > 0) ? res[0].items || [] : res.items || []
+      const res = await get<any>('/notice', { current: this.data.page, size: 20 }, { showLoading: false })
+      const records = (res.records || []).map((n: any) => ({
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        type: n.type || 1,
+        read: n.read || false,
+        createTime: timeAgo(n.createTime)
+      }))
       this.setData({
-        todos: items.map((t: any) => ({
-          id: t.id,
-          title: t.requirements || t.customerName || '待办事项',
-          content: t.requirements || '',
-          status: t.status, // 1=新收集 2=分析中 3=待确认 4=已转订单
-          statusLabel: t.statusLabel || '',
-          priority: t.priority || 0,
-          customerName: t.customerName || '',
-          contactPhone: t.contactPhone || '',
-          source: t.source || '',
-          createTime: timeAgo(t.createTime)
-        }))
+        list: append ? [...this.data.list, ...records] : records,
+        noMore: !res.records || res.records.length < 20
       })
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error('加载消息失败', e) }
+    finally { this.setData({ loading: false }) }
   },
 
-  /** 加载公告：GET /notice */
-  async loadNotices() {
+  async loadUnreadCount() {
     try {
-      const res = await get<any>('/notice', { current: 1, size: 50 }, { showLoading: false })
-      this.setData({
-        notices: (res.records || []).map((n: any) => ({
-          id: n.id,
-          title: n.title,
-          content: n.content,
-          type: n.type,
-          createTime: timeAgo(n.createTime)
-        }))
-      })
-    } catch (e) { console.error(e) }
+      const res = await get<any>('/notice/unread-count', null, { showLoading: false })
+      this.setData({ unreadCount: res.count || 0 })
+    } catch (e) { /* ignore */ }
   },
 
-  /** 完成待办：PATCH /todo/{id}/status */
-  toggleTodo(e: any) {
+  async markAsRead(e: any) {
     const id = e.currentTarget.dataset.id
-    wx.showModal({
-      title: '确认完成',
-      content: '确认此待办已完成？',
-      success: async (res) => {
-        if (res.confirm) {
-          try {
-            await patch(`/todo/${id}/status`, { status: 4 })
-            wx.showToast({ title: '已完成', icon: 'success' })
-            this.loadTodos()
-          } catch (e) { console.error(e) }
-        }
-      }
-    })
+    const item = this.data.list.find((n: any) => n.id === id)
+    if (item?.read) return
+    try {
+      await put(`/notice/${id}/read`, null, { showLoading: false })
+      // 更新本地状态
+      const list = this.data.list.map((n: any) => n.id === id ? { ...n, read: true } : n)
+      this.setData({
+        list,
+        unreadCount: Math.max(0, this.data.unreadCount - 1)
+      })
+      // 更新全局未读数
+      const app = getApp() as any
+      if (app.updateUnreadCount) app.updateUnreadCount()
+    } catch (e) { /* handled */ }
   },
 
-  /** 查看公告详情 */
-  readNotice(e: WechatMiniprogram.TouchEvent) {
-    const item = e.currentTarget.dataset.item
-    if (item.content) {
-      wx.showModal({
-        title: item.title,
-        content: item.content,
-        showCancel: false
-      })
-    }
+  async markAllRead() {
+    wx.showLoading({ title: '处理中...' })
+    try {
+      await put('/notice/read-all', null, { showLoading: false })
+      const list = this.data.list.map((n: any) => ({ ...n, read: true }))
+      this.setData({ list, unreadCount: 0 })
+      const app = getApp() as any
+      if (app.updateUnreadCount) app.updateUnreadCount()
+      wx.showToast({ title: '全部已读', icon: 'success' })
+    } catch (e) { /* handled */ }
+    finally { wx.hideLoading() }
   }
 })

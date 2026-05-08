@@ -6,10 +6,10 @@
 .log-quantity.income { color: #0F6E56; }
 .log-quantity.expense { color: #E34D59; }
 .log-body { margin: 8rpx 0; }
-.log-meta { font-size: 24rpx; color: #666; display: block; }
+.log-meta { font-size: 24rpx; color: #888; display: block; }
 .log-footer { display: flex; justify-content: space-between; padding-top: 8rpx; }
-.log-time { font-size: 22rpx; color: #bbb; }
-.log-operator { font-size: 22rpx; color: #999; }
+.log-time { font-size: 22rpx; color: #ccc; }
+.log-operator { font-size: 22rpx; color: #aaa; }
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; gap: 24rpx; }
-.empty-text { font-size: 28rpx; color: #999; }
-.load-more { text-align: center; padding: 32rpx; font-size: 24rpx; color: #999; }
+.empty-text { font-size: 28rpx; color: #aaa; }
+.load-more { text-align: center; padding: 32rpx; font-size: 24rpx; color: #aaa; }

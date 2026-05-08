@@ -1,34 +1,43 @@
 .filter-bar {
   display: flex;
   gap: 16rpx;
-  margin: 16rpx 0 24rpx;
+  margin: 16rpx 24rpx 24rpx;
   overflow-x: auto;
 }
 
 .filter-tag {
   flex-shrink: 0;
-  padding: 8rpx 24rpx;
-  border-radius: 32rpx;
+  padding: 10rpx 28rpx;
+  border-radius: 100rpx;
   font-size: 24rpx;
-  color: #666;
-  background: #f0f0f0;
+  color: var(--text-secondary, #888);
+  background: #f5f7fa;
+  border: 1rpx solid var(--border-color, #f0f0f0);
 }
 
 .filter-tag.active {
-  background: #0052D9;
+  background: var(--primary, #00a8cc);
   color: #fff;
+  border-color: var(--primary, #00a8cc);
 }
 
 .customer-list {
-  padding-bottom: 120rpx;
+  padding: 0 24rpx 160rpx;
 }
 
 .customer-card {
-  background: #fff;
-  border-radius: 16rpx;
+  display: flex;
+  background: var(--bg-card, #fff);
+  border-radius: var(--radius-lg, 16rpx);
   padding: 24rpx;
-  margin-bottom: 20rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  margin-bottom: 16rpx;
+  box-shadow: var(--shadow-sm, 0 2rpx 12rpx rgba(0,0,0,0.04));
+  position: relative;
+}
+
+.card-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .customer-header {
@@ -42,8 +51,8 @@
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #E6F1FB;
-  color: #0052D9;
+  background: #eaf5f8;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -57,22 +66,28 @@
   display: flex;
   flex-direction: column;
   gap: 4rpx;
+  min-width: 0;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
 }
 
 .customer-name {
   font-size: 30rpx;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary, #1a1a2e);
 }
 
-.customer-contact {
+.customer-phone {
   font-size: 24rpx;
-  color: #999;
+  color: var(--text-hint, #aaa);
 }
 
 .customer-tags {
-  display: flex;
-  gap: 8rpx;
+  flex-shrink: 0;
 }
 
 .customer-footer {
@@ -80,12 +95,12 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 12rpx;
-  border-top: 1rpx solid #f5f5f5;
+  border-top: 1rpx solid var(--border-color, #f0f0f0);
 }
 
 .customer-address {
   font-size: 24rpx;
-  color: #bbb;
+  color: var(--text-hint, #aaa);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -94,21 +109,36 @@
 
 .customer-balance {
   font-size: 24rpx;
-  color: #E6A23C;
+  color: #f59e0b;
   font-weight: 500;
   flex-shrink: 0;
   margin-left: 16rpx;
+}
+
+/* 右侧操作区 */
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  justify-content: center;
+  padding-left: 16rpx;
+  border-left: 1rpx solid var(--border-color, #f0f0f0);
+  margin-left: 16rpx;
+}
+
+.action-btn {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #f0f4f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .load-more {
   text-align: center;
   padding: 24rpx;
   font-size: 24rpx;
-  color: #999;
-}
-
-.fab-btn {
-  position: fixed !important;
-  right: 40rpx !important;
-  bottom: 180rpx !important;
+  color: var(--text-hint, #ddd);
 }

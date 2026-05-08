@@ -1,4 +1,8 @@
 {
+  "usingComponents": {
+    "t-icon": "tdesign-miniprogram/icon/icon",
+    "t-button": "tdesign-miniprogram/button/button"
+  },
   "navigationBarTitleText": "我的",
   "enablePullDownRefresh": false
 }

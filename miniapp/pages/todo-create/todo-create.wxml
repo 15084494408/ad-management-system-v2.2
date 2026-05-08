@@ -1,0 +1,74 @@
+<view class="page-container">
+  <!-- 需求描述 -->
+  <view class="form-section">
+    <view class="section-title">
+      <text class="required">*</text>
+      <text>需求描述</text>
+    </view>
+    <t-textarea
+      placeholder="请详细描述客户需求..."
+      value="{{requirements}}"
+      maxlength="500"
+      bind:change="onInputChange"
+      data-field="requirements"
+      class="desc-textarea"
+    />
+  </view>
+
+  <!-- 客户信息 -->
+  <view class="form-section">
+    <view class="section-title">客户信息</view>
+    <view class="form-card">
+      <t-input
+        label="客户名称"
+        placeholder="选填"
+        value="{{customerName}}"
+        bind:change="onInputChange"
+        data-field="customerName"
+        borderless
+      />
+      <t-input
+        label="联系电话"
+        placeholder="选填"
+        type="number"
+        value="{{contactPhone}}"
+        bind:change="onInputChange"
+        data-field="contactPhone"
+        borderless
+      />
+      <t-input
+        label="来源渠道"
+        placeholder="如：电话 / 微信 / 到店"
+        value="{{source}}"
+        bind:change="onInputChange"
+        data-field="source"
+        borderless
+      />
+    </view>
+  </view>
+
+  <!-- 优先级 -->
+  <view class="form-section">
+    <view class="section-title">优先级</view>
+    <view class="priority-list">
+      <view
+        wx:for="{{priorityOptions}}"
+        wx:key="value"
+        class="priority-item {{priority === item.value ? 'active' : ''}}"
+        style="--active-color: {{item.color}}"
+        data-value="{{item.value}}"
+        bindtap="onPrioritySelect"
+      >
+        <view class="priority-dot" style="background: {{item.color}}"></view>
+        <text class="priority-label">{{item.label}}</text>
+        <t-icon wx:if="{{priority === item.value}}" name="check" size="32rpx" color="{{item.color}}" class="check-icon" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部按钮 -->
+  <view class="footer safe-bottom">
+    <t-button theme="default" block size="large" bindtap="cancel" class="cancel-btn">取消</t-button>
+    <t-button theme="primary" block size="large" bindtap="submit" class="submit-btn">创建待办</t-button>
+  </view>
+</view>

@@ -227,15 +227,20 @@
                   <td style="text-align:center;font-size:12px;">{{ m.unit || '个' }}</td>
                   <td style="text-align:right;color:#e6a23c;font-size:12px;">¥{{ formatMoney(m.price) }}</td>
                   <td style="text-align:center;">
-                    <!-- 广告物料：显示宽×高输入 -->
-                    <div v-if="isMaterialSelected(m.id) && m.pricingType === 1" style="display:flex;align-items:center;gap:1px;">
+                    <!-- 面积物料：宽×高 + 数量 -->
+                    <div v-if="isMaterialSelected(m.id) && m.pricingType === 1" style="display:flex;align-items:center;gap:2px;flex-wrap:nowrap;">
+                      <input type="number" v-model.number="getSelected(m.id).quantity" placeholder="数量"
+                        class="qty-input" min="1" step="1"
+                        @change="getSelected(m.id).quantity = Math.max(1, Math.floor(getSelected(m.id).quantity || 1)); recalcLine(m.id)"
+                        style="width:36px;text-align:center;font-size:11px;" />
+                      <span style="color:#909399;font-size:10px;">件</span>
                       <input type="number" v-model.number="getSelected(m.id).width" placeholder="宽cm"
                         class="area-input" min="0" step="0.1" @input="recalcLine(m.id)"
-                        style="width:42px;text-align:center;" />
+                        style="width:40px;text-align:center;" />
                       <span style="color:#909399;font-size:10px;">×</span>
                       <input type="number" v-model.number="getSelected(m.id).height" placeholder="高cm"
                         class="area-input" min="0" step="0.1" @input="recalcLine(m.id)"
-                        style="width:42px;text-align:center;" />
+                        style="width:40px;text-align:center;" />
                     </div>
                     <!-- 印刷物料：显示数量步进器 -->
                     <div v-else-if="isMaterialSelected(m.id)" class="qty-stepper">
@@ -327,15 +332,22 @@
             </td>
             <td v-else style="text-align:center;">{{ s.unit || '个' }}</td>
             <td style="text-align:center;">
-              <!-- 广告物料(按面积)：显示长×宽 -->
+              <!-- 广告物料(按面积)：数量 + 宽×高 -->
               <div v-if="s.isAreaBased" style="display:flex;align-items:center;gap:2px;justify-content:center;">
+                <div class="qty-stepper" style="margin-right:4px;">
+                  <button type="button" class="qty-btn qty-dec" @click="s.quantity = Math.max(1, (s.quantity || 1) - 1); recalcSelectedItem(idx)">−</button>
+                  <input type="number" class="qty-input" v-model.number="s.quantity"
+                    min="1" step="1" style="width:28px;"
+                    @change="s.quantity = Math.max(1, Math.floor(s.quantity || 1)); recalcSelectedItem(idx)" />
+                  <button type="button" class="qty-btn qty-inc" @click="s.quantity = (s.quantity || 1) + 1; recalcSelectedItem(idx)">+</button>
+                </div>
                 <input type="number" v-model.number="s.width" placeholder="宽cm"
                   class="area-input" min="0" step="0.1"
-                  @input="recalcSelectedItem(idx)" style="width:48px;text-align:center;" />
+                  @input="recalcSelectedItem(idx)" style="width:44px;text-align:center;" />
                 <span style="color:#909399;">×</span>
                 <input type="number" v-model.number="s.height" placeholder="高cm"
                   class="area-input" min="0" step="0.1"
-                  @input="recalcSelectedItem(idx)" style="width:48px;text-align:center;" />
+                  @input="recalcSelectedItem(idx)" style="width:44px;text-align:center;" />
               </div>
               <!-- 印刷物料(按数量)：显示数量步进器 -->
               <div v-else class="qty-stepper">
@@ -778,7 +790,7 @@ function addMaterial(mat: any) {
     materialName: mat.name,
     spec: mat.spec || '',
     unit: isAreaBased ? '㎡' : (mat.unit || '个'),
-    quantity: isAreaBased ? 0 : 1,
+    quantity: 1,
     width: 0,
     height: 0,
     area: 0,
@@ -829,10 +841,12 @@ function recalcLine(id: number) {
   const item = getSelected(id)
   if (!item) return
   if (item.isAreaBased) {
-    // 广告物料按面积计价：输入 cm，自动转 m² 计算
+    // 广告物料按面积计价：数量 × (宽cm→m) × (高cm→m) × 单价
+    const qty = Math.max(1, Number(item.quantity) || 1)
     const w = Math.max(0, Number(item.width) || 0) / 100
     const h = Math.max(0, Number(item.height) || 0) / 100
-    item.area = Number((w * h).toFixed(4))
+    const areaPerPiece = Number((w * h).toFixed(4))
+    item.area = Number((areaPerPiece * qty).toFixed(4))
     const price = Math.max(0, Number(item.unitPrice) || 0)
     item.amount = Number((item.area * price).toFixed(2))
   } else {
@@ -848,10 +862,12 @@ function recalcSelectedItem(idx: number) {
   const item = selectedMaterials.value[idx]
   if (!item) return
   if (item.isAreaBased) {
-    // 广告物料按面积计价：输入 cm，自动转 m² 计算
+    // 广告物料按面积计价：数量 × (宽cm→m) × (高cm→m) × 单价
+    const qty = Math.max(1, Number(item.quantity) || 1)
     const w = Math.max(0, Number(item.width) || 0) / 100
     const h = Math.max(0, Number(item.height) || 0) / 100
-    item.area = Number((w * h).toFixed(4))
+    const areaPerPiece = Number((w * h).toFixed(4))
+    item.area = Number((areaPerPiece * qty).toFixed(4))
     const price = Math.max(0, Number(item.unitPrice) || 0)
     item.amount = Number((item.area * price).toFixed(2))
   } else {

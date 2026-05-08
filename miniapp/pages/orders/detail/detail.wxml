@@ -1,149 +1,95 @@
 <view class="page-container">
-  <t-loading wx:if="{{loading}}" loading theme="circular" style="margin-top: 120rpx;" />
 
-  <view wx:elif="{{order}}" class="detail-content">
-    <!-- 订单头部 -->
-    <view class="header-card">
-      <view class="header-top">
-        <text class="order-no">{{order.orderNo}}</text>
-        <view bindtap="showStatusPickerFn" class="status-chip" style="background:{{order.statusTheme === 'success' ? '#e8f8ef' : order.statusTheme === 'primary' ? '#e8f0fe' : order.statusTheme === 'warning' ? '#fef8e8' : '#f0f0f0'}};color:{{order.statusTheme === 'success' ? '#52c41a' : order.statusTheme === 'primary' ? '#0052D9' : order.statusTheme === 'warning' ? '#e6a23c' : '#999'}}">
-          <text>{{order.statusText}}</text>
-          <t-icon name="chevron-down" size="28rpx" />
-        </view>
-      </view>
-      <view class="header-amount">
-        <text class="amount-label">订单总额</text>
-        <text class="amount-value">¥{{order.totalAmount}}</text>
-      </view>
-      <view class="header-meta">
-        <text wx:if="{{order.orderTypeText}}">{{order.orderTypeText}}</text>
-        <text wx:if="{{order.priorityText === '紧急'}}" class="priority-urgent">紧急</text>
-        <text wx:if="{{order.priorityText === '加急'}}" class="priority-rush">加急</text>
-      </view>
+  <!-- 顶部状态横幅 -->
+  <view class="status-banner status-banner-{{paymentStatus}}">
+    <view class="status-banner-icon">
+      <t-icon name="{{paymentStatusIcon}}" size="48rpx" color="#fff" />
     </view>
-
-    <!-- 客户信息 -->
-    <view class="info-card">
-      <view class="info-row" bindtap="callCustomer">
-        <text class="info-label">客户</text>
-        <view class="info-right">
-          <text class="info-value">{{order.customerName || '-'}}</text>
-          <t-icon name="call" size="28rpx" color="#0052D9" wx:if="{{order.contactPhone}}" />
-        </view>
-      </view>
-      <view class="info-row" wx:if="{{order.contactPerson}}">
-        <text class="info-label">联系人</text>
-        <text class="info-value">{{order.contactPerson}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.contactPhone}}">
-        <text class="info-label">电话</text>
-        <text class="info-value phone">{{order.contactPhone}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.deliveryAddress}}">
-        <text class="info-label">交付地址</text>
-        <text class="info-value">{{order.deliveryAddress}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.deliveryDate && order.deliveryDate !== '-'}}">
-        <text class="info-label">交付日期</text>
-        <text class="info-value">{{order.deliveryDate}}</text>
-      </view>
-    </view>
-
-    <!-- 收款信息 -->
-    <view class="info-card">
-      <view class="info-row">
-        <text class="info-label">支付状态</text>
-        <t-tag theme="{{order.paymentStatus === 3 ? 'success' : order.paymentStatus === 1 ? 'danger' : 'warning'}}" size="small">{{order.paymentStatusText}}</t-tag>
-      </view>
-      <view class="info-row">
-        <text class="info-label">已收金额</text>
-        <text class="info-value paid">¥{{order.paidAmount}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.discountAmount > 0}}">
-        <text class="info-label">优惠</text>
-        <text class="info-value">-¥{{order.discountAmount}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.rawUnpaid > 0}}">
-        <text class="info-label">待收金额</text>
-        <text class="info-value unpaid">¥{{order.unpaidAmount}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.remark}}">
-        <text class="info-label">备注</text>
-        <text class="info-value">{{order.remark}}</text>
-      </view>
-    </view>
-
-    <!-- 物料明细 -->
-    <view class="card" wx:if="{{order.materials && order.materials.length > 0}}">
-      <view class="card-title">物料明细 ({{order.materials.length}})</view>
-      <view class="material-item" wx:for="{{order.materials}}" wx:key="id">
-        <view class="material-name">{{item.materialName || '物料'}}<text wx:if="{{item.spec}}" class="material-spec"> {{item.spec}}</text></view>
-        <view class="material-meta">
-          <text>{{item.quantity || 0}} {{item.unit || ''}} × ¥{{item.unitPrice}}</text>
-          <text class="material-amount">¥{{item.amount}}</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 时间信息 -->
-    <view class="info-card">
-      <view class="info-row">
-        <text class="info-label">创建时间</text>
-        <text class="info-value time">{{order.createTime}}</text>
-      </view>
-      <view class="info-row" wx:if="{{order.updateTime}}">
-        <text class="info-label">更新时间</text>
-        <text class="info-value time">{{order.updateTime}}</text>
-      </view>
-    </view>
-
-    <!-- 操作按钮 -->
-    <view class="actions safe-bottom" wx:if="{{order.status !== 4 && order.status !== 3}}">
-      <view class="action-row">
-        <t-button block size="large" variant="outline" theme="primary" bindtap="showStatusPickerFn">变更状态</t-button>
-        <t-button block size="large" variant="outline" theme="danger" bindtap="cancelOrder">取消订单</t-button>
-      </view>
-      <view class="action-row" wx:if="{{order.rawUnpaid > 0}}">
-        <t-button block size="large" theme="primary" bindtap="showPaymentFn">录入收款</t-button>
-        <t-button block size="large" variant="outline" theme="warning" bindtap="roundOff">抹零</t-button>
-      </view>
-    </view>
-    <view class="actions safe-bottom" wx:elif="{{order.status === 3}}">
-      <t-button block size="large" disabled>订单已完成</t-button>
-    </view>
-    <view class="actions safe-bottom" wx:elif="{{order.status === 4}}">
-      <t-button block size="large" disabled>订单已取消</t-button>
+    <view class="status-banner-text">
+      <text class="status-banner-title">{{paymentStatusText}}</text>
+      <text class="status-banner-desc">{{paymentStatusDesc}}</text>
     </view>
   </view>
 
-  <!-- 状态选择弹窗 -->
-  <t-action-sheet visible="{{showStatusPicker}}" bind:close="hideStatusPicker">
-    <t-action-sheet-item wx:for="{{statusList}}" wx:key="value" bindtap="pickStatus" data-index="{{index}}" disabled="{{item.value === order.status}}">
-      {{item.label}} {{item.value === order.status ? '(当前)' : ''}}
-    </t-action-sheet-item>
-  </t-action-sheet>
-
-  <!-- 收款弹窗 -->
-  <t-popup visible="{{showPaymentDialog}}" placement="bottom" bind:close="hidePaymentDialog">
-    <view class="payment-popup">
-      <view class="popup-header">
-        <text class="popup-title">录入收款</text>
-        <t-icon name="close" size="40rpx" bindtap="hidePaymentDialog" />
-      </view>
-      <view class="payment-body">
-        <view class="payment-unpaid">
-          <text class="pu-label">待收金额</text>
-          <text class="pu-value">¥{{order.unpaidAmount}}</text>
-        </view>
-        <t-input label="收款金额" placeholder="请输入收款金额" type="digit" value="{{paymentAmount}}" bind:change="onPaymentAmountChange" />
-        <view class="method-row">
-          <text class="method-label">收款方式</text>
-          <view class="method-tags">
-            <text class="method-tag {{paymentMethod === item ? 'active' : ''}}" wx:for="{{paymentMethods}}" wx:key="*this" bindtap="pickPaymentMethod" data-index="{{index}}">{{item}}</text>
-          </view>
-        </view>
-        <t-button theme="primary" block size="large" bindtap="confirmPayment" style="margin-top:32rpx;border-radius:16rpx">确认收款</t-button>
-      </view>
+  <!-- 基本信息卡片 -->
+  <view class="card">
+    <view class="info-row">
+      <text class="info-label">订单编号</text>
+      <text class="info-value">{{detail.orderNo}}</text>
     </view>
-  </t-popup>
+    <view class="info-row">
+      <text class="info-label">客户名称</text>
+      <text class="info-value">{{detail.customerName || '散客'}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">创建时间</text>
+      <text class="info-value">{{detail.createTime}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">更新时间</text>
+      <text class="info-value">{{detail.updateTime}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">订单状态</text>
+      <view class="status-dot status-{{detail.status}}">{{detail.statusText}}</view>
+    </view>
+  </view>
+
+  <!-- 金额信息卡片 -->
+  <view class="card">
+    <view class="section-title">金额信息</view>
+    <view class="info-row">
+      <text class="info-label">订单金额</text>
+      <text class="info-value">¥{{detail.totalAmount}}</text>
+    </view>
+    <view class="info-row" wx:if="{{detail.discountAmount > 0}}">
+      <text class="info-label">优惠金额</text>
+      <text class="info-value" style="color:#10b981">-¥{{detail.discountAmount}}</text>
+    </view>
+    <view class="info-row" wx:if="{{detail.roundingAmount > 0}}">
+      <text class="info-label">抹零金额</text>
+      <text class="info-value" style="color:#10b981">-¥{{detail.roundingAmount}}</text>
+    </view>
+    <view class="info-row" wx:if="{{detail.paidAmount > 0}}">
+      <text class="info-label">已付金额</text>
+      <text class="info-value" style="color:var(--primary)">¥{{detail.paidAmount}}</text>
+    </view>
+    <view class="info-row" wx:if="{{detail.unpaidAmount > 0}}">
+      <text class="info-label">待收金额</text>
+      <text class="info-value" style="color:var(--danger, #ef4444);font-weight:700">¥{{detail.unpaidAmount}}</text>
+    </view>
+  </view>
+
+  <!-- 物料列表卡片 -->
+  <view class="card" wx:if="{{detail.materials && detail.materials.length > 0}}">
+    <view class="section-title">物料清单</view>
+    <view wx:for="{{detail.materials}}" wx:key="id" class="material-card">
+      <view class="material-name">{{item.materialName}}</view>
+      <view class="material-meta">
+        <text>规格: {{item.spec || '-'}}</text>
+        <text>数量: {{item.quantity}}</text>
+      </view>
+      <view class="material-price">{{item.unitPrice}} / {{item.unit || '件'}}</view>
+    </view>
+
+    <!-- 合计 -->
+    <view class="material-total" wx:if="{{detail.materials.length > 1}}">
+      <text>合计</text>
+      <text class="amount">¥{{detail.totalAmount || 0}}</text>
+    </view>
+  </view>
+
+  <!-- 备注卡片 -->
+  <view class="card" wx:if="{{detail.remark}}">
+    <view class="section-title">备注信息</view>
+    <view class="remark-content">{{detail.remark}}</view>
+  </view>
+
+  <!-- 底部操作栏固定 -->
+  <view class="action-bar" style="padding-bottom: env(safe-area-inset-bottom);">
+    <t-button variant="outline" bindtap="editOrder" wx:if="{{detail.status !== 3 && detail.status !== 4}}">编辑</t-button>
+    <t-button variant="outline" bindtap="printOrder">打印</t-button>
+    <t-button theme="primary" bindtap="recordPayment" wx:if="{{detail.unpaidAmount > 0}}">收款</t-button>
+    <t-button variant="outline" bindtap="shareOrder">分享</t-button>
+  </view>
 </view>

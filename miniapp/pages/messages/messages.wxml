@@ -1,42 +1,35 @@
-<view class="page-container">
-  <t-tabs value="{{activeTab}}" bind:change="onTabChange" space-evenly>
-    <t-tab-panel label="待办事项" value="todo" />
-    <t-tab-panel label="系统公告" value="notice" />
-  </t-tabs>
+<view class="page">
 
-  <view wx:if="{{loading}}" style="text-align:center;padding:80rpx 0">
-    <t-loading loading theme="circular" size="40rpx" />
+  <!-- 顶部操作栏 -->
+  <view class="header-bar">
+    <text class="header-title">系统消息（{{unreadCount}}条未读）</text>
+    <t-button size="small" variant="outline" bindtap="markAllRead" wx:if="{{unreadCount > 0}}">全部已读</t-button>
   </view>
 
-  <!-- 待办列表 -->
-  <block wx:if="{{activeTab === 'todo'}}">
-    <view class="tip-bar" wx:if="{{todos.length > 0}}">
-      <t-icon name="info-circle" size="28rpx" color="#667eea" />
-      <text style="font-size:24rpx;color:#667eea;margin-left:8rpx">点击待办可标记为已完成</text>
-    </view>
-    <view class="todo-item" wx:for="{{todos}}" wx:key="id" data-id="{{item.id}}" bindtap="toggleTodo">
-      <view class="todo-left">
-        <view class="todo-priority {{item.priority >= 2 ? 'urgent' : ''}}"></view>
-        <view class="todo-info">
-          <text class="todo-title">{{item.title}}</text>
-          <text class="todo-meta" wx:if="{{item.customerName}}">{{item.customerName}} · {{item.contactPhone || ''}}</text>
-        </view>
-      </view>
-      <text class="todo-time">{{item.createTime}}</text>
-    </view>
-    <view wx:if="{{!loading && todos.length === 0}}" style="text-align:center;padding:100rpx 0;color:#999;font-size:26rpx">暂无待办事项</view>
+  <!-- 内容区域 -->
+  <block wx:if="{{loading}}">
+    <view class="skeleton-card" wx:for="{{5}}" wx:key="*this" style="margin:16rpx 24rpx;height:120rpx"></view>
   </block>
 
-  <!-- 公告列表 -->
-  <block wx:if="{{activeTab === 'notice'}}">
-    <view class="notice-item" wx:for="{{notices}}" wx:key="id" bindtap="readNotice" data-item="{{item}}">
-      <view class="notice-dot"></view>
-      <view class="notice-info">
-        <text class="notice-title">{{item.title}}</text>
-        <text class="notice-time">{{item.createTime}}</text>
-      </view>
-      <t-icon name="chevron-right" size="28rpx" color="#ccc" />
+  <block wx:elif="{{list.length === 0}}">
+    <view class="empty-state">
+      <t-icon name="notification" size="96rpx" color="#ddd" />
+      <text class="empty-text">暂无消息</text>
     </view>
-    <view wx:if="{{!loading && notices.length === 0}}" style="text-align:center;padding:100rpx 0;color:#999;font-size:26rpx">暂无公告</view>
+  </block>
+
+  <block wx:else>
+    <view wx:for="{{list}}" wx:key="id" class="msg-card {{item.read ? 'msg-read' : ''}}" bindtap="markAsRead" data-id="{{item.id}}">
+      <view class="msg-unread-dot" wx:if="{{!item.read}}"></view>
+      <view class="msg-icon">
+        <t-icon name="{{item.type === 1 ? 'notification' : item.type === 2 ? 'warning' : 'info-circle'}}" size="36rpx" color="{{item.read ? '#bbb' : '#00a8cc'}}" />
+      </view>
+      <view class="msg-content">
+        <text class="msg-title">{{item.title}}</text>
+        <text class="msg-desc" wx:if="{{item.content}}">{{item.content}}</text>
+        <text class="msg-time">{{item.createTime}}</text>
+      </view>
+      <t-icon name="chevron-right" size="28rpx" color="#ddd" />
+    </view>
   </block>
 </view>

@@ -1,8 +1,11 @@
+import { get } from './utils/request'
+
 App({
   globalData: {
     userInfo: null as WechatMiniprogram.UserInfo | null,
     token: '' as string,
-    baseUrl: 'http://localhost:8080'
+    baseUrl: 'http://localhost:8080',
+    unreadCount: 0
   },
 
   onLaunch() {
@@ -17,6 +20,13 @@ App({
     }
   },
 
+  onShow() {
+    // 每次小程序切换到前台时刷新未读数
+    if (this.globalData.token) {
+      this.updateUnreadCount()
+    }
+  },
+
   // 检查是否已登录
   checkLogin(): boolean {
     return !!this.globalData.token
@@ -25,5 +35,23 @@ App({
   // 跳转登录页
   goLogin() {
     wx.navigateTo({ url: '/pages/login/login' })
+  },
+
+  // 获取未读消息数
+  async getUnreadCount(): Promise<number> {
+    if (!this.globalData.token) return 0
+    try {
+      const res = await get('/notice/unread-count', null, { showLoading: false })
+      return (res as any).count || 0
+    } catch (e) {
+      return 0
+    }
+  },
+
+  // 更新全局未读数
+  async updateUnreadCount() {
+    const count = await this.getUnreadCount()
+    this.globalData.unreadCount = count
+    return count
   }
 })

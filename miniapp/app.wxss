@@ -1,59 +1,282 @@
-/* 全局样式 - TDesign 基础 */
-@import 'miniprogram_npm/tdesign-miniprogram/common/style/index.wxss';
+/* ========================================
+   企业广告管理系统 - 全局样式
+   主题色: #00a8cc / 辅助: #2d3436
+   ======================================== */
 
+/* ---------- CSS 变量 ---------- */
 page {
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 'PingFang SC',
-    'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', sans-serif;
+  --primary: #00a8cc;
+  --primary-light: #e6f7fb;
+  --primary-dark: #0088a8;
+  --primary-gradient: linear-gradient(135deg, #00a8cc 0%, #0088a8 100%);
+  --danger: #e34d59;
+  --warning: #ed7b2f;
+  --success: #00a870;
+  --info: #0052d9;
+  --text-primary: #1a1a2e;
+  --text-secondary: #5a5a7a;
+  --text-hint: #aaaabc;
+  --bg-page: #f0f4f8;
+  --bg-card: #ffffff;
+  --border-color: #e8ecf1;
+  --shadow-sm: 0 2rpx 8rpx rgba(0,0,0,0.04);
+  --shadow-md: 0 4rpx 16rpx rgba(0,0,0,0.06);
+  --shadow-lg: 0 8rpx 24rpx rgba(0,0,0,0.08);
+  --radius-sm: 8rpx;
+  --radius-md: 12rpx;
+  --radius-lg: 16rpx;
+  --safe-bottom: env(safe-area-inset-bottom, 20rpx);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 28rpx;
-  color: #333;
-  background-color: #f5f7fa;
+  color: var(--text-primary);
+  background: var(--bg-page);
+}
+
+/* ---------- TDesign 主题色覆盖 ---------- */
+page {
+  --td-brand-color: var(--primary);
+  --td-brand-color-hover: var(--primary-dark);
+  --td-brand-color-focus: var(--primary-light);
+  --td-cell-hover-color: #f5f8fa;
+  --td-cell-active-color: #e6f7fb;
+  --td-button-primary-bg-color: var(--primary);
+  --td-button-primary-border-color: var(--primary);
+  --td-button-primary-active-bg-color: var(--primary-dark);
+  --td-switch-on-color: var(--primary);
+  --td-radio-active-color: var(--primary);
+  --td-checkbox-active-color: var(--primary);
+  --td-tag-primary-bg-color: var(--primary-light);
+  --td-tag-primary-color: var(--primary);
+  --td-tag-primary-border-color: transparent;
+}
+
+/* ---------- 页面容器 ---------- */
+.page-container {
+  padding: 20rpx 24rpx;
+  min-height: 100vh;
   box-sizing: border-box;
 }
 
-/* 通用工具类 */
-.page-container {
-  padding: 24rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+/* ---------- 卡片组件 ---------- */
+.card {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+.card:active {
+  box-shadow: var(--shadow-md);
+}
+/* ★ 修复 .card::before 定位：增加 position: relative 支持 */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4rpx;
+  background: var(--primary-gradient);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
+/* ---------- 卡片标题 ---------- */
 .section-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   margin-bottom: 20rpx;
 }
-
-.card {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx 24rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.06);
+.section-title-sm {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 16rpx;
 }
 
-/* 安全区域底部 */
+/* ---------- 分割线 ---------- */
+.divider {
+  height: 2rpx;
+  background: var(--border-color);
+  margin: 20rpx 0;
+}
+
+/* ---------- 安全区域 ---------- */
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(20rpx + var(--safe-bottom));
 }
 
-/* 搜索框 */
-.t-search {
-  --td-search-bg-color: #eef0f4;
+/* ---------- 空状态 ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 0;
+}
+.empty-state .empty-icon {
+  font-size: 80rpx;
+  color: var(--text-hint);
+  margin-bottom: 16rpx;
+}
+.empty-state .empty-text {
+  font-size: 26rpx;
+  color: var(--text-hint);
 }
 
-/* 标签栏 */
-.t-tabs {
-  --td-tab-item-active-color: #667eea;
-  --td-tab-item-active-line-color: #667eea;
+/* ---------- 骨架屏 ---------- */
+.skeleton {
+  background: linear-gradient(90deg, #f0f4f8 25%, #e8ecf1 50%, #f0f4f8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-block {
+  height: 32rpx;
+  margin-bottom: 16rpx;
+}
+.skeleton-card {
+  height: 140rpx;
+  border-radius: var(--radius-lg);
+  margin-bottom: 20rpx;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
-/* 按钮主色 */
-.t-button--theme-primary {
-  --td-button-primary-bg-color: #667eea;
-  --td-button-primary-border-color: #667eea;
+/* ---------- 状态标签色块 ---------- */
+.status-dot {
+  display: inline-block;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  margin-right: 8rpx;
+}
+.status-dot.warning { background: var(--warning); }
+.status-dot.success { background: var(--success); }
+.status-dot.danger { background: var(--danger); }
+.status-dot.primary { background: var(--primary); }
+.status-dot.default { background: var(--text-hint); }
+
+/* ---------- 金额文字 ---------- */
+.amount {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--danger);
+}
+.amount.income {
+  color: var(--success);
+}
+.amount-sm {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: var(--danger);
 }
 
-/* 浮动按钮 */
-.t-fab {
-  --td-fab-primary-bg-color: #667eea;
+/* ---------- 按钮行 ---------- */
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  padding: 20rpx 24rpx;
+  padding-bottom: calc(20rpx + var(--safe-bottom));
+  box-shadow: 0 -4rpx 16rpx rgba(0,0,0,0.04);
+  display: flex;
+  gap: 16rpx;
+  z-index: 100;
+}
+.action-bar > view, .action-bar > button, .action-bar > text {
+  flex: 1;
+}
+
+/* ---------- 列表项点击反馈 ---------- */
+.list-item {
+  transition: background 0.15s;
+}
+.list-item:active {
+  background: var(--td-cell-hover-color);
+}
+
+/* ---------- 滚动区域 ---------- */
+.scroll-container {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- 模糊背景遮罩 ---------- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4rpx);
+  z-index: 999;
+}
+
+/* ---------- 页面进入动画 ---------- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-in {
+  animation: fadeInUp 0.3s ease both;
+}
+
+/* ---------- 页面基本间距 ---------- */
+page {
+  --page-padding: 24rpx;
+}
+
+/* ---------- popup 通用样式 ---------- */
+.picker-popup {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  max-height: 70vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 24rpx;
+  border-bottom: 2rpx solid var(--border-color);
+}
+.picker-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.picker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24rpx;
+}
+.picker-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 2rpx solid var(--border-color);
+}
+.picker-item:active {
+  background: var(--td-cell-hover-color);
+  margin: 0 -24rpx;
+  padding: 24rpx;
 }

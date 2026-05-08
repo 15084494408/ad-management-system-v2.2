@@ -4,7 +4,11 @@ import { formatMoney, formatDate, timeAgo } from '../../../utils/helpers'
 Page({
   data: {
     customerId: 0,
-    customer: null as any,
+    detail: null as any,
+    displayName: '',
+    balance: '0.00',
+    typeName: '普通',
+    memberLevelName: '',
     loading: true,
     activeTab: 'info',
     orders: [] as any[],
@@ -33,11 +37,13 @@ Page({
       const c = await get<any>(`/customers/${this.data.customerId}`)
       const memberLevelName: Record<number, string> = { 1: '普通会员', 2: 'VIP会员', 3: '战略会员' }
       const typeLabel: Record<number, string> = { 1: '普通', 2: '工厂', 3: '零售' }
+      const displayName = c.name || c.customerName || ''
+      const typeName = typeLabel[c.customerType] || '普通'
       this.setData({
-        customer: {
+        detail: {
           ...c,
-          displayName: c.name || c.customerName || '',
-          typeLabel: typeLabel[c.customerType] || '普通',
+          displayName,
+          typeName,
           memberLevelName: memberLevelName[c.memberLevel] || '普通会员',
           balance: formatMoney(c.balance || 0),
           totalRecharge: formatMoney(c.totalRecharge || 0),
@@ -46,7 +52,11 @@ Page({
           orderCount: c.orderCount || 0,
           isMember: c.isMember === 1,
           createTime: formatDate(c.createTime)
-        }
+        },
+        displayName,
+        typeName,
+        balance: formatMoney(c.balance || 0),
+        memberLevelName: memberLevelName[c.memberLevel] || ''
       })
     } catch (e) { console.error(e) }
     finally { this.setData({ loading: false }) }
@@ -75,6 +85,10 @@ Page({
     wx.navigateTo({ url: `/pages/customer/recharge/recharge?id=${this.data.customerId}` })
   },
 
+  consume() {
+    wx.navigateTo({ url: `/pages/customer/consume/consume?id=${this.data.customerId}` })
+  },
+
   async upgradeMember() {
     wx.showModal({
       title: '升级为会员',
@@ -92,7 +106,7 @@ Page({
   },
 
   callPhone() {
-    const phone = this.data.customer?.phone
+    const phone = this.data.detail?.phone
     if (phone) wx.makePhoneCall({ phoneNumber: phone })
   },
 
@@ -101,7 +115,7 @@ Page({
   },
 
   goTransactions() {
-    wx.navigateTo({ url: `/pages/member/transactions?id=${this.data.customerId}&name=${encodeURIComponent(this.data.customer?.displayName || '')}` })
+    wx.navigateTo({ url: `/pages/member/transactions?id=${this.data.customerId}&name=${encodeURIComponent(this.data.detail?.displayName || '')}` })
   },
 
   goOrderDetail(e: WechatMiniprogram.TouchEvent) {

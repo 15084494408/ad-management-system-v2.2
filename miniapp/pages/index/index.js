@@ -7,10 +7,13 @@ Page({
     data: {
         userInfo: {},
         todayStr: '',
+        loading: true,
         stats: null,
         orders: [],
         todos: [],
-        orderLoading: false
+        notices: [],
+        orderLoading: false,
+        unreadCount: 0
     },
     onLoad() {
         if (!(0, auth_1.requireAuth)())
@@ -30,13 +33,25 @@ Page({
         this.loadData().then(() => wx.stopPullDownRefresh());
     },
     async loadData() {
+        this.setData({ loading: true });
         await Promise.all([
             this.loadStats(),
             this.loadOrders(),
-            this.loadTodos()
+            this.loadTodos(),
+            this.loadNotices(),
+            this.loadUnreadCount()
         ]);
+        this.setData({ loading: false });
     },
-    /** 加载统计数据：调用 /dashboard/stats 和 /dashboard/board */
+    /** 加载未读数 */
+    async loadUnreadCount() {
+        try {
+            const res = await (0, request_1.get)('/notice/unread-count', null, { showLoading: false });
+            this.setData({ unreadCount: res.count || 0 });
+        }
+        catch (e) { /* ignore */ }
+    },
+    /** 加载统计数据 */
     async loadStats() {
         var _a;
         try {
@@ -44,13 +59,18 @@ Page({
                 (0, request_1.get)('/dashboard/stats', null, { showLoading: false }),
                 (0, request_1.get)('/dashboard/board', null, { showLoading: false })
             ]);
-            // 从 stats 取今日数据，从 board 取待处理/待收
+            // 尝试加载财务概览
+            let financeData = {};
+            try {
+                financeData = await (0, request_1.get)('/finance/overview', null, { showLoading: false });
+            }
+            catch (e) { /* finance module may not exist */ }
             this.setData({
                 stats: {
                     todayOrders: stats.todayOrders || 0,
                     todayRevenue: stats.todayRevenue || 0,
                     pendingOrders: board.unfinishedOrders ? board.unfinishedOrders.length : 0,
-                    unpaidAmount: ((_a = board.kpi) === null || _a === void 0 ? void 0 : _a.unpaidAmount) || 0
+                    unpaidAmount: ((_a = board.kpi) === null || _a === void 0 ? void 0 : _a.unpaidAmount) || (financeData === null || financeData === void 0 ? void 0 : financeData.unpaidAmount) || 0
                 }
             });
         }
@@ -74,23 +94,72 @@ Page({
             this.setData({ orderLoading: false });
         }
     },
-    /** 加载待办事项：调用 /todo/list */
+    /** 加载待办概览 */
     async loadTodos() {
         try {
-            const res = await (0, request_1.get)('/todo/list', null, { showLoading: false });
-            // 后端返回 [{items: [...], statusCount: {...}}]
-            const items = (Array.isArray(res) && res.length > 0) ? res[0].items || [] : [];
-            const todos = items.slice(0, 5).map((item) => ({
+            const [todoRes, orderRes, billRes] = await Promise.all([
+                (0, request_1.get)('/todo/list', null, { showLoading: false }),
+                (0, request_1.get)('/orders', { status: 1, current: 1, size: 3 }, { showLoading: false }),
+                (0, request_1.get)('/factory/bills', { status: 1, current: 1, size: 3 }, { showLoading: false })
+            ]);
+            const todoItems = (Array.isArray(todoRes) && todoRes.length > 0 ? todoRes[0].items || [] : [])
+                .filter((t) => t.status < 4)
+                .slice(0, 3)
+                .map((item) => ({
                 id: item.id,
-                title: item.requirements || item.customerName || '待办事项',
-                content: item.requirements || '',
-                done: item.status === 4,
+                type: 'todo',
+                title: item.requirements || '待办事项',
+                subtitle: item.customerName || '',
                 createTime: (0, helpers_1.timeAgo)(item.createTime)
             }));
-            this.setData({ todos });
+            const orderItems = (orderRes.records || []).slice(0, 3).map((o) => ({
+                id: o.id,
+                type: 'order',
+                title: o.title || o.orderNo,
+                subtitle: o.customerName || '散客',
+                amount: '¥' + (o.totalAmount || 0),
+                createTime: (0, helpers_1.timeAgo)(o.createTime)
+            }));
+            const billItems = (billRes.records || []).slice(0, 3).map((b) => ({
+                id: b.id,
+                type: 'bill',
+                title: b.billNo || '账单',
+                subtitle: (b.billType === 1 ? '工厂' : '客户') + '账单',
+                amount: '¥' + (b.totalAmount || 0),
+                createTime: (0, helpers_1.timeAgo)(b.createTime)
+            }));
+            this.setData({ todos: [...todoItems, ...orderItems, ...billItems].slice(0, 5) });
         }
         catch (e) {
             console.error('加载待办失败', e);
+        }
+    },
+    /** 加载系统公告 */
+    async loadNotices() {
+        try {
+            const res = await (0, request_1.get)('/notice', { current: 1, size: 5 }, { showLoading: false });
+            this.setData({
+                notices: (res.records || []).map((n) => ({
+                    id: n.id,
+                    title: n.title,
+                    content: n.content,
+                    type: n.type,
+                    createTime: (0, helpers_1.timeAgo)(n.createTime)
+                }))
+            });
+        }
+        catch (e) {
+            console.error('加载公告失败', e);
+        }
+    },
+    readNotice(e) {
+        const item = e.currentTarget.dataset.item;
+        if (item.content) {
+            wx.showModal({
+                title: item.title,
+                content: item.content,
+                showCancel: false
+            });
         }
     },
     getTodayStr() {
@@ -106,7 +175,7 @@ Page({
         const id = e.currentTarget.dataset.id;
         wx.navigateTo({ url: `/pages/orders/detail/detail?id=${id}` });
     },
-    goMessages() { wx.switchTab({ url: '/pages/messages/messages' }); },
+    goMessages() { wx.navigateTo({ url: '/pages/messages/messages' }); },
     goTodo() { wx.navigateTo({ url: '/pages/todo/todo' }); },
     onTodo() { wx.navigateTo({ url: '/pages/todo/todo' }); },
     goMemberList() { wx.navigateTo({ url: '/pages/member/member' }); },
@@ -115,6 +184,8 @@ Page({
     goStockOut() { wx.navigateTo({ url: '/pages/material/stock-out' }); },
     goCustomerBills() { wx.navigateTo({ url: '/pages/customer/bills/customer-bills' }); },
     goFactoryBills() { wx.navigateTo({ url: '/pages/customer/bills/factory-bills' }); },
+    goFinance() { wx.showToast({ title: '即将开放，敬请期待', icon: 'none' }); },
+    goDesignFiles() { wx.showToast({ title: '即将开放，敬请期待', icon: 'none' }); },
     goUsers() { wx.navigateTo({ url: '/pages/system/users' }); },
     goCompany() { wx.navigateTo({ url: '/pages/system/company' }); }
 });

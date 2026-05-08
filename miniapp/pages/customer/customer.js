@@ -33,6 +33,8 @@ Page({
             params.isMember = 1;
         if (this.data.activeType === 'normal')
             params.isMember = 0;
+        if (this.data.activeType === 'factory')
+            params.customerType = 2;
         return params;
     },
     resetAndLoad() {
@@ -61,7 +63,10 @@ Page({
         this.setData({ loadingMore: true, current: this.data.current + 1 });
         try {
             const res = await (0, request_1.get)('/customers', this.buildParams());
-            const records = (res.records || []).map((c) => (Object.assign({}, c)));
+            const records = (res.records || []).map((c) => {
+                const typeLabel = { 1: '普通', 2: '工厂', 3: '零售' }[c.customerType] || '普通';
+                return Object.assign(Object.assign({}, c), { displayName: c.name || c.customerName || '', typeName: typeLabel });
+            });
             this.setData({ customers: [...this.data.customers, ...records], noMore: records.length < this.data.size });
         }
         catch (e) {

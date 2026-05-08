@@ -28,25 +28,25 @@
 }
 
 .company-name { font-size: 30rpx; font-weight: 600; color: #333; }
-.company-contact { font-size: 24rpx; color: #999; }
+.company-contact { font-size: 24rpx; color: #aaa; }
 
 .company-body { margin-bottom: 12rpx; }
-.company-address { font-size: 24rpx; color: #666; }
+.company-address { font-size: 24rpx; color: #888; }
 
 .company-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 12rpx;
-  border-top: 1rpx solid #f5f5f5;
+  border-top: 1rpx solid #f0f0f0;
 }
 
-.company-time { font-size: 22rpx; color: #bbb; }
+.company-time { font-size: 22rpx; color: #ccc; }
 
 .company-actions { display: flex; gap: 12rpx; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 120rpx 0; gap: 24rpx; }
-.empty-text { font-size: 28rpx; color: #999; }
+.empty-text { font-size: 28rpx; color: #aaa; }
 
 .fab-btn { position: fixed; right: 40rpx; bottom: 120rpx; z-index: 99; }
 

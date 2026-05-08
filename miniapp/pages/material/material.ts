@@ -59,8 +59,9 @@ Page({
         unitPriceStr: formatMoney(m.unitPrice || 0),
         unitCostStr: formatMoney(m.unitCost || 0),
         stockStr: m.stock || 0,
-        isWarning: (m.stock || 0) <= (m.warningStock || 0),
+        isWarning: (m.stock || 0) <= (m.warningStock || 0) && !m.noStock,
         pricingLabel: m.pricingType === 1 ? '按面积' : '按数量',
+        noStock: m.noStock || 0,
         createTime: formatDate(m.createTime)
       }))
       this.setData({ materials: records, noMore: records.length < this.data.size })
